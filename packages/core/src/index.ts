@@ -1,2 +1,3 @@
-// Barrel do @content-ai/core — prompts, schemas e validadores serão exportados aqui.
-export {};
+// Barrel do @content-ai/core
+export * from "./schemas/script-json.ts";
+export * from "./validators/hash-utils.ts";

@@ -17,3 +17,18 @@ jobs:
           deno-version: v2.x
       - name: Testes unitários (_shared)
         run: deno test supabase/functions/_shared/
+
+  test-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck + testes (@content-ai/core)
+        run: |
+          npm run typecheck --workspace @content-ai/core
+          npm run test --workspace @content-ai/core
