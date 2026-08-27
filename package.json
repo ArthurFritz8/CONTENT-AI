@@ -1,0 +1,23 @@
+{
+  "name": "content-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pipeline zero-budget de criação e publicação automática de vídeos (YouTube + TikTok)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

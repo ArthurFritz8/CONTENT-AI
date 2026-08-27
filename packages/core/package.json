@@ -1,0 +1,14 @@
+{
+  "name": "@content-ai/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,2 @@
+# Gerado como base mínima; rode `supabase init` para mesclar defaults completos do CLI.
+project_id = "content-ai"

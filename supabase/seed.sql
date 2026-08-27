@@ -1,0 +1,25 @@
+-- CONTENT AI — seed de configuração (budget guard config-driven, zero hardcoded)
+-- Valores conservadores; calibrar com números reais do AI Studio antes de produção.
+
+insert into system_config (key, value) values
+  ('budget', '{
+    "gemini_requests_per_day_max": 100,
+    "gemini_image_requests_per_day_max": 10,
+    "actions_minutes_per_month_max": 2500,
+    "hard_stop_on_exceed": true
+  }'::jsonb),
+  ('tts', '{
+    "chain": ["gemini", "edge", "piper"],
+    "voice_pt_br": "pt-BR-FranciscaNeural"
+  }'::jsonb),
+  ('render', '{
+    "target": "local",
+    "fallback": "github_actions",
+    "checkpoint_interval_percent": 10
+  }'::jsonb),
+  ('pipeline', '{
+    "max_episodes_per_day": 1,
+    "auto_publish": false,
+    "require_human_approval": true
+  }'::jsonb)
+on conflict (key) do nothing;

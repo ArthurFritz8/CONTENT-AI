@@ -1,0 +1,31 @@
+# dependências
+node_modules/
+
+# segredos — NUNCA versionar
+.env
+.env.local
+.env.*.local
+
+# builds
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# modelos locais (Piper/Whisper — binários grandes)
+models/
+
+# saída de render
+output/
+*.mp4
+*.wav
+*.mp3
+
+# supabase local
+supabase/.temp/
+supabase/.branches/
+
+# sistema/editor
+.DS_Store
+Thumbs.db
+*.log
