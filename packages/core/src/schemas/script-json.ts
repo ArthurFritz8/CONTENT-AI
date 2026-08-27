@@ -3,6 +3,9 @@ import { z } from "zod";
 // Constraints citados também no prompt do Gemini — fonte única (ADR-005).
 export const SCENE_COUNT = { min: 3, max: 8 } as const;
 export const SCENE_DURATION_SECONDS = { min: 5, max: 45 } as const;
+// Target editorial (ADR-006): teto efetivo atual é 8×45s = 360s; 600 é à prova de futuro
+export const TOTAL_DURATION_TARGET_SECONDS = { min: 60, max: 600 } as const;
+export const DEFAULT_GAP_SECONDS = 0.5;
 export const YOUTUBE_TITLE_MAX = 100;
 export const YOUTUBE_TAGS_TOTAL_MAX = 500;
 
@@ -58,6 +61,8 @@ export const scriptJsonSchema = z
       language: z.literal("pt-BR"),
       estimated_duration_seconds: z.number().positive(),
     }),
+    // Silêncio entre cenas no render (parâmetro de render, fora do hash editorial — ADR-006)
+    gap_seconds: z.number().min(0).max(5).default(DEFAULT_GAP_SECONDS),
     // null até o estado 'assets'
     music: z
       .object({
@@ -99,6 +104,20 @@ export const scriptJsonSchema = z
         code: z.ZodIssueCode.custom,
         path: ["metadata", "youtube", "tags"],
         message: `Tags somam ${tagsTotal} chars — limite da API do YouTube é ${YOUTUBE_TAGS_TOTAL_MAX}`,
+      });
+    }
+    // Regra 9 (ADR-006): duration_seconds é TARGET para o Gemini, não constraint de render
+    const totalTarget = script.scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
+    if (
+      totalTarget < TOTAL_DURATION_TARGET_SECONDS.min ||
+      totalTarget > TOTAL_DURATION_TARGET_SECONDS.max
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scenes"],
+        message:
+          `Soma dos targets de duração (${totalTarget}s) fora do intervalo ` +
+          `${TOTAL_DURATION_TARGET_SECONDS.min}-${TOTAL_DURATION_TARGET_SECONDS.max}s`,
       });
     }
   });

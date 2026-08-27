@@ -69,7 +69,8 @@ create table job_events (
     'render_checkpoint_saved','qa_passed','qa_failed','publish_started',
     'publish_completed','analyze_completed','heartbeat_sent','budget_exceeded',
     'failed','tts_fallback_triggered',
-    'state_transition','approval_received','approval_rejected'
+    'state_transition','approval_received','approval_rejected',
+    'tts_engine_selected','tts_consistency_regeneration'
   )),
   model_used text,
   prompt_version text,

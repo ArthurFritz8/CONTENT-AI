@@ -31,11 +31,12 @@ test("computeScriptHash: estável para o mesmo conteúdo editorial", async () =>
   );
 });
 
-test("computeScriptHash: ignora episode_id, prompt_version, music e assets", async () => {
+test("computeScriptHash: ignora episode_id, prompt_version, music, assets e gap_seconds", async () => {
   const a = makeValidScript();
   const b = makeValidScript();
   b.episode_id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
   b.prompt_version = "9.9.9";
+  b.gap_seconds = 2;
   b.music = { url: "https://example.com/song.mp3", license: "youtube_audio_library", volume: 0.2 };
   b.scenes[0]!.asset_landscape = { url: "https://example.com/x.jpg", license: "pexels", source: "pexels" };
   strictEqual(await computeScriptHash(a), await computeScriptHash(b));

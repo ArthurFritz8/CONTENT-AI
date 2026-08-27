@@ -28,7 +28,9 @@ export type JobEventType =
   | "tts_fallback_triggered"
   | "state_transition"
   | "approval_received"
-  | "approval_rejected";
+  | "approval_rejected"
+  | "tts_engine_selected"
+  | "tts_consistency_regeneration";
 
 export interface JobEventInsert {
   episode_id?: string;

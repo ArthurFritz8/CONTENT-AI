@@ -10,7 +10,10 @@ insert into system_config (key, value) values
   }'::jsonb),
   ('tts', '{
     "chain": ["gemini", "edge", "piper"],
-    "voice_pt_br": "pt-BR-FranciscaNeural"
+    "voice_pt_br": "pt-BR-FranciscaNeural",
+    "preflight_enabled": true,
+    "gap_seconds_default": 0.5,
+    "duration_deviation_warn_percent": 50
   }'::jsonb),
   ('render', '{
     "target": "github_actions",

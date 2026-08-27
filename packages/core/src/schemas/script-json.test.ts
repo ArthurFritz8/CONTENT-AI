@@ -36,6 +36,7 @@ export function makeValidScript(): ScriptJson {
       language: "pt-BR",
       estimated_duration_seconds: 60,
     },
+    gap_seconds: 0.5,
     music: null,
     scenes: [scene(0), scene(1), scene(2)],
     sources: [{ claim: "Afirmação X", source_url: "https://example.com/fonte" }],
@@ -88,6 +89,22 @@ test("rejeita contains_synthetic_media=false", () => {
 test("rejeita script sem fontes", () => {
   const script = makeValidScript();
   script.sources = [];
+  strictEqual(scriptJsonSchema.safeParse(script).success, false);
+});
+
+test("regra 9: rejeita soma de targets fora de 60-600s", () => {
+  const script = makeValidScript();
+  for (const scene of script.scenes) scene.duration_seconds = 15; // soma 45s < 60
+  strictEqual(scriptJsonSchema.safeParse(script).success, false);
+});
+
+test("gap_seconds: aplica default 0.5 quando ausente e rejeita > 5", () => {
+  const script = makeValidScript();
+  // deno-lint-ignore no-explicit-any
+  delete (script as any).gap_seconds;
+  const parsed = scriptJsonSchema.parse(script);
+  strictEqual(parsed.gap_seconds, 0.5);
+  script.gap_seconds = 6;
   strictEqual(scriptJsonSchema.safeParse(script).success, false);
 });
 
