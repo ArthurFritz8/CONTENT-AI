@@ -13,9 +13,10 @@ insert into system_config (key, value) values
     "voice_pt_br": "pt-BR-FranciscaNeural"
   }'::jsonb),
   ('render', '{
-    "target": "local",
-    "fallback": "github_actions",
-    "checkpoint_interval_percent": 10
+    "target": "github_actions",
+    "fallback": "local_dev",
+    "checkpoint_interval_percent": 10,
+    "dispatch_ttl_minutes": 45
   }'::jsonb),
   ('pipeline', '{
     "max_episodes_per_day": 1,

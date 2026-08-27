@@ -1,2 +1,0 @@
-# Workflows de render remoto (render.yml) e health-check (health-check.yml)
-# serão criados aqui — GitHub só executa workflows neste diretório (ver ADR-001).

@@ -1,0 +1,105 @@
+# Render primário do pipeline (ADR-004). Disparado pela Edge Function trigger-render.
+# Secrets exigidos no repositório: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+name: Render Episode
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode_id:
+        description: "UUID do episódio a renderizar (status deve ser 'assets')"
+        required: true
+        type: string
+
+# Impede renders simultâneos do mesmo episódio queimando minutos em dobro
+concurrency:
+  group: render-${{ inputs.episode_id }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    # Budget guard: default de 6h queimaria 360 min do plano num job travado
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      EPISODE_ID: ${{ inputs.episode_id }}
+    steps:
+      - name: Validar input
+        run: |
+          if ! [[ "$EPISODE_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::episode_id não é um UUID válido"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verificar FFmpeg do runner
+        run: ffmpeg -version | head -1
+
+      - name: Buscar episódio e validar estado
+        run: |
+          STATUS=$(curl -fsS \
+            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID&select=status" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" | jq -r '.[0].status // empty')
+          if [[ -z "$STATUS" ]]; then
+            echo "::error::Episódio $EPISODE_ID não encontrado"
+            exit 1
+          fi
+          if [[ "$STATUS" != "assets" ]]; then
+            echo "::error::Episódio em '$STATUS' — render exige 'assets'"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Mesmo engine usado localmente em dev (DRY — ver ADR-004).
+      # Responsável por: baixar assets, TTS já embutido nos assets, FFmpeg,
+      # checkpoints de render_progress via PATCH, upload do MP4 ao Storage.
+      - name: Renderizar episódio
+        run: |
+          echo "::error::Renderer CLI ainda não implementado — próxima etapa (ADR-004)"
+          exit 1
+          # npm run render --workspace @content-ai/local-renderer -- --episode-id "$EPISODE_ID"
+
+      - name: Marcar rendered + registrar evento
+        if: success()
+        run: |
+          curl -fsS -X PATCH \
+            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"status":"rendered","render_progress":100}'
+          curl -fsS -X POST \
+            "$SUPABASE_URL/rest/v1/job_events" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"episode_id\":\"$EPISODE_ID\",\"event_type\":\"render_completed\",\"metadata\":{\"runner\":\"github_actions\",\"run_id\":\"${{ github.run_id }}\"}}"
+
+      - name: Marcar failed + registrar evento
+        if: failure()
+        run: |
+          # Transição pode ser rejeitada pelo trigger do banco se o estado mudou — não mascarar o erro original
+          curl -sS -X PATCH \
+            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"failed\",\"failure_reason\":\"Render falhou no GitHub Actions (run ${{ github.run_id }})\"}" || true
+          curl -sS -X POST \
+            "$SUPABASE_URL/rest/v1/job_events" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"episode_id\":\"$EPISODE_ID\",\"event_type\":\"failed\",\"error_message\":\"Render falhou no GitHub Actions\",\"metadata\":{\"run_id\":\"${{ github.run_id }}\"}}" || true

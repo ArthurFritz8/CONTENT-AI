@@ -23,7 +23,7 @@ idea → research → script → assets → rendered → review → published �
 | IA texto | Gemini Flash / Flash-Lite | Free tier |
 | IA imagem | Gemini Nano Banana | A validar (ver ADR-001) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
-| Render | FFmpeg — PC local + GitHub Actions (híbrido) | Free / 3.000 min/mês |
+| Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | 3.000 min/mês (Pro+) |
 | Publicação | YouTube Data API v3 (10.000 units/dia) | Free |
 | Aprovação | Telegram Bot | Free |
 | Painel | Next.js (`apps/web-panel`) | Local |
@@ -38,7 +38,7 @@ idea → research → script → assets → rendered → review → published �
 │   ├── seed.sql         # Configs padrão (budget guard etc.)
 │   └── cron_jobs.sql    # pg_cron via Vault (aplicar manualmente — ver ADR-002)
 ├── apps/
-│   ├── local-renderer/  # FFmpeg + TTS + Telegram bot (Node.js)
+│   ├── local-renderer/  # Engine de render (Node.js) — mesmo código roda no Actions e em dev local
 │   └── web-panel/       # Painel de fila/aprovação (Next.js)
 ├── packages/core/       # Prompts, schemas Zod, validadores compartilhados
 └── .github/workflows/   # Render remoto + health-check
