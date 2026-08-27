@@ -25,5 +25,22 @@ insert into system_config (key, value) values
     "max_episodes_per_day": 1,
     "auto_publish": false,
     "require_human_approval": true
+  }'::jsonb),
+  ('niche', '{
+    "name": "gadgets_produtos_inovadores",
+    "categories": ["tech_gadgets", "home_innovations", "productivity_tools"],
+    "focus": "produtos que resolvem um problema real de forma criativa",
+    "editorial_angle": ["hook_voce_nao_vai_acreditar", "demonstracao", "comparacao", "cta"],
+    "risk_level": "low_medium"
+  }'::jsonb),
+  ('fact_check', '{
+    "risk_level": "low_medium",
+    "blocked_patterns": {
+      "medical": ["\\mtrata\\M", "\\mcura\\M", "\\mprevine\\M", "\\memagrece\\M"],
+      "financial": ["melhor investimento", "garante retorno", "renda garantida"],
+      "absolute_superlatives": ["o melhor do mundo", "unico no mercado", "único no mercado"]
+    },
+    "allowed_categories": ["comparacoes_relativas", "claims_funcionalidade", "opinioes_qualificadas"],
+    "require_source_per_claim": true
   }'::jsonb)
 on conflict (key) do nothing;
