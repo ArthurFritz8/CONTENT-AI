@@ -1,4 +1,4 @@
-# ADR-014 — Deploy em duas etapas: Supabase local antes do Supabase Cloud
+# ADR-013 — Deploy em duas etapas: Supabase local antes do Supabase Cloud
 
 ## Objetivo
 
