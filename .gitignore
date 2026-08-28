@@ -12,7 +12,7 @@ dist/
 .turbo/
 *.tsbuildinfo
 
-# modelos locais (Piper/Whisper — binários grandes)
+# modelos locais (Piper — binários grandes)
 models/
 
 # saída de render

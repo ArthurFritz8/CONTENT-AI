@@ -21,5 +21,5 @@ Cadeia de fallback com degradação graciosa: **Gemini TTS → edge-tts → Pipe
 ## Prevenção
 - Cada chamada TTS terá retry + exponential backoff antes de cair de camada (Regra D) — falha transitória não queima a camada preferida.
 - Teste unitário futuro: simular falha das camadas 1 e 2 e verificar que a 3 assume e o evento de fallback é gravado.
-- Modelos Piper/Whisper ficam em `models/` (gitignored) — binários nunca inflam o repo.
+- Modelos Piper ficam em `models/` (gitignored) — binários nunca inflam o repo. Whisper foi removido pelo ADR-010.
 - Se `edge-tts` quebrar definitivamente (risco conhecido), remoção da camada 2 será registrada em novo ADR.

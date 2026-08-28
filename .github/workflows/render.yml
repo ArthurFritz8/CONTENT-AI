@@ -63,29 +63,22 @@ jobs:
         run: npm ci
 
       # Mesmo engine usado localmente em dev (DRY — ver ADR-004).
-      # Responsável por: baixar assets, TTS já embutido nos assets, FFmpeg,
-      # checkpoints de render_progress via PATCH, upload do MP4 ao Storage.
+      # Responsável por checkpoints, concatenação, upload final e transição assets→rendered.
       - name: Renderizar episódio
         run: |
-          echo "::error::Renderer CLI ainda não implementado — próxima etapa (ADR-004)"
-          exit 1
-          # npm run render --workspace @content-ai/local-renderer -- --episode-id "$EPISODE_ID"
+          npm run render --workspace @content-ai/local-renderer -- --episode-id "$EPISODE_ID"
 
-      - name: Marcar rendered + registrar evento
+      - name: Confirmar render concluído
         if: success()
         run: |
-          curl -fsS -X PATCH \
-            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID" \
+          STATUS=$(curl -fsS \
+            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID&select=status,render_url" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{"status":"rendered","render_progress":100}'
-          curl -fsS -X POST \
-            "$SUPABASE_URL/rest/v1/job_events" \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{\"episode_id\":\"$EPISODE_ID\",\"event_type\":\"render_completed\",\"metadata\":{\"runner\":\"github_actions\",\"run_id\":\"${{ github.run_id }}\"}}"
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" | jq -r '.[0].status')
+          if [[ "$STATUS" != "rendered" ]]; then
+            echo "::error::Renderer terminou sem marcar rendered (status=$STATUS)"
+            exit 1
+          fi
 
       - name: Marcar failed + registrar evento
         if: failure()

@@ -11,7 +11,7 @@ Estabelecer a fundação técnica de um pipeline 100% free tier para criação e
 ## Solução
 Monorepo TypeScript com npm workspaces + Turborepo:
 - `supabase/` — Postgres (fonte da verdade + máquina de estados) e Edge Functions (Deno) para orquestração.
-- `apps/local-renderer/` — Node.js: FFmpeg, cadeia TTS, whisper.cpp (legendas), bot Telegram de aprovação.
+- `apps/local-renderer/` — Node.js: FFmpeg, cadeia TTS, legendas .ass sem Whisper (supersedido pelo ADR-010), bot Telegram de aprovação.
 - `apps/web-panel/` — Next.js: fila, episódios, analytics.
 - `packages/core/` — prompts versionados, schemas Zod, validadores compartilhados (fact-checker, hash, budget).
 - `.github/workflows/` — render remoto (workflow_dispatch) e health-check.
