@@ -6,6 +6,7 @@ create table idea_queue (
   niche text not null,
   category text,
   product_url text,
+  product_image_url text, -- imagem oficial do afiliado: prioridade 1 no hook (ADR-009)
   priority int not null default 100, -- menor = consumido primeiro
   status text not null default 'pending' check (status in ('pending','consumed','rejected')),
   episode_id uuid references episodes(id) on delete set null,
@@ -45,7 +46,7 @@ begin
     return;
   end if;
 
-  insert into episodes (status, briefing, product_compliance)
+  insert into episodes (status, briefing, product_compliance, product_image_url)
   values (
     'idea',
     jsonb_build_object(
@@ -58,7 +59,8 @@ begin
       when v_idea.product_url is not null then
         jsonb_build_object('affiliate_link', v_idea.product_url, 'commercial_content', true)
       else null
-    end
+    end,
+    v_idea.product_image_url
   )
   returning id into v_episode_id;
 

@@ -35,15 +35,7 @@ function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
   }
 }
 
-export async function assertGeminiBudget(
-  db: SupabaseClient,
-  logger: JobLogger,
-  episodeId: string,
-  callType: GeminiCallType,
-): Promise<void> {
-  const cfg = await getSystemConfig<BudgetConfig>(db, "budget", {});
-  const limit = limitFor(cfg, callType);
-
+async function countTodayCalls(db: SupabaseClient, callType: GeminiCallType): Promise<number> {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
   const { count, error } = await db
@@ -55,8 +47,29 @@ export async function assertGeminiBudget(
   if (error) {
     throw new AppError(`Erro ao contar chamadas Gemini: ${error.message}`, 500, "DB_ERROR");
   }
+  return count ?? 0;
+}
 
-  if ((count ?? 0) >= limit) {
+/** Cota restante do dia — usado pelo planner de assets ANTES de gerar (ADR-009). */
+export async function getGeminiBudgetRemaining(
+  db: SupabaseClient,
+  callType: GeminiCallType,
+): Promise<number> {
+  const cfg = await getSystemConfig<BudgetConfig>(db, "budget", {});
+  return Math.max(0, limitFor(cfg, callType) - await countTodayCalls(db, callType));
+}
+
+export async function assertGeminiBudget(
+  db: SupabaseClient,
+  logger: JobLogger,
+  episodeId: string,
+  callType: GeminiCallType,
+): Promise<void> {
+  const cfg = await getSystemConfig<BudgetConfig>(db, "budget", {});
+  const limit = limitFor(cfg, callType);
+  const count = await countTodayCalls(db, callType);
+
+  if (count >= limit) {
     await logger.event({
       episode_id: episodeId,
       event_type: "budget_exceeded",

@@ -11,6 +11,7 @@ create table episodes (
   failure_reason text,
   briefing jsonb,
   research_data jsonb,
+  product_image_url text,
   script_json jsonb,
   script_hash text unique,
   metadata jsonb,
@@ -38,7 +39,7 @@ create table assets (
   type text not null check (type in ('image','audio','music','video_clip')),
   url text not null,
   license text not null check (license in ('pexels','generated','youtube_audio_library','own')),
-  source text not null check (source in ('gemini','pexels','youtube_audio','manual')),
+  source text not null check (source in ('gemini','pexels','youtube_audio','manual','affiliate')),
   author text,
   hash text,
   created_at timestamptz not null default now()

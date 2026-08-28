@@ -15,7 +15,7 @@ const semverRegex = /^\d+\.\d+\.\d+$/;
 export const assetRefSchema = z.object({
   url: z.string().url(),
   license: z.enum(["pexels", "generated", "youtube_audio_library", "own"]),
-  source: z.enum(["gemini", "pexels", "youtube_audio", "manual"]),
+  source: z.enum(["gemini", "pexels", "youtube_audio", "manual", "affiliate"]),
 });
 
 export const sceneSchema = z.object({

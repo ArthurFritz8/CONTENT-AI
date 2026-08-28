@@ -15,6 +15,13 @@ insert into system_config (key, value) values
     "research_max_claims": 12,
     "script_temperature": 0.7
   }'::jsonb),
+  ('assets', '{
+    "image_generation_enabled": false,
+    "image_model": "gemini-2.5-flash-image",
+    "storage_bucket": "assets",
+    "pexels_fallback_query": "technology gadget",
+    "affiliate_image_max_bytes": 5242880
+  }'::jsonb),
   ('tts', '{
     "chain": ["gemini", "edge", "piper"],
     "voice_pt_br": "pt-BR-FranciscaNeural",
