@@ -32,7 +32,10 @@ export type JobEventType =
   | "tts_engine_selected"
   | "tts_consistency_regeneration"
   | "research_completed"
-  | "gemini_call";
+  | "gemini_call"
+  | "images_generated"
+  | "tts_generated"
+  | "subtitles_generated";
 
 export interface JobEventInsert {
   episode_id?: string;

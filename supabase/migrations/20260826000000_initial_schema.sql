@@ -36,12 +36,13 @@ create table episodes (
 create table assets (
   id uuid primary key default gen_random_uuid(),
   episode_id uuid not null references episodes(id) on delete cascade,
-  type text not null check (type in ('image','audio','music','video_clip')),
+  type text not null check (type in ('image','audio','subtitle','music','video_clip')),
   url text not null,
   license text not null check (license in ('pexels','generated','youtube_audio_library','own')),
-  source text not null check (source in ('gemini','pexels','youtube_audio','manual','affiliate')),
+  source text not null check (source in ('gemini','edge','piper','pexels','youtube_audio','manual','affiliate','system')),
   author text,
   hash text,
+  metadata jsonb,
   created_at timestamptz not null default now()
 );
 
@@ -73,7 +74,8 @@ create table job_events (
     'failed','tts_fallback_triggered',
     'state_transition','approval_received','approval_rejected',
     'tts_engine_selected','tts_consistency_regeneration',
-    'research_completed','gemini_call'
+    'research_completed','gemini_call',
+    'images_generated','tts_generated','subtitles_generated'
   )),
   model_used text,
   prompt_version text,

@@ -10,6 +10,7 @@ import {
   padSceneOrder,
   sceneIntermediatePath,
   sceneProgress,
+  selectAssetUrlForScene,
   selectAudioUrlForScene,
   storagePublicUrl,
 } from "./render-utils.ts";
@@ -54,6 +55,16 @@ test("selectAudioUrlForScene aceita convenções com pad e sem pad", () => {
   strictEqual(selectAudioUrlForScene(assets, 1), assets[0]!.url);
   strictEqual(selectAudioUrlForScene(assets, 4), assets[1]!.url);
   strictEqual(selectAudioUrlForScene(assets, 9), null);
+});
+
+test("selectAssetUrlForScene prioriza metadata de cena e orientação", () => {
+  const assets = [
+    { type: "subtitle", url: "https://cdn/scene_001_portrait.ass", metadata: { scene_order: 1, orientation: "portrait" } },
+    { type: "subtitle", url: "https://cdn/scene_001_landscape.ass", metadata: { scene_order: 1, orientation: "landscape" } },
+  ];
+  strictEqual(selectAssetUrlForScene(assets, 1, "subtitle", "portrait"), assets[0]!.url);
+  strictEqual(selectAssetUrlForScene(assets, 1, "subtitle", "landscape"), assets[1]!.url);
+  strictEqual(selectAssetUrlForScene(assets, 2, "subtitle", "portrait"), null);
 });
 
 test("buildConcatList gera arquivo aceito pelo concat demuxer", () => {

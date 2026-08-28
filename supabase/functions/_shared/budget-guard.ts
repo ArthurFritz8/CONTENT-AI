@@ -8,12 +8,13 @@ import { getSystemConfig } from "./supabase-client.ts";
 import type { JobLogger } from "./logger.ts";
 import type { GeminiUsage } from "./gemini.ts";
 
-export type GeminiCallType = "grounding" | "text" | "image";
+export type GeminiCallType = "grounding" | "text" | "image" | "tts";
 
 interface BudgetConfig {
   gemini_requests_per_day_max?: number;
   gemini_grounding_requests_per_day_max?: number;
   gemini_image_requests_per_day_max?: number;
+  gemini_tts_requests_per_day_max?: number;
   hard_stop_on_exceed?: boolean;
 }
 
@@ -22,6 +23,7 @@ const FALLBACK_LIMITS: Record<GeminiCallType, number> = {
   grounding: 20,
   text: 100,
   image: 10,
+  tts: 50,
 };
 
 function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
@@ -32,6 +34,8 @@ function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
       return cfg.gemini_requests_per_day_max ?? FALLBACK_LIMITS.text;
     case "image":
       return cfg.gemini_image_requests_per_day_max ?? FALLBACK_LIMITS.image;
+    case "tts":
+      return cfg.gemini_tts_requests_per_day_max ?? FALLBACK_LIMITS.tts;
   }
 }
 

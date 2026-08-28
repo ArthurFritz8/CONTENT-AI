@@ -24,6 +24,7 @@ import {
   ORIENTATIONS,
   sceneIntermediatePath,
   sceneProgress,
+  selectAssetUrlForScene,
   selectAudioUrlForScene,
   storagePublicUrl,
   type Orientation,
@@ -38,8 +39,9 @@ interface EpisodeRow {
 }
 
 interface AssetRow {
-  type: "image" | "audio" | "music" | "video_clip";
+  type: "image" | "audio" | "subtitle" | "music" | "video_clip";
   url: string;
+  metadata: Record<string, unknown> | null;
 }
 
 interface RenderConfig {
@@ -101,7 +103,7 @@ class SupabaseRestClient {
 
   async fetchAssets(episodeId: string): Promise<AssetRow[]> {
     return await this.rest<AssetRow[]>(
-      `assets?episode_id=eq.${encodeURIComponent(episodeId)}&select=type,url`,
+      `assets?episode_id=eq.${encodeURIComponent(episodeId)}&select=type,url,metadata`,
     );
   }
 
@@ -274,16 +276,21 @@ async function prepareSceneFiles(ctx: RenderContext, scene: Scene): Promise<Scen
     imageByOrientation[orientation] = imagePath;
 
     const subtitlePath = join(sceneDir, `${orientation}.ass`);
-    const subtitlePosition = orientation === "landscape" ? "bottom_left" : scene.subtitle_position;
-    const style = orientation === "landscape" ? SUBTITLE_STYLE_LANDSCAPE : SUBTITLE_STYLE_PORTRAIT;
-    await writeFile(subtitlePath, buildAssSubtitles([
-      {
-        words,
-        scene_start_seconds: 0,
-        highlight_words: scene.highlight_words,
-        subtitle_position: subtitlePosition,
-      },
-    ], style));
+    const subtitleUrl = selectAssetUrlForScene(ctx.assets, scene.order, "subtitle", orientation);
+    if (subtitleUrl) {
+      await downloadUrl(subtitleUrl, subtitlePath);
+    } else {
+      const subtitlePosition = orientation === "landscape" ? "bottom_left" : scene.subtitle_position;
+      const style = orientation === "landscape" ? SUBTITLE_STYLE_LANDSCAPE : SUBTITLE_STYLE_PORTRAIT;
+      await writeFile(subtitlePath, buildAssSubtitles([
+        {
+          words,
+          scene_start_seconds: 0,
+          highlight_words: scene.highlight_words,
+          subtitle_position: subtitlePosition,
+        },
+      ], style));
+    }
     subtitleByOrientation[orientation] = subtitlePath;
   }
 

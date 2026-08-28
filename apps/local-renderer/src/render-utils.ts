@@ -11,6 +11,12 @@ export interface AudioAssetLike {
   url: string;
 }
 
+export interface SceneAssetLike {
+  type?: string;
+  url: string;
+  metadata?: Record<string, unknown> | null;
+}
+
 export function padSceneOrder(order: number): string {
   return String(order).padStart(3, "0");
 }
@@ -58,11 +64,29 @@ export function selectAudioUrlForScene(
   assets: AudioAssetLike[],
   sceneOrder: number,
 ): string | null {
+  return selectAssetUrlForScene(assets, sceneOrder);
+}
+
+export function selectAssetUrlForScene(
+  assets: SceneAssetLike[],
+  sceneOrder: number,
+  type?: string,
+  orientation?: Orientation,
+): string | null {
+  const metadataMatch = assets.find((asset) => {
+    if (type && asset.type !== type) return false;
+    if (asset.metadata?.scene_order !== sceneOrder) return false;
+    return !orientation || asset.metadata?.orientation === orientation;
+  });
+  if (metadataMatch) return metadataMatch.url;
+
   const padded = padSceneOrder(sceneOrder);
   const candidates = [`scene_${padded}`, `scene-${padded}`, `scene_${sceneOrder}`, `scene-${sceneOrder}`];
   const match = assets.find((asset) => {
+    if (type && asset.type !== type) return false;
     const lower = asset.url.toLowerCase();
-    return candidates.some((candidate) => lower.includes(candidate));
+    return candidates.some((candidate) => lower.includes(candidate)) &&
+      (!orientation || lower.includes(orientation));
   });
   return match?.url ?? null;
 }

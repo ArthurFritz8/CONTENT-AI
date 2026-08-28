@@ -6,6 +6,7 @@ insert into system_config (key, value) values
     "gemini_requests_per_day_max": 100,
     "gemini_grounding_requests_per_day_max": 20,
     "gemini_image_requests_per_day_max": 10,
+    "gemini_tts_requests_per_day_max": 50,
     "actions_minutes_per_month_max": 2500,
     "hard_stop_on_exceed": true
   }'::jsonb),
@@ -25,7 +26,12 @@ insert into system_config (key, value) values
   ('tts', '{
     "chain": ["gemini", "edge", "piper"],
     "voice_pt_br": "pt-BR-FranciscaNeural",
+    "gemini_tts_model": "gemini-2.5-flash-preview-tts",
+    "gemini_tts_voice": "Kore",
+    "edge_endpoint_url": null,
+    "piper_endpoint_url": null,
     "preflight_enabled": true,
+    "preflight_text": "Teste de voz.",
     "gap_seconds_default": 0.5,
     "duration_deviation_warn_percent": 50
   }'::jsonb),
