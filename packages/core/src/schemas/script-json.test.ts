@@ -3,9 +3,10 @@ import { test } from "node:test";
 import { isRenderReady, scriptJsonSchema, type ScriptJson } from "./script-json.ts";
 
 export function makeValidScript(): ScriptJson {
-  const scene = (order: number) => ({
+  const scene = (order: number, role: "hook" | "content" | "cta") => ({
     id: `scene-${order}`,
     order,
+    role,
     duration_seconds: 20,
     narration_text: `Narração da cena ${order}`,
     transition: "fade" as const,
@@ -38,7 +39,7 @@ export function makeValidScript(): ScriptJson {
     },
     gap_seconds: 0.5,
     music: null,
-    scenes: [scene(0), scene(1), scene(2)],
+    scenes: [scene(0, "hook"), scene(1, "content"), scene(2, "cta")],
     sources: [{ claim: "Afirmação X", source_url: "https://example.com/fonte" }],
     disclosures: {
       contains_synthetic_media: true,
@@ -96,6 +97,15 @@ test("regra 9: rejeita soma de targets fora de 60-600s", () => {
   const script = makeValidScript();
   for (const scene of script.scenes) scene.duration_seconds = 15; // soma 45s < 60
   strictEqual(scriptJsonSchema.safeParse(script).success, false);
+});
+
+test("roles: rejeita primeira cena que não é hook e última que não é cta", () => {
+  const a = makeValidScript();
+  a.scenes[0]!.role = "content";
+  strictEqual(scriptJsonSchema.safeParse(a).success, false);
+  const b = makeValidScript();
+  b.scenes[2]!.role = "content";
+  strictEqual(scriptJsonSchema.safeParse(b).success, false);
 });
 
 test("gap_seconds: aplica default 0.5 quando ausente e rejeita > 5", () => {

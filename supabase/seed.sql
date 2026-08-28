@@ -4,9 +4,16 @@
 insert into system_config (key, value) values
   ('budget', '{
     "gemini_requests_per_day_max": 100,
+    "gemini_grounding_requests_per_day_max": 20,
     "gemini_image_requests_per_day_max": 10,
     "actions_minutes_per_month_max": 2500,
     "hard_stop_on_exceed": true
+  }'::jsonb),
+  ('gemini', '{
+    "research_model": "gemini-2.5-flash",
+    "text_model": "gemini-2.5-flash",
+    "research_max_claims": 12,
+    "script_temperature": 0.7
   }'::jsonb),
   ('tts', '{
     "chain": ["gemini", "edge", "piper"],

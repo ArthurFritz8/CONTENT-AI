@@ -10,6 +10,7 @@ create table episodes (
     check (status in ('idea','research','script','assets','rendered','review','published','analyze','failed')),
   failure_reason text,
   briefing jsonb,
+  research_data jsonb,
   script_json jsonb,
   script_hash text unique,
   metadata jsonb,
@@ -70,7 +71,8 @@ create table job_events (
     'publish_completed','analyze_completed','heartbeat_sent','budget_exceeded',
     'failed','tts_fallback_triggered',
     'state_transition','approval_received','approval_rejected',
-    'tts_engine_selected','tts_consistency_regeneration'
+    'tts_engine_selected','tts_consistency_regeneration',
+    'research_completed','gemini_call'
   )),
   model_used text,
   prompt_version text,

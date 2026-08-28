@@ -21,6 +21,8 @@ export const assetRefSchema = z.object({
 export const sceneSchema = z.object({
   id: z.string().min(1),
   order: z.number().int().min(0),
+  // Template híbrido (ADR-005/008): hook abre, cta fecha, content no meio
+  role: z.enum(["hook", "content", "cta"]),
   duration_seconds: z
     .number()
     .min(SCENE_DURATION_SECONDS.min)
@@ -89,6 +91,28 @@ export const scriptJsonSchema = z
         code: z.ZodIssueCode.custom,
         path: ["scenes"],
         message: "scenes[].order deve ser contíguo de 0 a n-1, sem duplicatas",
+      });
+    }
+    const byOrder = [...script.scenes].sort((a, b) => a.order - b.order);
+    if (byOrder[0]!.role !== "hook") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scenes"],
+        message: "A primeira cena (order 0) deve ter role='hook'",
+      });
+    }
+    if (byOrder[byOrder.length - 1]!.role !== "cta") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scenes"],
+        message: "A última cena deve ter role='cta'",
+      });
+    }
+    if (byOrder.slice(1, -1).some((s) => s.role !== "content")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scenes"],
+        message: "Cenas intermediárias devem ter role='content'",
       });
     }
     if (script.disclosures.commercial_content && !script.disclosures.commercial_disclosure_text) {
