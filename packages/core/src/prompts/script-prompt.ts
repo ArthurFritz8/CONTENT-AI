@@ -39,6 +39,7 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO:
 - Todo claim usado na narração deve aparecer em sources com a source_url original.
 - visual.description: descrição rica para gerar imagem (estilo, enquadramento, objeto).
 - visual.search_query: consulta curta em inglês para banco de imagens (fallback).
+- highlight_words: 1 a 2 palavras-chave POR CENA, copiadas exatamente como aparecem em narration_text, para destaque visual na legenda.
 - narration_text: tom conversacional, português do Brasil, frases curtas para narração.
 ${input.isCommercial ? '- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado.").' : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
 

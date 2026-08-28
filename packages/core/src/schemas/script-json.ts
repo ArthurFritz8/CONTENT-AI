@@ -35,6 +35,8 @@ export const sceneSchema = z.object({
     description: z.string().min(1),
     search_query: z.string().min(1),
   }),
+  // palavras-chave da narração destacadas na legenda (ADR-010)
+  highlight_words: z.array(z.string().min(1)).max(3).default([]),
   // null até o estado 'assets' (contrato estagiado — ADR-005)
   asset_landscape: assetRefSchema.nullable(),
   asset_portrait: assetRefSchema.nullable(),

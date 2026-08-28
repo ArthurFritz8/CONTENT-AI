@@ -46,6 +46,7 @@ const SCENE_RESPONSE_SCHEMA = {
       },
       required: ["description", "search_query"],
     },
+    highlight_words: { type: "ARRAY", items: { type: "STRING" } },
     subtitle_position: { type: "STRING", enum: ["bottom_center", "bottom_left"] },
   },
   required: [
@@ -57,6 +58,7 @@ const SCENE_RESPONSE_SCHEMA = {
     "transition",
     "ken_burns",
     "visual",
+    "highlight_words",
     "subtitle_position",
   ],
 };

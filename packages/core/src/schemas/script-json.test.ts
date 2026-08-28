@@ -12,6 +12,7 @@ export function makeValidScript(): ScriptJson {
     transition: "fade" as const,
     ken_burns: "in" as const,
     visual: { description: `Imagem da cena ${order}`, search_query: `query ${order}` },
+    highlight_words: [],
     asset_landscape: null,
     asset_portrait: null,
     subtitle_position: "bottom_center" as const,
@@ -52,6 +53,17 @@ export function makeValidScript(): ScriptJson {
 test("aceita script válido no estado 'script' (assets null)", () => {
   const result = scriptJsonSchema.safeParse(makeValidScript());
   strictEqual(result.success, true);
+});
+
+test("highlight_words: default vazio e máximo 3", () => {
+  const script = makeValidScript();
+  delete (script.scenes[0] as { highlight_words?: string[] }).highlight_words;
+  const parsed = scriptJsonSchema.parse(script);
+  deepStrictEqual(parsed.scenes[0]!.highlight_words, []);
+
+  const invalid = makeValidScript();
+  invalid.scenes[0]!.highlight_words = ["a", "b", "c", "d"];
+  strictEqual(scriptJsonSchema.safeParse(invalid).success, false);
 });
 
 test("rejeita menos de 3 cenas", () => {
