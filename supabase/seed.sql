@@ -7,6 +7,10 @@ insert into system_config (key, value) values
     "gemini_grounding_requests_per_day_max": 20,
     "gemini_image_requests_per_day_max": 10,
     "gemini_tts_requests_per_day_max": 50,
+    "gemini_models": {
+      "gemini-2.5-flash": {"rpd": 20, "rpm": 5},
+      "gemini-2.5-flash-preview-tts": {"rpd": 10, "rpm": 3}
+    },
     "actions_minutes_per_month_max": 2500,
     "hard_stop_on_exceed": true
   }'::jsonb),
@@ -21,7 +25,8 @@ insert into system_config (key, value) values
     "image_model": "gemini-2.5-flash-image",
     "storage_bucket": "assets",
     "pexels_fallback_query": "technology gadget",
-    "affiliate_image_max_bytes": 5242880
+    "affiliate_image_max_bytes": 5242880,
+    "affiliate_image_hosts": []
   }'::jsonb),
   ('tts', '{
     "chain": ["gemini", "edge", "piper"],
@@ -42,6 +47,7 @@ insert into system_config (key, value) values
     "dispatch_ttl_minutes": 45
   }'::jsonb),
   ('pipeline', '{
+    "enabled": false,
     "max_episodes_per_day": 1,
     "auto_publish": false,
     "require_human_approval": true

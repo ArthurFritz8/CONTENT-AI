@@ -1,3 +1,5 @@
+import { claimEpisode } from "../_shared/episode-lease.ts";
+import { requireServiceRole } from "../_shared/auth.ts";
 // generate-script — Fase 2 (ADR-008): Gemini Flash + responseSchema, SEM grounding.
 // research → script. Repair loop de 1 tentativa; campos de sistema normalizados
 // pós-parse (o modelo nunca controla episode_id/hash/disclosure sintética).
@@ -168,15 +170,18 @@ async function getActivePromptVersion(
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  try { requireServiceRole(req); } catch (err) { return toErrorResponse(err); }
   if (req.method !== "POST") {
     return toErrorResponse(new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"));
   }
 
+  let release: (() => Promise<void>) | undefined;
   let logger: JobLogger | undefined;
   try {
     const input = await parseJsonBody(req, inputSchema);
     const db = createServiceClient();
     logger = new JobLogger(db, "generate-script");
+    release = await claimEpisode(db, input.episode_id);
 
     const { data: episode, error } = await db
       .from("episodes")
@@ -220,12 +225,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     for (const attempt of [1, 2] as const) {
       attempts = attempt;
-      await assertGeminiBudget(db, logger, episode.id, "text");
       const prompt = attempt === 1
         ? basePrompt
         : buildRepairPrompt(lastInvalidJson, lastErrors);
 
       const result = await geminiGenerate({
+        beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "text", model),
         model,
         prompt,
         responseSchema: SCRIPT_RESPONSE_SCHEMA,
@@ -233,8 +238,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
       await recordGeminiCall(logger, episode.id, "text", model, result.usage);
 
-      const raw = extractJson(result.text) as Record<string, unknown>;
-      const normalized = normalizeSystemFields(raw, episode.id, promptVersion, isCommercial);
+      let normalized: Record<string, unknown>;
+      try {
+        const raw = extractJson(result.text);
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Roteiro deve ser um objeto JSON");
+        normalized = normalizeSystemFields(raw as Record<string, unknown>, episode.id, promptVersion, isCommercial);
+      } catch (err) {
+        lastErrors = [err instanceof Error ? err.message : "JSON inválido"];
+        lastInvalidJson = result.text.slice(0, 8000);
+        continue;
+      }
       const parsed = scriptJsonSchema.safeParse(normalized);
 
       if (parsed.success) {
@@ -299,5 +312,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     logger?.error("falha no generate-script", err);
     return toErrorResponse(err);
+  } finally {
+    await release?.();
   }
 });

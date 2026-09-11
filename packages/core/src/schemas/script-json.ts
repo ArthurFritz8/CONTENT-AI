@@ -87,6 +87,9 @@ export const scriptJsonSchema = z
     }),
   })
   .superRefine((script, ctx) => {
+    if (new Set(script.scenes.map(scene => scene.id)).size !== script.scenes.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scenes"], message: "scenes[].id deve ser único" });
+    }
     const orders = [...script.scenes].map((s) => s.order).sort((a, b) => a - b);
     if (!orders.every((o, i) => o === i)) {
       ctx.addIssue({
@@ -96,14 +99,14 @@ export const scriptJsonSchema = z
       });
     }
     const byOrder = [...script.scenes].sort((a, b) => a.order - b.order);
-    if (byOrder[0]!.role !== "hook") {
+    if (byOrder[0]?.role !== "hook") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["scenes"],
         message: "A primeira cena (order 0) deve ter role='hook'",
       });
     }
-    if (byOrder[byOrder.length - 1]!.role !== "cta") {
+    if (byOrder[byOrder.length - 1]?.role !== "cta") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["scenes"],
@@ -124,7 +127,7 @@ export const scriptJsonSchema = z
         message: "commercial_content=true exige commercial_disclosure_text",
       });
     }
-    const tagsTotal = script.metadata.youtube.tags.join(",").length;
+    const tagsTotal = script.metadata.youtube.tags.map(tag => tag.includes(" ") ? `"${tag}"` : tag).join(",").length;
     if (tagsTotal > YOUTUBE_TAGS_TOTAL_MAX) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

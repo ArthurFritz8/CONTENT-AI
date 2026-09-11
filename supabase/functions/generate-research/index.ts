@@ -1,3 +1,5 @@
+import { claimEpisode } from "../_shared/episode-lease.ts";
+import { requireServiceRole } from "../_shared/auth.ts";
 // generate-research — Fase 1 (ADR-008): Gemini Flash + Google Search grounding.
 // idea → research. Salva claims verificados em episodes.research_data (checkpoint).
 
@@ -24,15 +26,18 @@ interface GeminiConfig {
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  try { requireServiceRole(req); } catch (err) { return toErrorResponse(err); }
   if (req.method !== "POST") {
     return toErrorResponse(new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"));
   }
 
+  let release: (() => Promise<void>) | undefined;
   let logger: JobLogger | undefined;
   try {
     const input = await parseJsonBody(req, inputSchema);
     const db = createServiceClient();
     logger = new JobLogger(db, "generate-research");
+    release = await claimEpisode(db, input.episode_id);
 
     const { data: episode, error } = await db
       .from("episodes")
@@ -53,13 +58,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       throw new AppError("Episódio sem briefing.text", 422, "MISSING_BRIEFING");
     }
 
-    await assertGeminiBudget(db, logger, episode.id, "grounding");
-
     const niche = await getSystemConfig<NicheConfig>(db, "niche", {});
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
     const model = gemini.research_model ?? "gemini-2.5-flash";
 
     const result = await geminiGenerate({
+      beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "grounding", model),
       model,
       prompt: buildResearchPrompt({
         briefing: briefingText,
@@ -72,7 +76,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     await recordGeminiCall(logger, episode.id, "grounding", model, result.usage);
 
-    const parsed = researchDataSchema.safeParse(extractJson(result.text));
+    let rawResearch: unknown;
+    try { rawResearch = extractJson(result.text); } catch {
+      await markEpisodeFailed(db, logger, episode.id, "research_validation_failed", "Research retornou JSON inválido", "idea");
+      throw new AppError("Research retornou JSON inválido", 502, "RESEARCH_VALIDATION_FAILED");
+    }
+    const parsed = researchDataSchema.safeParse(rawResearch);
     if (!parsed.success) {
       // Sem repair loop na fase 1: retry refaria o grounding caro — falha auditável,
       // recuperável via transição failed → idea (ADR-002).
@@ -107,5 +116,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     logger?.error("falha no generate-research", err);
     return toErrorResponse(err);
+  } finally {
+    await release?.();
   }
 });

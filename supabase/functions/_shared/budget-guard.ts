@@ -20,10 +20,10 @@ interface BudgetConfig {
 
 // Fallbacks conservadores — valores efetivos em system_config.budget
 const FALLBACK_LIMITS: Record<GeminiCallType, number> = {
-  grounding: 20,
-  text: 100,
-  image: 10,
-  tts: 50,
+  grounding: 0,
+  text: 0,
+  image: 0,
+  tts: 0,
 };
 
 function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
@@ -40,18 +40,17 @@ function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
 }
 
 async function countTodayCalls(db: SupabaseClient, callType: GeminiCallType): Promise<number> {
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const { count, error } = await db
-    .from("job_events")
-    .select("id", { count: "exact", head: true })
-    .eq("event_type", "gemini_call")
-    .eq("metadata->>call_type", callType)
-    .gte("created_at", todayStart.toISOString());
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const { data, error } = await db
+    .from("api_budget_usage")
+    .select("used")
+    .eq("scope", `gemini:kind:${callType}`)
+    .eq("period", day)
+    .maybeSingle();
   if (error) {
     throw new AppError(`Erro ao contar chamadas Gemini: ${error.message}`, 500, "DB_ERROR");
   }
-  return count ?? 0;
+  return data?.used ?? 0;
 }
 
 /** Cota restante do dia — usado pelo planner de assets ANTES de gerar (ADR-009). */
@@ -59,6 +58,7 @@ export async function getGeminiBudgetRemaining(
   db: SupabaseClient,
   callType: GeminiCallType,
 ): Promise<number> {
+  if (callType === "image") return 0; // No free image API; cannot be enabled by a seed flag.
   const cfg = await getSystemConfig<BudgetConfig>(db, "budget", {});
   return Math.max(0, limitFor(cfg, callType) - await countTodayCalls(db, callType));
 }
@@ -68,20 +68,19 @@ export async function assertGeminiBudget(
   logger: JobLogger,
   episodeId: string,
   callType: GeminiCallType,
+  model: string,
 ): Promise<void> {
-  const cfg = await getSystemConfig<BudgetConfig>(db, "budget", {});
-  const limit = limitFor(cfg, callType);
-  const count = await countTodayCalls(db, callType);
-
-  if (count >= limit) {
+  const { data, error } = await db.rpc("reserve_gemini_call", { p_kind: callType, p_model: model });
+  if (error) throw new AppError("Falha ao reservar quota Gemini", 500, "DB_ERROR");
+  if (data !== true) {
     await logger.event({
       episode_id: episodeId,
       event_type: "budget_exceeded",
-      error_message: `Limite diário de chamadas '${callType}' atingido (${count}/${limit})`,
-      metadata: { call_type: callType, count, limit },
+      error_message: `Quota indisponível para '${callType}' / ${model}`,
+      metadata: { call_type: callType, model },
     });
     throw new AppError(
-      `Budget diário de chamadas Gemini '${callType}' atingido (${count}/${limit})`,
+      `Quota Gemini '${callType}' indisponível (RPD/RPM/configuração)`,
       429,
       "BUDGET_EXCEEDED",
     );

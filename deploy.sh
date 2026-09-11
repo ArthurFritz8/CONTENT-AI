@@ -8,10 +8,11 @@ ENV_FILE="${ENV_FILE:-.env}"
 SUPABASE_CLI_VERSION="${SUPABASE_CLI_VERSION:-latest}"
 STORAGE_BUCKET="${STORAGE_BUCKET:-assets}"
 SMOKE_TEST=0
+CHECK_ONLY=0
 
 usage() {
   cat <<'EOF'
-Uso: ./deploy.sh [--smoke-test]
+Uso: ./deploy.sh [--check] [--smoke-test]
 
 Automatiza o deploy cloud do CONTENT AI:
   - supabase db push no projeto linkado
@@ -20,7 +21,7 @@ Automatiza o deploy cloud do CONTENT AI:
   - Supabase secrets
   - Edge Functions atuais
   - Vault + pg_cron idempotente
-  - smoke test opcional (insere idea_queue e chama orchestrator)
+  - smoke test opcional de infraestrutura, sem criação/publicação
 
 Variáveis obrigatórias:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL,
@@ -35,6 +36,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --check)
+      CHECK_ONLY=1
+      shift
+      ;;
     --smoke-test)
       SMOKE_TEST=1
       shift
@@ -113,6 +118,7 @@ push_database() {
 
   log "Aplicando seed.sql (bootstrap insert-only)"
   psql_cloud -f supabase/seed.sql
+  psql_cloud -f supabase/verify-migrations.sql
 }
 
 upsert_storage_bucket() {
@@ -127,8 +133,6 @@ SQL
 set_supabase_secrets() {
   log "Configurando Supabase secrets"
   local secret_args=(
-    "SUPABASE_URL=$SUPABASE_URL"
-    "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
     "GEMINI_API_KEY=$GEMINI_API_KEY"
     "PEXELS_API_KEY=$PEXELS_API_KEY"
     "GITHUB_TOKEN=$GITHUB_TOKEN"
@@ -230,7 +234,8 @@ select cron.schedule(:'job_name', :'schedule', format($body$
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1)
     ),
-    body := '{}'::jsonb
+    body := '{}'::jsonb,
+    timeout_milliseconds := 140000
   )
 $body$, :'function_name'));
 SQL
@@ -238,37 +243,32 @@ SQL
 
 configure_cron_jobs() {
   configure_vault_and_cron_base
-  schedule_cron_if_function_exists "orchestrator-daily" "0 1 * * *" "orchestrator"
+  psql_cloud -c "select cron.unschedule(jobid) from cron.job where jobname = 'orchestrator-daily';"
+  schedule_cron_if_function_exists "orchestrator-tick" "* * * * *" "orchestrator"
   schedule_cron_if_function_exists "heartbeat-daily" "0 9 * * *" "heartbeat"
   schedule_cron_if_function_exists "analytics-weekly" "0 10 * * 1" "collect-analytics"
 }
 
 run_smoke_test() {
-  if [[ "$SMOKE_TEST" != "1" ]]; then
-    warn "Smoke test pulado; rode ./deploy.sh --smoke-test para inserir ideia e chamar orchestrator"
-    return
-  fi
-
-  log "Inserindo ideia de teste na idea_queue"
-  psql_cloud <<'SQL'
-insert into idea_queue (briefing, niche, category, priority)
-values (
-  'Chuveiro inteligente com sensor de presença | Economiza 40% de água | Teste de pipeline',
-  'gadgets_produtos_inovadores',
-  'home_innovations',
-  10
-);
-SQL
-
-  log "Chamando orchestrator manualmente"
-  curl -fsS -X POST "$SUPABASE_URL/functions/v1/orchestrator" \
-    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{}'
-  printf '\n'
+  if [[ "$SMOKE_TEST" != "1" ]]; then return; fi
+  log "Smoke de infraestrutura (sem consumir ideias, IA ou publicar)"
+  psql_cloud -f supabase/verify-migrations.sql
+  local code
+  code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$SUPABASE_URL/functions/v1/orchestrator" -H 'Content-Type: application/json' -d '{}')
+  [[ "$code" == "401" ]] || fail "Endpoint aceitou chamada anônima ou não está disponível (HTTP $code)"
+  code=$(curl -sS -o /dev/null -w '%{http_code}' "$SUPABASE_URL/functions/v1/orchestrator" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
+  [[ "$code" == "405" ]] || fail "Worker autenticado não respondeu como esperado (HTTP $code)"
+  log "Infraestrutura verificada; teste ponta a ponta ainda é obrigatório"
 }
 
 main() {
+  need_cmd node
+  node scripts/scan-secrets.mjs
+  node scripts/preflight.mjs
+  if [[ "$CHECK_ONLY" == "1" ]]; then
+    log "Verificação local concluída; nenhum recurso cloud foi alterado"
+    return
+  fi
   need_cmd npx
   need_cmd psql
   need_cmd curl

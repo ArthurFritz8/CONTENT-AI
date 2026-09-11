@@ -47,7 +47,7 @@ export interface SceneSubtitleInput {
 }
 
 export function formatAssTime(seconds: number): string {
-  const total = Math.max(0, seconds);
+  const total = Math.round(Math.max(0, seconds) * 100) / 100;
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = Math.floor(total % 60);

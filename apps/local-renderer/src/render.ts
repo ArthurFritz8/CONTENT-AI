@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import {
   buildAssSubtitles,
+  canonicalStringify,
+  sha256Hex,
   isRenderReady,
   resolveWordTimings,
   scriptJsonSchema,
@@ -57,6 +59,7 @@ interface AssetsConfig {
 }
 
 interface RenderContext {
+  revision: string;
   episode: EpisodeRow;
   script: ScriptJson;
   assets: AssetRow[];
@@ -115,7 +118,7 @@ class SupabaseRestClient {
   }
 
   async patchEpisode(episodeId: string, body: Record<string, unknown>): Promise<void> {
-    await this.rest<void>(`episodes?id=eq.${encodeURIComponent(episodeId)}`, {
+    await this.rest<void>(`episodes?id=eq.${encodeURIComponent(episodeId)}&status=eq.assets`, {
       method: "PATCH",
       body,
       headers: { Prefer: "return=minimal" },
@@ -365,7 +368,7 @@ async function ensureSceneCheckpoints(ctx: RenderContext): Promise<Record<Orient
     const paths = Object.fromEntries(
       (Object.keys(ORIENTATIONS) as Orientation[]).map((orientation) => [
         orientation,
-        sceneIntermediatePath(ctx.episode.id, scene.order, orientation),
+        sceneIntermediatePath(ctx.episode.id, scene.order, orientation, ctx.revision),
       ]),
     ) as Record<Orientation, string>;
     const localPaths = Object.fromEntries(
@@ -441,7 +444,7 @@ async function concatOrientation(
       "-i",
       musicPath,
       "-filter_complex",
-      "[1:a]volume=0.1[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]",
+      `[1:a]volume=${ctx.script.music.volume}[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]`,
       "-map",
       "0:v",
       "-map",
@@ -486,6 +489,7 @@ async function renderEpisode(episodeId: string): Promise<void> {
   const cleanup_tmp = renderCfg.cleanup_tmp ?? process.env.KEEP_RENDER_TMP !== "1";
 
   const ctx: RenderContext = {
+    revision: await sha256Hex(canonicalStringify({ script, assets, renderCfg, generation: episode.metadata?.render_generation })),
     episode,
     script,
     assets,

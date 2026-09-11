@@ -17,6 +17,7 @@ export interface GeminiResult {
 }
 
 export interface GeminiOptions {
+  beforeRequest: () => Promise<void>;
   model: string;
   prompt: string;
   grounding?: boolean;
@@ -52,10 +53,12 @@ export async function geminiGenerate(opts: GeminiOptions): Promise<GeminiResult>
 
   return await retryWithBackoff(
     async () => {
+      await opts.beforeRequest();
       const res = await fetch(
         `${API_BASE}/models/${opts.model}:generateContent`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
           headers: { "Content-Type": "application/json", "x-goog-api-key": getApiKey() },
           body: JSON.stringify(body),
         },
@@ -84,7 +87,7 @@ export async function geminiGenerate(opts: GeminiOptions): Promise<GeminiResult>
         },
       };
     },
-    { shouldRetry: (err) => err instanceof AppError && err.status === 502 },
+    { retries: 1, shouldRetry: (err) => err instanceof AppError && err.status === 502 },
   );
 }
 
@@ -157,14 +160,16 @@ function wavDurationSeconds(bytes: Uint8Array): number {
 
 /** Nano Banana: retorna a imagem como inlineData base64 (ADR-009). */
 export async function geminiGenerateImage(
-  opts: { model: string; prompt: string },
+  opts: { model: string; prompt: string; beforeRequest: () => Promise<void> },
 ): Promise<GeminiImageResult> {
   return await retryWithBackoff(
     async () => {
+      await opts.beforeRequest();
       const res = await fetch(
         `${API_BASE}/models/${opts.model}:generateContent`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
           headers: { "Content-Type": "application/json", "x-goog-api-key": getApiKey() },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
@@ -193,20 +198,22 @@ export async function geminiGenerateImage(
         usage: usageFromMetadata(usage),
       };
     },
-    { shouldRetry: (err) => err instanceof AppError && err.status === 502 },
+    { retries: 1, shouldRetry: (err) => err instanceof AppError && err.status === 502 },
   );
 }
 
 /** Gemini TTS: áudio vem como inlineData; PCM L16 é encapsulado em WAV para o FFmpeg. */
 export async function geminiGenerateTts(
-  opts: { model: string; prompt: string; voiceName: string },
+  opts: { model: string; prompt: string; voiceName: string; beforeRequest: () => Promise<void> },
 ): Promise<GeminiTtsResult> {
   return await retryWithBackoff(
     async () => {
+      await opts.beforeRequest();
       const res = await fetch(
         `${API_BASE}/models/${opts.model}:generateContent`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(30_000),
           headers: { "Content-Type": "application/json", "x-goog-api-key": getApiKey() },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
@@ -249,6 +256,6 @@ export async function geminiGenerateTts(
         usage: usageFromMetadata(json?.usageMetadata ?? {}),
       };
     },
-    { shouldRetry: (err) => err instanceof AppError && err.status === 502 },
+    { retries: 1, shouldRetry: (err) => err instanceof AppError && err.status === 502 },
   );
 }

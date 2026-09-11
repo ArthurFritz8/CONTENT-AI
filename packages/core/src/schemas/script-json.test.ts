@@ -72,6 +72,23 @@ test("rejeita menos de 3 cenas", () => {
   strictEqual(scriptJsonSchema.safeParse(script).success, false);
 });
 
+test("array de cenas vazio retorna erro de validação, nunca TypeError", () => {
+  const script = makeValidScript();
+  script.scenes = [];
+  strictEqual(scriptJsonSchema.safeParse(script).success, false);
+});
+
+test("rejeita scene ids duplicados e conta aspas implícitas nas tags com espaços", () => {
+  const duplicate = makeValidScript();
+  duplicate.scenes[1]!.id = duplicate.scenes[0]!.id;
+  strictEqual(scriptJsonSchema.safeParse(duplicate).success, false);
+  const tags = makeValidScript();
+  tags.metadata.youtube.tags = ["a ".repeat(249)];
+  strictEqual(scriptJsonSchema.safeParse(tags).success, true);
+  tags.metadata.youtube.tags = ["a ".repeat(250)];
+  strictEqual(scriptJsonSchema.safeParse(tags).success, false);
+});
+
 test("rejeita duration_seconds fora de 5-45", () => {
   const script = makeValidScript();
   script.scenes[0]!.duration_seconds = 60;

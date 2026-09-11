@@ -19,6 +19,7 @@ test("formatAssTime: horas, minutos e centisegundos", () => {
   strictEqual(formatAssTime(0), "0:00:00.00");
   strictEqual(formatAssTime(61.257), "0:01:01.26");
   strictEqual(formatAssTime(3600.5), "1:00:00.50");
+  strictEqual(formatAssTime(59.999), "0:01:00.00");
 });
 
 test("agrupa palavras conforme o estilo (3 por grupo no portrait)", () => {

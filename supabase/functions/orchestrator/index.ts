@@ -1,3 +1,5 @@
+import { requireServiceRole } from "../_shared/auth.ts";
+import { advancePipeline } from "../_shared/advance-pipeline.ts";
 // orchestrator — consome idea_queue e cria episódios respeitando o cap diário (ADR-007).
 // Sem input: disparado pelo pg_cron diário; consumo atômico via RPC consume_next_idea.
 
@@ -6,6 +8,7 @@ import { createServiceClient, getSystemConfig } from "../_shared/supabase-client
 import { JobLogger } from "../_shared/logger.ts";
 
 interface PipelineConfig {
+  enabled?: boolean;
   max_episodes_per_day?: number;
 }
 
@@ -15,6 +18,7 @@ interface ConsumeResult {
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  try { requireServiceRole(req); } catch (err) { return toErrorResponse(err); }
   if (req.method !== "POST") {
     return toErrorResponse(new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"));
   }
@@ -23,8 +27,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const db = createServiceClient();
     logger = new JobLogger(db, "orchestrator");
-
     const cfg = await getSystemConfig<PipelineConfig>(db, "pipeline", {});
+    if (!cfg.enabled) return jsonResponse({ paused: true, reason: "pipeline_disabled" });
+    const advanced = await advancePipeline(db);
+    if (advanced) return jsonResponse(advanced);
     const maxPerDay = cfg.max_episodes_per_day ?? 1;
 
     const todayStart = new Date();

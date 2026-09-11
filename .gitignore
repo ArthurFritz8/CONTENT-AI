@@ -5,6 +5,9 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+.audit-tmp/
 
 # builds
 dist/

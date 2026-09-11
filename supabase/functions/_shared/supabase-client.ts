@@ -26,6 +26,7 @@ export async function getSystemConfig<T>(
     .select("value")
     .eq("key", key)
     .maybeSingle();
-  if (error || !data) return fallback;
+  if (error) throw new AppError("Erro ao ler configuração", 500, "DB_ERROR");
+  if (!data) return fallback;
   return data.value as T;
 }

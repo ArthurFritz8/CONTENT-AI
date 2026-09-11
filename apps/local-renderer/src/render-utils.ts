@@ -25,8 +25,9 @@ export function sceneIntermediatePath(
   episodeId: string,
   sceneOrder: number,
   orientation: Orientation,
+  revision?: string,
 ): string {
-  return `episodes/${episodeId}/render/intermediate/scene_${padSceneOrder(sceneOrder)}_${orientation}.mp4`;
+  return `episodes/${episodeId}/render/intermediate/${revision ? `${revision}/` : ""}scene_${padSceneOrder(sceneOrder)}_${orientation}.mp4`;
 }
 
 export function finalRenderPath(episodeId: string, orientation: Orientation): string {

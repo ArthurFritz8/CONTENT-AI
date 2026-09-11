@@ -1,0 +1,15 @@
+\set ON_ERROR_STOP on
+-- Read-only structural checks; fails deployment instead of reporting a false success.
+do $$
+declare tbl text;
+begin
+  foreach tbl in array array['episodes','assets','publishes','job_events','prompt_versions','system_config','idea_queue','api_budget_usage','episode_leases'] loop
+    if not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=tbl and c.relrowsecurity) then
+      raise exception 'Missing table or RLS: %',tbl;
+    end if;
+  end loop;
+  if not exists(select 1 from pg_trigger where tgname='episodes_z_gate' and not tgisinternal) then raise exception 'Approval gate missing'; end if;
+  if has_function_privilege('anon','public.consume_next_idea()','execute') then raise exception 'Unsafe RPC permissions'; end if;
+  if not exists(select 1 from storage.buckets where id='assets' and public) then raise exception 'Public assets bucket missing'; end if;
+  if not exists(select 1 from public.system_config where key='budget' and value ? 'gemini_models') then raise exception 'Model quotas must be configured'; end if;
+end $$;

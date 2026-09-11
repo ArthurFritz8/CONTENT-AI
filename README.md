@@ -2,6 +2,8 @@
 
 Pipeline **zero-budget** de criação e publicação automática de vídeos (YouTube + Shorts; TikTok manual até auditoria da Content Posting API).
 
+**Estado verificado (ADR-015):** implementação até `review`, com configuração cloud ainda pendente. QA, bot de aprovação, publishers e analytics ainda não foram implementados. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os bloqueios e critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
+
 ## Fluxo (máquina de estados)
 
 ```
@@ -21,9 +23,9 @@ idea → research → script → assets → rendered → review → published �
 | Orquestração | Supabase Edge Functions (Deno) + pg_cron | Free tier |
 | Banco | Supabase Postgres (máquina de estados auditável) | Free tier |
 | IA texto | Gemini Flash / Flash-Lite | Free tier |
-| IA imagem | Gemini Nano Banana | A validar (ver ADR-001) |
+| Imagem | Produto autorizado / Pexels | Free; Nano Banana API desabilitado (ADR-015) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
-| Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | 3.000 min/mês (Pro+) |
+| Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |
 | Publicação | YouTube Data API v3 (10.000 units/dia) | Free |
 | Aprovação | Telegram Bot | Free |
 | Painel | Next.js (`apps/web-panel`) | Local |
@@ -46,10 +48,11 @@ idea → research → script → assets → rendered → review → published �
 
 ## Setup
 
-1. `npm install`
+1. Node22.15+ e `npm ci`.
 2. Copie `.env.example` → `.env` e preencha as chaves (nunca commitar `.env`).
-3. `supabase link --project-ref <ref>` e `supabase db push`.
-4. Aplique `supabase/cron_jobs.sql` no SQL Editor **após** cadastrar segredos no Vault (instruções no próprio arquivo).
+3. `bash deploy.sh --check` verifica o código local; não faz deploy.
+4. Siga o [plano de deploy e smoke](docs/plano-implementacao.md). Pipeline inicia pausado (`pipeline.enabled=false`). `--smoke-test` verifica infraestrutura, sem inserir ideia ou publicar.
+5. `node scripts/preflight.mjs --production` lista módulos obrigatórios ausentes; ainda não é possível certificar o pipeline completo.
 
 ## Processo de desenvolvimento
 

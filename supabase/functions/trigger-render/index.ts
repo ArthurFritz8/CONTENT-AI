@@ -1,12 +1,13 @@
+import { claimEpisode } from "../_shared/episode-lease.ts";
+import { dispatchGithub } from "../_shared/github-dispatch.ts";
+import { requireServiceRole } from "../_shared/auth.ts";
 // trigger-render — dispara o workflow render.yml no GitHub Actions (ADR-004).
 // Input: { episode_id, force? }. Só episode_id vai como input do workflow —
 // signed URLs foram vetadas (vazam nos logs da run e expiram na fila).
 
 import {
   AppError,
-  isTransientHttpStatus,
   jsonResponse,
-  retryWithBackoff,
   toErrorResponse,
 } from "../_shared/error-handler.ts";
 import { createServiceClient, getSystemConfig } from "../_shared/supabase-client.ts";
@@ -14,7 +15,6 @@ import { JobLogger } from "../_shared/logger.ts";
 import { parseJsonBody, triggerRenderInputSchema } from "../_shared/validators.ts";
 import {
   DEFAULT_RENDER_DISPATCH_TTL_MINUTES,
-  RENDER_WORKFLOW_FILE,
 } from "../_shared/constants.ts";
 import type { RenderDispatchMeta } from "../_shared/types.ts";
 
@@ -22,56 +22,19 @@ interface RenderConfig {
   dispatch_ttl_minutes?: number;
 }
 
-function getGithubEnv(): { token: string; repo: string; branch: string } {
-  const token = Deno.env.get("GITHUB_TOKEN");
-  const repo = Deno.env.get("GITHUB_REPO");
-  const branch = Deno.env.get("GITHUB_BRANCH") ?? "main";
-  if (!token || !repo) {
-    throw new AppError("GITHUB_TOKEN / GITHUB_REPO ausentes no ambiente", 500, "CONFIG_MISSING");
-  }
-  return { token, repo, branch };
-}
-
-async function dispatchWorkflow(episodeId: string): Promise<void> {
-  const { token, repo, branch } = getGithubEnv();
-  const url =
-    `https://api.github.com/repos/${repo}/actions/workflows/${RENDER_WORKFLOW_FILE}/dispatches`;
-
-  await retryWithBackoff(
-    async () => {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Accept": "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ref: branch, inputs: { episode_id: episodeId } }),
-      });
-      if (res.status !== 204) {
-        const body = await res.text();
-        throw new AppError(
-          `GitHub dispatch falhou (${res.status}): ${body.slice(0, 300)}`,
-          isTransientHttpStatus(res.status) ? 502 : 500,
-          "GITHUB_DISPATCH_FAILED",
-        );
-      }
-    },
-    { shouldRetry: (err) => err instanceof AppError && err.status === 502 },
-  );
-}
-
 Deno.serve(async (req: Request): Promise<Response> => {
+  try { requireServiceRole(req); } catch (err) { return toErrorResponse(err); }
   if (req.method !== "POST") {
     return toErrorResponse(new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"));
   }
 
+  let release: (() => Promise<void>) | undefined;
   let logger: JobLogger | undefined;
   try {
     const input = await parseJsonBody(req, triggerRenderInputSchema);
     const db = createServiceClient();
     logger = new JobLogger(db, "trigger-render");
+    release = await claimEpisode(db, input.episode_id);
 
     const { data: episode, error } = await db
       .from("episodes")
@@ -95,6 +58,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const metadata = (episode.metadata ?? {}) as Record<string, unknown>;
     const prev = metadata.render_dispatch as RenderDispatchMeta | undefined;
 
+
     if (prev && !input.force) {
       const ageMinutes = (Date.now() - Date.parse(prev.dispatched_at)) / 60_000;
       if (ageMinutes < ttlMinutes) {
@@ -106,7 +70,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    await dispatchWorkflow(episode.id);
+    if ((prev?.attempt ?? 0) >= 3 && !input.force) {
+      const { error: failureError } = await db.from("episodes").update({ status: "failed", failure_reason: "render_dispatch_attempts_exhausted" }).eq("id", episode.id).eq("status", "assets");
+      if (failureError) throw new AppError("Erro ao encerrar dispatch", 500, "DB_ERROR");
+      return jsonResponse({ dispatched: false, reason: "attempts_exhausted" });
+    }
 
     const dispatch: RenderDispatchMeta = {
       dispatched_at: new Date().toISOString(),
@@ -118,8 +86,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .update({ metadata: { ...metadata, render_dispatch: dispatch } })
       .eq("id", episode.id);
     if (updateError) {
-      logger.error("falha ao registrar render_dispatch no episódio", updateError);
+      throw new AppError("Falha ao reservar dispatch", 500, "DB_ERROR");
     }
+    await dispatchGithub("render.yml", episode.id);
 
     await logger.event({
       episode_id: episode.id,
@@ -132,5 +101,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     logger?.error("falha no trigger-render", err);
     return toErrorResponse(err);
+  } finally {
+    await release?.();
   }
 });

@@ -1,6 +1,8 @@
 # Render primário do pipeline (ADR-004). Disparado pela Edge Function trigger-render.
 # Secrets exigidos no repositório: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 name: Render Episode
+permissions:
+  contents: read
 
 on:
   workflow_dispatch:
@@ -75,7 +77,7 @@ jobs:
             "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID&select=status,render_url" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" | jq -r '.[0].status')
-          if [[ "$STATUS" != "rendered" ]]; then
+          if [[ "$STATUS" != "rendered" && "$STATUS" != "review" && "$STATUS" != "published" && "$STATUS" != "analyze" ]]; then
             echo "::error::Renderer terminou sem marcar rendered (status=$STATUS)"
             exit 1
           fi
@@ -85,7 +87,7 @@ jobs:
         run: |
           # Transição pode ser rejeitada pelo trigger do banco se o estado mudou — não mascarar o erro original
           curl -sS -X PATCH \
-            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID" \
+            "$SUPABASE_URL/rest/v1/episodes?id=eq.$EPISODE_ID&status=eq.assets" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Content-Type: application/json" \
