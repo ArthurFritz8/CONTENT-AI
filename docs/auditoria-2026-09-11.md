@@ -121,6 +121,7 @@ YouTube ainda exige credenciais OAuth e canal de destino; uploads de projetos de
 | D04 | Alta | CI não verificava entrypoints completos nem renderer. | CI expandido: Deno, Node, SQL/concorrência, FFmpeg real e Piper. |
 | D05 | Bloqueante para pipeline completo | Aprovação, publishers e analytics ausentes. | **Implementação pendente**, detalhada no plano. Preflight production bloqueia, em vez de considerar funções essenciais “opcionais” para o fluxo completo. |
 | D06 | Alta | Nenhum E2E real ideia → publicação. | **Pendente de execução integrada**; testes locais/mocks não são essa evidência. |
+| D07 | Bloqueante | CI remoto revelou `ffmpeg/ffprobe: command not found`, contrariando ADR004. | Corrigido com `scripts/setup-ffmpeg.sh` compartilhado pelos workflows; instalação explícita quando ausente. |
 
 ### Evidência executada nesta auditoria
 
