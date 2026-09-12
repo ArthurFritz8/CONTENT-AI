@@ -27,8 +27,7 @@ function clip(text: string, length: number): string {
   return chars.length > length ? `${chars.slice(0, length - 1).join("")}…` : chars.join("");
 }
 
-export function buildReviewPacket(snapshot: unknown, requestId: string) {
-  z.string().uuid().parse(requestId);
+export function validateReviewSnapshot(snapshot: unknown) {
   const { episode, assets, fact_check } = snapshotSchema.parse(snapshot);
   const script = episode.script_json;
   if (episode.render_url !== episode.metadata.render_outputs.portrait) throw new Error("Vídeo principal diverge da versão apresentada");
@@ -36,6 +35,13 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
   if (!researchMatchesEvidence(episode.research_data, episode.research_evidence)) throw new Error("Evidência de pesquisa inválida");
   const report = createScriptQualityChecker(fact_check)(script, episode.research_data, Boolean(episode.product_compliance?.commercial_content));
   if (!report.passed) throw new Error("Roteiro reprovado no QA; revisão não enviada");
+  return { episode, assets, report };
+}
+
+export function buildReviewPacket(snapshot: unknown, requestId: string) {
+  z.string().uuid().parse(requestId);
+  const { episode, assets, report } = validateReviewSnapshot(snapshot);
+  const script = episode.script_json;
   const scenes = [...script.scenes].sort((a, b) => a.order - b.order);
   const caption = [
     "REVISÃO EDITORIAL",

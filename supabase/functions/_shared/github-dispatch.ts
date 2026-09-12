@@ -1,6 +1,6 @@
 import { AppError } from "./error-handler.ts";
 
-export async function dispatchGithub(workflow: "render.yml" | "assets.yml", episodeId: string): Promise<void> {
+export async function dispatchGithub(workflow: "render.yml" | "assets.yml" | "publish-youtube.yml", episodeId: string): Promise<void> {
   const repo = Deno.env.get("GITHUB_REPO");
   const token = Deno.env.get("GITHUB_TOKEN");
   if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) throw new AppError("GitHub não configurado", 500, "CONFIG_MISSING");

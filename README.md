@@ -26,7 +26,7 @@ idea → research → script → assets → rendered → review → published �
 | Imagem | Produto autorizado / Pexels | Free; Nano Banana API desabilitado (ADR-015) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
 | Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |
-| Publicação | YouTube Data API v3 (10.000 units/dia) | Free |
+| Publicação | YouTube Data API v3 (cotas do projeto no Google Cloud Console) | Free |
 | Aprovação | Telegram Bot | Free |
 | Painel | Next.js (`apps/web-panel`) | Local |
 
@@ -47,6 +47,8 @@ idea → research → script → assets → rendered → review → published �
 ```
 
 ## Setup
+
+O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. Inicia desativado e depende da configuração OAuth. Publicação pública e analytics ainda estão pendentes.
 
 1. Node22.15+ e `npm ci`.
 2. Copie `.env.example` → `.env` e preencha as chaves (nunca commitar `.env`).

@@ -175,11 +175,15 @@ set_github_actions_secrets() {
   log "Configurando GitHub Actions secrets para $GITHUB_REPO"
   printf '%s' "$SUPABASE_URL" | gh secret set SUPABASE_URL --repo "$GITHUB_REPO"
   printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | gh secret set SUPABASE_SERVICE_ROLE_KEY --repo "$GITHUB_REPO"
+  local name
+  for name in YOUTUBE_CLIENT_ID YOUTUBE_CLIENT_SECRET YOUTUBE_REFRESH_TOKEN YOUTUBE_CHANNEL_ID; do
+    if [[ -n "${!name:-}" ]]; then printf '%s' "${!name}" | gh secret set "$name" --repo "$GITHUB_REPO"; fi
+  done
 }
 
 deploy_functions() {
-  local required=(orchestrator generate-research generate-script generate-assets trigger-render telegram-bot)
-  local optional=(publish-youtube publish-tiktok collect-analytics heartbeat)
+  local required=(orchestrator generate-research generate-script generate-assets trigger-render telegram-bot publish-youtube)
+  local optional=(publish-tiktok collect-analytics heartbeat)
 
   log "Deployando Edge Functions obrigatórias"
   for fn in "${required[@]}"; do

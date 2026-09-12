@@ -3,6 +3,10 @@
 do $$
 declare tbl text;
 begin
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='publishes' and column_name='session_url')
+    or has_function_privilege('anon','public.claim_youtube_upload(uuid,uuid)','execute') then
+    raise exception 'Private upload ledger missing or unsafe (ADR-019)';
+  end if;
   if not exists(select 1 from pg_trigger where tgname='episodes_zz_review_gate' and not tgisinternal) then
     raise exception 'Version-bound review gate missing (ADR-018)';
   end if;

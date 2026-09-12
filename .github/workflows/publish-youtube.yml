@@ -1,0 +1,34 @@
+name: YouTube Private Pilot
+permissions:
+  contents: read
+on:
+  workflow_dispatch:
+    inputs:
+      episode_id:
+        description: "UUID aprovado no Telegram — vídeo horizontal, somente privado"
+        required: true
+        type: string
+concurrency:
+  group: youtube-private-${{ inputs.episode_id }}
+  cancel-in-progress: false
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EPISODE_ID: ${{ inputs.episode_id }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Upload privado da versão aprovada
+        run: node --experimental-strip-types apps/local-renderer/src/run-publish-youtube.ts

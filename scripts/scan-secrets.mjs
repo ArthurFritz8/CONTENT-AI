@@ -8,6 +8,8 @@ const patterns = [
   /eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}/,
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b/,
+  /GOCSPX-[A-Za-z0-9_-]{28,}/,
+  /1\/\/[A-Za-z0-9_-]{40,}/,
 ];
 const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {encoding:'utf8'}).split('\0').filter(Boolean);
 let findings = 0;

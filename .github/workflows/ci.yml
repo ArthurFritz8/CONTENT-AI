@@ -54,7 +54,7 @@ jobs:
           for migration in supabase/migrations/*.sql; do
             sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f "$migration"
           done
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
           pids=()
           for i in $(seq 1 12); do
@@ -71,6 +71,14 @@ jobs:
           done
           for pid in "${pids[@]}"; do wait "$pid"; done
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/review-concurrency-verify.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/youtube-concurrency-setup.sql
+          pids=()
+          for i in $(seq 1 12); do
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/youtube-concurrency-call.sql > /tmp/content-ai-youtube-$i.log &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/youtube-concurrency-verify.sql
 
   test-piper:
     runs-on: ubuntu-latest
