@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { handleAssets } from "../generate-assets/handler.ts";
+import { makeResearchEvidence } from "../../../packages/core/src/testing/research-fixture.ts";
 
 Deno.test("assets retoma áudio salvo por cena e não promove antes de todas as legendas", async () => {
   const savedFetch = globalThis.fetch;
@@ -18,6 +19,7 @@ Deno.test("assets retoma áudio salvo por cena e não promove antes de todas as 
     metadata:{youtube:{title:"Teste",description:"Teste",category:"Education",tags:["teste"]},tiktok:{title:"Teste",description:"Teste",hashtags:["#teste"]}} };
   const episode: Record<string, unknown> = {id,status:"script",script_json:script,product_image_url:null,tts_engine:"gemini",
     research_data:[{claim:"Teste",source_url:"https://example.com/source",confidence:0.9,query_used:"teste"}]};
+  episode.research_evidence = makeResearchEvidence([{claim:"Teste",source_url:"https://example.com/source",confidence:0.9,query_used:"teste"}]);
   const assets: Record<string, unknown>[] = scenes.flatMap(scene=>["landscape","portrait"].map(orientation=>({
     type:"image",...ref,metadata:{scene_order:scene.order,orientation},author:"Test" })));
   let ttsCalls=0;

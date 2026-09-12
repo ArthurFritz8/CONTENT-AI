@@ -54,6 +54,23 @@ begin
 end $$;
 
 grant select on public.episodes to anon;
+do $$
+declare ep uuid;
+begin
+  insert into public.episodes default values returning id into ep;
+  perform pg_temp.assert_true((select research_evidence is null from public.episodes where id=ep),'legacy evidence is nullable');
+  update public.episodes set status='research', research_data='[{"claim":"Fixture"}]',
+    research_evidence='{"version":"1.0.0","parts":["fixture"]}' where id=ep;
+  perform pg_temp.assert_true((select status='research' and research_evidence->>'version'='1.0.0' from public.episodes where id=ep),'evidence and research saved together');
+  begin
+    update public.episodes set research_evidence='[]' where id=ep;
+    raise exception 'Non-object evidence accepted';
+  exception when check_violation then null; end;
+  begin
+    update public.episodes set research_evidence=jsonb_build_object('oversized',repeat('a',262144)) where id=ep;
+    raise exception 'Oversized evidence accepted';
+  exception when check_violation then null; end;
+end $$;
 set local role anon;
 select pg_temp.assert_true((select count(*)=0 from public.episodes),'RLS hides episodes from anon');
 reset role;

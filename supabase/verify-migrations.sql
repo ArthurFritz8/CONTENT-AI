@@ -3,6 +3,9 @@
 do $$
 declare tbl text;
 begin
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='episodes' and column_name='research_evidence') then
+    raise exception 'Research evidence migration missing (ADR-017)';
+  end if;
   foreach tbl in array array['episodes','assets','publishes','job_events','prompt_versions','system_config','idea_queue','api_budget_usage','episode_leases'] loop
     if not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=tbl and c.relrowsecurity) then
       raise exception 'Missing table or RLS: %',tbl;

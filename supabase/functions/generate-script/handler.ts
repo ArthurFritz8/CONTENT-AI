@@ -14,6 +14,7 @@ import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { scriptJsonSchema } from "../../../packages/core/src/schemas/script-json.ts";
 import { researchDataSchema } from "../../../packages/core/src/schemas/research.ts";
+import { researchMatchesEvidence } from "../../../packages/core/src/validators/research-evidence.ts";
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import type { ScriptQualityReport } from "../../../packages/core/src/validators/script-quality.ts";
 import { loadScriptQualityChecker, recordScriptQuality } from "../_shared/script-quality.ts";
@@ -187,7 +188,7 @@ export async function handleScript(req: Request): Promise<Response> {
 
     const { data: episode, error } = await db
       .from("episodes")
-      .select("id, status, briefing, research_data, product_compliance")
+      .select("id, status, briefing, research_data, research_evidence, product_compliance")
       .eq("id", input.episode_id)
       .maybeSingle();
     if (error) throw new AppError(`Erro ao buscar episódio: ${error.message}`, 500, "DB_ERROR");
@@ -203,6 +204,11 @@ export async function handleScript(req: Request): Promise<Response> {
     const research = researchDataSchema.safeParse(episode.research_data);
     if (!research.success) {
       throw new AppError("Episódio sem research_data válido", 422, "MISSING_RESEARCH");
+    }
+    if (!researchMatchesEvidence(research.data, episode.research_evidence)) {
+      await markEpisodeFailed(db, logger, episode.id, "research_evidence_invalid",
+        "Pesquisa sem evidência válida ou alterada após grounding", "research");
+      throw new AppError("Pesquisa sem evidência válida ou alterada após grounding", 422, "RESEARCH_EVIDENCE_INVALID");
     }
     const briefingText = (episode.briefing as { text?: string } | null)?.text ?? "";
     const isCommercial = Boolean(

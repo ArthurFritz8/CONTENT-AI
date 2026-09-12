@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { makeValidScript } from "../../../packages/core/src/testing/script-fixture.ts";
+import { makeResearchEvidence } from "../../../packages/core/src/testing/research-fixture.ts";
 import { handleScript } from "../generate-script/handler.ts";
 import { handleAssets } from "../generate-assets/handler.ts";
 
@@ -8,6 +9,7 @@ const policy = { blocked_patterns: { medical: ["\\mcura\\M"] }, require_source_p
 async function scenario(options: {
   replies?: unknown[]; config?: unknown; stage?: "script" | "assets";
   failAudit?: boolean; changeState?: boolean; editedScript?: boolean;
+  missingEvidence?: boolean; changedResearch?: boolean;
 }, verify: (result: {
   response: Response; episode: Record<string, unknown>; events: Array<Record<string, unknown>>;
   calls: number; reservations: number; prompts: string[];
@@ -24,6 +26,9 @@ async function scenario(options: {
     script_json: script,
     research_data: script.sources.map(source => ({ ...source, confidence: 0.9, query_used: "produto" })),
   };
+  episode.research_evidence = options.missingEvidence ? null : makeResearchEvidence(
+    script.sources.map(source => ({ ...source, confidence: 0.9, query_used: "produto" })));
+  if (options.changedResearch) episode.research_data = script.sources.map(source => ({ ...source, claim: "Pesquisa alterada", confidence: 0.9, query_used: "produto" }));
   const events: Array<Record<string, unknown>> = [];
   const prompts: string[] = [];
   let calls = 0;
@@ -170,4 +175,19 @@ Deno.test("assets mantém checkpoint quando configuração QA está inválida", 
     assertEquals(episode.status, "script");
     assertEquals(calls, 0);
   });
+});
+
+Deno.test("pesquisa sem evidência ou editada bloqueia script e assets antes de providers", async () => {
+  for (const stage of ["script", "assets"] as const) {
+    for (const option of [{ missingEvidence: true }, { changedResearch: true }]) {
+      await scenario({ stage, ...option }, async ({ response, episode, calls, reservations }) => {
+        assertEquals(response.status, 422);
+        assertEquals((await response.json()).code, "RESEARCH_EVIDENCE_INVALID");
+        assertEquals(episode.status, "failed");
+        assertEquals(episode.failure_reason, "research_evidence_invalid");
+        assertEquals(calls, 0);
+        assertEquals(reservations, 0);
+      });
+    }
+  }
 });

@@ -14,6 +14,7 @@ export interface GeminiUsage {
 export interface GeminiResult {
   text: string;
   usage: GeminiUsage;
+  grounding?: { parts: Array<string | null>; metadata: unknown };
 }
 
 export interface GeminiOptions {
@@ -72,14 +73,17 @@ export async function geminiGenerate(opts: GeminiOptions): Promise<GeminiResult>
         );
       }
       const json = await res.json();
-      const parts: Array<{ text?: string }> = json?.candidates?.[0]?.content?.parts ?? [];
-      const text = parts.map((p) => p.text ?? "").join("");
+      const candidate = json?.candidates?.[0];
+      const parts: Array<{ text?: string; thought?: boolean }> = candidate?.content?.parts ?? [];
+      const visibleParts = parts.map(p => typeof p.text === "string" && p.thought !== true ? p.text : null);
+      const text = visibleParts.map(p => p ?? "").join("");
       if (!text) {
         throw new AppError("Gemini retornou resposta vazia", 502, "GEMINI_EMPTY_RESPONSE");
       }
       const usage = json?.usageMetadata ?? {};
       return {
         text,
+        ...(opts.grounding ? { grounding: { parts: visibleParts, metadata: candidate?.groundingMetadata ?? null } } : {}),
         usage: {
           prompt_tokens: usage.promptTokenCount,
           output_tokens: usage.candidatesTokenCount,

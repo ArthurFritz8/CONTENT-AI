@@ -19,6 +19,7 @@ import { searchPexelsPhoto } from "../_shared/pexels.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { loadScriptQualityChecker, recordScriptQuality } from "../_shared/script-quality.ts";
 import { researchDataSchema } from "../../../packages/core/src/schemas/research.ts";
+import { researchMatchesEvidence } from "../../../packages/core/src/validators/research-evidence.ts";
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import {
   normalizeTtsChain,
@@ -591,7 +592,7 @@ export async function handleAssets(req: Request): Promise<Response> {
 
     const { data: episode, error } = await db
       .from("episodes")
-      .select("id, status, script_json, research_data, product_image_url, product_compliance, tts_engine")
+      .select("id, status, script_json, research_data, research_evidence, product_image_url, product_compliance, tts_engine")
       .eq("id", input.episode_id)
       .maybeSingle();
     if (error) throw new AppError(`Erro ao buscar episódio: ${error.message}`, 500, "DB_ERROR");
@@ -605,6 +606,9 @@ export async function handleAssets(req: Request): Promise<Response> {
     const quality = await loadScriptQualityChecker(db);
     const research = researchDataSchema.safeParse(episode.research_data);
     if (!research.success) throw new AppError("Pesquisa ausente ou inválida para checagem do roteiro", 422, "SCRIPT_RESEARCH_INVALID");
+    if (!researchMatchesEvidence(research.data, episode.research_evidence)) {
+      throw new AppError("Pesquisa sem evidência válida ou alterada após grounding", 422, "RESEARCH_EVIDENCE_INVALID");
+    }
     const report = quality.check(script, research.data, Boolean(episode.product_compliance?.commercial_content));
     if (!report.passed) {
       await recordScriptQuality(db, episode.id, report, {
@@ -663,7 +667,9 @@ export async function handleAssets(req: Request): Promise<Response> {
     }
     logger?.error("falha no generate-assets", err);
     if (logger && episodeForFailure?.status === "script" && !(err instanceof AppError && ["INVALID_STATE", "NOT_FOUND", "QA_CONFIG_INVALID", "DB_ERROR"].includes(err.code))) {
-      const reason = err instanceof AppError && err.code.startsWith("SCRIPT_")
+      const reason = err instanceof AppError && err.code === "RESEARCH_EVIDENCE_INVALID"
+        ? "research_evidence_invalid"
+        : err instanceof AppError && err.code.startsWith("SCRIPT_")
         ? "script_quality_failed"
         : err instanceof AppError && err.code.startsWith("TTS")
         ? "tts_generation_failed"

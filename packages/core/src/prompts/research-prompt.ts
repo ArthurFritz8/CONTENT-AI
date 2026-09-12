@@ -26,6 +26,7 @@ REGRAS OBRIGATÓRIAS:
 3. PERMITIDO: comparações relativas ("mais leve que X"), claims de funcionalidade ("bateria de 12h") e opiniões qualificadas ("opção interessante para quem busca Y").
 4. confidence: 0.9+ para specs oficiais, 0.6-0.8 para reviews, abaixo de 0.6 não incluir.
 5. Entre 3 e ${input.maxClaims} claims. Idioma: português do Brasil.
+6. Cada claim deve ser uma frase factual curta, com citação de uma fonte encontrada pelo Google Search. Não inclua fatos sem suporte da busca. O sistema usará as citações do provedor para determinar a URL final.
 
 FORMATO DA RESPOSTA — retorne APENAS um array JSON, sem markdown, sem texto extra:
 [

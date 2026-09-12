@@ -4,6 +4,7 @@ export * from "./schemas/research.ts";
 export * from "./validators/hash-utils.ts";
 export * from "./validators/duration.ts";
 export * from "./validators/script-quality.ts";
+export * from "./validators/research-evidence.ts";
 export * from "./prompts/research-prompt.ts";
 export * from "./prompts/script-prompt.ts";
 export * from "./planners/asset-plan.ts";
