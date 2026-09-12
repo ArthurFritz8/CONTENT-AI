@@ -24,6 +24,9 @@ begin
   exception when check_violation then null; end;
   update public.system_config set value=value||'{"enabled":true}' where key='youtube';
   pub:=public.claim_youtube_upload(ep,owner_id);
+  update public.system_config set value=value||'{"configuration_repaired":true}' where key='youtube';
+  pub:=public.claim_youtube_upload(ep,owner_id);
+  perform pg_temp.expect(pub.upload_config->'configuration_repaired'='true'::jsonb,'pre-session configuration repair');
   perform public.authorize_youtube_session(pub.id,owner_id);
   perform public.authorize_youtube_session(pub.id,owner_id);
   perform public.authorize_youtube_session(pub.id,owner_id);
@@ -43,8 +46,10 @@ begin
   exception when check_violation then null; end;
   -- Expired lease can resume the SAME immutable session; old owner is fenced.
   update public.publishes set lease_until=now()-interval '1 second' where id=pub.id;
+  update public.system_config set value=value||'{"configuration_repaired":false}' where key='youtube';
   again:=public.claim_youtube_upload(ep,other_owner);
   perform pg_temp.expect(again.id=pub.id and again.session_url=session,'resume same ledger/session');
+  perform pg_temp.expect(again.upload_config->'configuration_repaired'='true'::jsonb,'session config remains immutable');
   begin
     perform public.check_youtube_upload(pub.id,owner_id); raise exception 'Expired owner accepted';
   exception when check_violation then null; end;

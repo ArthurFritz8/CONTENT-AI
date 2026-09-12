@@ -4,7 +4,7 @@ O piloto envia o vídeo **horizontal**, com título, descrição e tags da revis
 
 ## Preparar o ambiente
 
-1. Aplicar todas as migrations em ordem, incluindo `20260912010000_youtube_private.sql`, e executar `supabase/verify-migrations.sql`. Nunca aplicar `supabase/tests/bootstrap.sql` no cloud.
+1. Aplicar todas as migrations em ordem, incluindo `20260912010000_youtube_private.sql` e `20260912020000_youtube_preflight_recovery.sql`, e executar `supabase/verify-migrations.sql`. Nunca aplicar `supabase/tests/bootstrap.sql` no cloud.
 2. Terminar o [setup do Telegram](telegram-review.md), gerar um episódio, assistir às duas versões e aprovar. Renders antigos sem hash no caminho precisam ser refeitos e aprovados novamente.
 3. Habilitar YouTube Data API v3 no seu projeto Google. Configurar consentimento OAuth e obter um refresh token com acesso offline para o proprietário do canal e os escopos `https://www.googleapis.com/auth/youtube.upload` e `https://www.googleapis.com/auth/youtube.readonly`. Selecionar a identidade correta se houver Brand Account. Não enviar credenciais em chat, issues ou commits. Consulte o [fluxo OAuth oficial](https://developers.google.com/identity/protocols/oauth2/web-server).
 4. Preencher `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` e `YOUTUBE_CHANNEL_ID` no ambiente local ignorado pelo Git. O ID do canal começa com `UC`; não é o @handle. Além dos dois secrets Supabase existentes, estes quatro valores devem estar nos **GitHub Actions secrets**. `deploy.sh` transfere os valores presentes quando `CONFIGURE_GITHUB_ACTIONS_SECRETS=1`; não apaga secrets opcionais ausentes. O uploader roda no Actions e não depende do PC ligado.

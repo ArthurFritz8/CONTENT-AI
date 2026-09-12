@@ -59,7 +59,7 @@ flowchart TD
 
 ## Entregáveis antes do primeiro deploy controlado
 
-- Migrations históricas **preservadas**, mais `20260911000000_audit_hardening.sql`, `20260911010000_research_evidence.sql` , `20260912000000_telegram_review.sql` e `20260912010000_youtube_private.sql`. Aplicar antes de implantar os workers atuais. Pesquisas sem evidência e aprovações sem ledger autêntico ficam bloqueadas. [Ativação do Telegram](telegram-review.md).
+- Migrations históricas **preservadas**, mais `20260911000000_audit_hardening.sql`, `20260911010000_research_evidence.sql` , `20260912000000_telegram_review.sql` , `20260912010000_youtube_private.sql` e `20260912020000_youtube_preflight_recovery.sql`. Aplicar antes de implantar os workers atuais. Pesquisas sem evidência e aprovações sem ledger autêntico ficam bloqueadas. [Ativação do Telegram](telegram-review.md).
 - `seed.sql` insert-only, `pipeline.enabled=false`, quotas por modelo calibradas no projeto gratuito.
 - `verify-migrations.sql`, testes SQL e concorrência; executar contra banco descartável antes do cloud.
 - `.env.cloud` fora do Git; GitHub e Supabase secrets devidamente separados. O deploy não deve sobrescrever as variáveis reservadas do runtime Supabase.
