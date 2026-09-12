@@ -3,7 +3,7 @@ begin;
 create function pg_temp.assert_true(value boolean,label text) returns void language plpgsql as $$
 begin if value is distinct from true then raise exception 'Assertion failed: %',label; end if; end $$;
 do $$
-declare ep uuid; script jsonb := '{"disclosures":{"contains_synthetic_media":true,"commercial_content":false}}';
+declare ep uuid; req public.review_requests; script jsonb := '{"disclosures":{"contains_synthetic_media":true,"commercial_content":false}}';
 begin
   begin
     insert into public.episodes(status) values('published');
@@ -29,7 +29,10 @@ begin
     update public.episodes set status='published' where id=ep;
     raise exception 'Missing approval accepted';
   exception when check_violation then null; end;
-  update public.episodes set approval_user='human-test',approval_date=now(),status='published' where id=ep;
+  req:=public.prepare_review('123','456',ep,false);
+  update public.review_requests set delivery_status='sent',message_id=1 where id=req.id;
+  perform public.decide_review(req.id,100,'approve','123','456',1);
+  update public.episodes set status='published' where id=ep;
   update public.episodes set status='failed',failure_reason='analytics' where id=ep;
   update public.episodes set status='published' where id=ep;
   update public.episodes set status='analyze' where id=ep;

@@ -7,6 +7,7 @@ const patterns = [
   /sk-(?:or-v1-)?[A-Za-z0-9]{32,}/,
   /eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}/,
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+  /\b\d{6,12}:[A-Za-z0-9_-]{30,50}\b/,
 ];
 const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {encoding:'utf8'}).split('\0').filter(Boolean);
 let findings = 0;

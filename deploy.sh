@@ -146,6 +146,8 @@ set_supabase_secrets() {
     OPENROUTER_API_KEY
     TELEGRAM_BOT_TOKEN
     TELEGRAM_CHAT_ID
+    TELEGRAM_USER_ID
+    TELEGRAM_WEBHOOK_SECRET
     YOUTUBE_CLIENT_ID
     YOUTUBE_CLIENT_SECRET
     YOUTUBE_REFRESH_TOKEN
@@ -176,7 +178,7 @@ set_github_actions_secrets() {
 }
 
 deploy_functions() {
-  local required=(orchestrator generate-research generate-script generate-assets trigger-render)
+  local required=(orchestrator generate-research generate-script generate-assets trigger-render telegram-bot)
   local optional=(publish-youtube publish-tiktok collect-analytics heartbeat)
 
   log "Deployando Edge Functions obrigatórias"

@@ -21,7 +21,7 @@ test("paths do renderer seguem convenção estável por cena", () => {
     sceneIntermediatePath("ep", 4, "portrait"),
     "episodes/ep/render/intermediate/scene_004_portrait.mp4",
   );
-  strictEqual(finalRenderPath("ep", "landscape"), "episodes/ep/render/final/episode_landscape.mp4");
+  strictEqual(finalRenderPath("ep", "landscape", "revision"), "episodes/ep/render/final/revision/episode_landscape.mp4");
   strictEqual(conventionalSceneAudioPath("ep", 4), "episodes/ep/audio/scene_004.mp3");
   strictEqual(
     conventionalWordBoundariesPath("ep", 4),

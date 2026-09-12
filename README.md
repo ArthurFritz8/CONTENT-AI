@@ -2,7 +2,7 @@
 
 Pipeline **zero-budget** de criação e publicação automática de vídeos (YouTube + Shorts; TikTok manual até auditoria da Content Posting API).
 
-**Estado verificado (ADR-015–017):** implementação até `review`, com configuração cloud ainda pendente. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md) e [evidências de grounding](docs/ADR/ADR-017-evidencias-de-grounding.md) implementados; validação real Gemini, revisão factual humana, QA audiovisual, bot de aprovação, publishers e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os bloqueios e critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
+**Estado verificado (ADR-015–018):** implementação até `review`, com configuração cloud ainda pendente. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de grounding](docs/ADR/ADR-017-evidencias-de-grounding.md) e [revisão pelo Telegram](docs/telegram-review.md) implementados. Validação real Gemini/Telegram, QA audiovisual, publishers e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os bloqueios e critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
 
 ## Fluxo (máquina de estados)
 

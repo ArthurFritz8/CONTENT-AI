@@ -1,6 +1,7 @@
 // Real FFmpeg + renderer CLI against an in-memory Storage/PostgREST fixture. No cloud credentials.
 import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp,readFile,writeFile,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -57,7 +58,11 @@ try {
   assert.equal(objects.size,8); // six intermediate scenes + two finals
   for(const orientation of ['portrait','landscape']) {
     const path=join(dir,`${orientation}.mp4`);
-    await writeFile(path,objects.get(`assets/episodes/${id}/render/final/episode_${orientation}.mp4`));
+    const outputUrl=new URL(episode.metadata.render_outputs[orientation]);
+    const objectPath=decodeURIComponent(outputUrl.pathname.split('/storage/v1/object/public/')[1]);
+    assert.match(objectPath,/\/render\/final\/[a-f0-9]{64}\//);
+    assert.equal(objectPath.split('/').at(-2),createHash('sha256').update(objects.get(objectPath)).digest('hex'));
+    await writeFile(path,objects.get(objectPath));
     const probe=JSON.parse(execFileSync('ffprobe',['-v','error','-show_streams','-show_format','-of','json',path],{encoding:'utf8'}));
     const video=probe.streams.find(stream=>stream.codec_type==='video');
     assert.equal(video.width,orientation==='portrait'?1080:1920);

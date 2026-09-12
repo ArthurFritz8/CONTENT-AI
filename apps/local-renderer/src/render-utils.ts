@@ -30,8 +30,8 @@ export function sceneIntermediatePath(
   return `episodes/${episodeId}/render/intermediate/${revision ? `${revision}/` : ""}scene_${padSceneOrder(sceneOrder)}_${orientation}.mp4`;
 }
 
-export function finalRenderPath(episodeId: string, orientation: Orientation): string {
-  return `episodes/${episodeId}/render/final/episode_${orientation}.mp4`;
+export function finalRenderPath(episodeId: string, orientation: Orientation, revision: string): string {
+  return `episodes/${episodeId}/render/final/${revision}/episode_${orientation}.mp4`;
 }
 
 export function conventionalSceneAudioPath(episodeId: string, sceneOrder: number): string {

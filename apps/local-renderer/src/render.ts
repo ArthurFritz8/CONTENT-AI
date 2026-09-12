@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -465,7 +467,9 @@ async function concatOrientation(
     await copyFile(concatOutput, finalOutput);
   }
 
-  const remotePath = finalRenderPath(ctx.episode.id, orientation);
+  const contentHash = createHash("sha256");
+  for await (const chunk of createReadStream(finalOutput)) contentHash.update(chunk);
+  const remotePath = finalRenderPath(ctx.episode.id, orientation, contentHash.digest("hex"));
   return await ctx.client.uploadObject(ctx.bucket, remotePath, finalOutput, "video/mp4");
 }
 
