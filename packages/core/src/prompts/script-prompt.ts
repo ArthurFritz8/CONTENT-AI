@@ -36,12 +36,14 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO:
 - Cenas do meio: role="content" (demonstração e comparação usando os fatos pesquisados).
 - Última cena: role="cta"${input.isCommercial ? " incluindo o disclosure comercial na narração" : ""}.
 - scenes[].order começa em 0 e é contíguo, sem pulos.
-- Todo claim usado na narração deve aparecer em sources com a source_url original.
+- Em sources, copie literalmente os pares claim/source_url dos FATOS PESQUISADOS usados. Não parafraseie o campo claim nem troque a URL. A narração pode explicar esses fatos, sem acrescentar promessas.
+- narration.full_text deve ser a concatenação exata de narration_text de todas as cenas em ordem, separadas por um espaço.
+- Não use promessas médicas, de retorno financeiro ou superlativos absolutos ("o melhor do mundo", "único no mercado").
 - visual.description: descrição rica para gerar imagem (estilo, enquadramento, objeto).
 - visual.search_query: consulta curta em inglês para banco de imagens (fallback).
 - highlight_words: 1 a 2 palavras-chave POR CENA, copiadas exatamente como aparecem em narration_text, para destaque visual na legenda.
 - narration_text: tom conversacional, português do Brasil, frases curtas para narração.
-${input.isCommercial ? '- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado.").' : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
+${input.isCommercial ? '- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado."). Copie esse disclosure literalmente na narração do CTA e nas descrições YouTube e TikTok.' : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
 
 Retorne APENAS o JSON no formato especificado.`;
 }

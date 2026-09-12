@@ -1,6 +1,6 @@
 import { notStrictEqual, strictEqual } from "node:assert";
 import { test } from "node:test";
-import { makeValidScript } from "../schemas/script-json.test.ts";
+import { makeValidScript } from "../testing/script-fixture.ts";
 import { canonicalStringify, computeScriptHash, sha256Hex } from "./hash-utils.ts";
 
 test("canonicalStringify: ordem das chaves não altera a saída", () => {

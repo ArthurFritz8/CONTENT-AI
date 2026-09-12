@@ -12,11 +12,12 @@ Deno.test("assets retoma áudio salvo por cena e não promove antes de todas as 
     narration_text: "Texto de teste", transition: "cut", ken_burns: "static", visual: {description:"Teste",search_query:"test"},
     highlight_words: [], asset_landscape: ref, asset_portrait: ref, subtitle_position: "bottom_center" }));
   const script = { episode_id:id,prompt_version:"1.0.0",gap_seconds:0.5,music:null,scenes,
-    narration:{full_text:"Texto de teste",language:"pt-BR",estimated_duration_seconds:60},
+    narration:{full_text:"Texto de teste Texto de teste Texto de teste",language:"pt-BR",estimated_duration_seconds:60},
     sources:[{claim:"Teste",source_url:"https://example.com/source"}],
     disclosures:{contains_synthetic_media:true,commercial_content:false,commercial_disclosure_text:null},
     metadata:{youtube:{title:"Teste",description:"Teste",category:"Education",tags:["teste"]},tiktok:{title:"Teste",description:"Teste",hashtags:["#teste"]}} };
-  const episode: Record<string, unknown> = {id,status:"script",script_json:script,product_image_url:null,tts_engine:"gemini"};
+  const episode: Record<string, unknown> = {id,status:"script",script_json:script,product_image_url:null,tts_engine:"gemini",
+    research_data:[{claim:"Teste",source_url:"https://example.com/source",confidence:0.9,query_used:"teste"}]};
   const assets: Record<string, unknown>[] = scenes.flatMap(scene=>["landscape","portrait"].map(orientation=>({
     type:"image",...ref,metadata:{scene_order:scene.order,orientation},author:"Test" })));
   let ttsCalls=0;
@@ -36,7 +37,8 @@ Deno.test("assets retoma áudio salvo por cena e não promove antes de todas as 
       if (method === "PATCH") { Object.assign(episode,body); return new Response(null,{status:204}); }
       return json(episode);
     }
-    if (url.pathname.endsWith('/system_config')) return json({value:{}});
+    if (url.pathname.endsWith('/system_config')) return json({value:url.searchParams.get("key") === "eq.fact_check"
+      ? {blocked_patterns:{medical:["\\mcura\\M"]},require_source_per_claim:true} : {}});
     if (url.pathname.endsWith('/assets')) {
       if (method === "POST") { assets.push(...(Array.isArray(body)?body:[body])); return new Response(null,{status:201}); }
       return json(assets);
