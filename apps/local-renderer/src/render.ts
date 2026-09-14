@@ -25,6 +25,7 @@ import {
   escapeFfmpegFilterPath,
   finalRenderPath,
   FPS,
+  isMissingOptionalStorageObject,
   ORIENTATIONS,
   sceneIntermediatePath,
   sceneProgress,
@@ -224,8 +225,9 @@ async function ffprobeDuration(filePath: string): Promise<number> {
 async function downloadUrl(url: string, destPath: string, optional = false): Promise<boolean> {
   const res = await fetch(url);
   if (!res.ok) {
-    if (optional && res.status === 404) return false;
-    throw new Error(`Download falhou (${res.status}) ${url}: ${await res.text()}`);
+    const detail = await res.text();
+    if (optional && isMissingOptionalStorageObject(res.status, detail)) return false;
+    throw new Error(`Download falhou (${res.status}) ${url}: ${detail}`);
   }
   await mkdir(dirname(destPath), { recursive: true });
   await writeFile(destPath, new Uint8Array(await res.arrayBuffer()));

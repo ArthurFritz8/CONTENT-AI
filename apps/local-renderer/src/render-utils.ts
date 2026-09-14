@@ -61,6 +61,17 @@ export function storagePublicUrl(baseUrl: string, bucket: string, path: string):
   return `${normalizedBase}/storage/v1/object/public/${bucket}/${encodedPath}`;
 }
 
+export function isMissingOptionalStorageObject(status: number, body: string): boolean {
+  if (status === 404) return true;
+  if (status !== 400) return false;
+  try {
+    const error = JSON.parse(body) as { statusCode?: string | number; code?: string };
+    return Number(error.statusCode) === 404 || error.code === "NoSuchKey";
+  } catch {
+    return false;
+  }
+}
+
 export function selectAudioUrlForScene(
   assets: AudioAssetLike[],
   sceneOrder: number,

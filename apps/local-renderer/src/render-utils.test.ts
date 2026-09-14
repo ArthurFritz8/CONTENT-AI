@@ -7,6 +7,7 @@ import {
   escapeConcatPath,
   escapeFfmpegFilterPath,
   finalRenderPath,
+  isMissingOptionalStorageObject,
   padSceneOrder,
   sceneIntermediatePath,
   sceneProgress,
@@ -45,6 +46,13 @@ test("storagePublicUrl codifica segmentos sem quebrar barras", () => {
     storagePublicUrl("https://example.supabase.co/", "assets", "episodes/ep/a b.mp4"),
     "https://example.supabase.co/storage/v1/object/public/assets/episodes/ep/a%20b.mp4",
   );
+});
+
+test("arquivo opcional ausente aceita 404 direto e envelope 400 do Storage", () => {
+  strictEqual(isMissingOptionalStorageObject(404, "not found"), true);
+  strictEqual(isMissingOptionalStorageObject(400, '{"statusCode":"404","code":"NoSuchKey"}'), true);
+  strictEqual(isMissingOptionalStorageObject(400, '{"statusCode":"400","code":"InvalidKey"}'), false);
+  strictEqual(isMissingOptionalStorageObject(500, '{"statusCode":"404"}'), false);
 });
 
 test("selectAudioUrlForScene aceita convenções com pad e sem pad", () => {
