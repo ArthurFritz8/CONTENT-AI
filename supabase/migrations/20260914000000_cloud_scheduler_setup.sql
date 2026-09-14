@@ -1,10 +1,20 @@
 -- Cloud scheduler bootstrap without requiring psql on the operator machine.
 -- The service key is received only by this service-role RPC and stored in Vault.
 
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-create schema if not exists vault;
-create extension if not exists supabase_vault with schema vault;
+do $extensions$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+  end if;
+  if exists (select 1 from pg_available_extensions where name = 'pg_net') then
+    create extension if not exists pg_net;
+  end if;
+  if exists (select 1 from pg_available_extensions where name = 'supabase_vault') then
+    create schema if not exists vault;
+    create extension if not exists supabase_vault with schema vault;
+  end if;
+end;
+$extensions$;
 
 insert into storage.buckets (id, name, public)
 values ('assets', 'assets', true)
@@ -21,6 +31,11 @@ as $configure$
 declare
   v_job_id bigint;
 begin
+  if not exists (select 1 from pg_extension where extname = 'pg_cron')
+    or not exists (select 1 from pg_extension where extname = 'pg_net')
+    or not exists (select 1 from pg_extension where extname = 'supabase_vault') then
+    raise exception 'Supabase scheduler extensions are unavailable';
+  end if;
   if p_project_url !~ '^https://[a-z0-9]{20}[.]supabase[.]co$' then
     raise exception 'Invalid Supabase project URL';
   end if;
@@ -65,4 +80,3 @@ revoke all on function public.configure_content_ai_scheduler(text, text)
   from public, anon, authenticated;
 grant execute on function public.configure_content_ai_scheduler(text, text)
   to service_role;
-
