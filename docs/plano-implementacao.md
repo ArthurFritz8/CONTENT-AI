@@ -1,6 +1,6 @@
 # Plano de implementação e validação — ADR-015
 
-> Atualização de 14/09/2026: a primeira pesquisa/geração real, render com Piper, revisão Telegram e upload privado YouTube foram concluídos, incluindo repetição sem upload duplicado. O ADR-025 adiciona QA audiovisual aos próximos renders e trechos das fontes ao dossiê. As situações anteriores abaixo registram o planejamento histórico; para o diagnóstico atual e prioridades, consultar [auditoria de 14/09](auditoria-2026-09-14.md). Analytics, heartbeat/retenção, fidelidade de motion/transitions e publicação pública/Shorts permanecem pendentes. A chave de variante YouTube já foi implementada no ADR-019.
+> Atualização de 14/09/2026: a primeira pesquisa/geração real, render com Piper, revisão Telegram e upload privado YouTube foram concluídos, incluindo repetição sem upload duplicado. Os ADRs-025 e 026 adicionam QA audiovisual, trechos das fontes e afiliação determinística. O ADR-027 prepara o conector assinado do TikTok Shop; ativação depende de aprovação externa do Partner Center. As situações anteriores abaixo registram o planejamento histórico; para o diagnóstico atual e prioridades, consultar [auditoria de 14/09](auditoria-2026-09-14.md). Analytics, heartbeat/retenção, fidelidade de motion/transitions e publicação pública/Shorts permanecem pendentes. A chave de variante YouTube já foi implementada no ADR-019.
 
 ## Ordem de trabalho
 

@@ -136,6 +136,9 @@ set_supabase_secrets() {
     YOUTUBE_CLIENT_ID
     YOUTUBE_CLIENT_SECRET
     YOUTUBE_REFRESH_TOKEN
+    TIKTOK_SHOP_APP_KEY
+    TIKTOK_SHOP_APP_SECRET
+    TIKTOK_SHOP_CREATOR_ACCESS_TOKEN
   )
   for name in "${optional[@]}"; do
     if [[ -n "${!name:-}" ]]; then
