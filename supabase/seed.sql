@@ -11,14 +11,16 @@ insert into system_config (key, value) values
     "tavily_search_requests_per_month_max": 100,
     "tavily_search_requests_per_minute_max": 5,
     "gemini_models": {
+      "gemini-3.5-flash": {"rpd": 20, "rpm": 5},
       "gemini-3.6-flash": {"rpd": 20, "rpm": 5},
+      "gemini-3.1-flash-lite": {"rpd": 20, "rpm": 5},
       "gemini-2.5-flash-preview-tts": {"rpd": 10, "rpm": 3}
     },
     "actions_minutes_per_month_max": 2500,
     "hard_stop_on_exceed": true
   }'::jsonb),
   ('gemini', '{
-    "research_model": "gemini-3.6-flash",
+    "research_model": "gemini-3.1-flash-lite",
     "text_model": "gemini-3.6-flash",
     "research_max_claims": 12,
     "research_max_sources": 5,

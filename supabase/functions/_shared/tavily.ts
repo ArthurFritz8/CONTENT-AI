@@ -64,7 +64,7 @@ export async function tavilySearch(opts: {
     const parsed = responseSchema.safeParse(await response.json());
     if (!parsed.success) throw new AppError("Tavily retornou resposta inválida", 502, "TAVILY_INVALID_RESPONSE");
     const sources = parsed.data.results.filter(source => safeSource(source) && source.content.length >= 20)
-      .map(source => ({ ...source, content: source.content.slice(0, 12_000) })).slice(0, opts.maxResults);
+      .map(source => ({ ...source, content: source.content.slice(0, 4_000) })).slice(0, opts.maxResults);
     if (!sources.length) throw new AppError("Tavily não encontrou fontes HTTPS utilizáveis", 502, "TAVILY_NO_SOURCES");
     return {
       query: parsed.data.query,

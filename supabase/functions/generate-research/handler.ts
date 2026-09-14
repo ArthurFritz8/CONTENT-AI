@@ -77,29 +77,44 @@ export async function handleResearch(req: Request): Promise<Response> {
 
     const niche = await getSystemConfig<NicheConfig>(db, "niche", {});
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
-    const model = gemini.research_model ?? "gemini-3.6-flash";
+    const configuredModel = gemini.research_model ?? "gemini-3.6-flash";
     const maxClaims = Math.min(20, Math.max(3, gemini.research_max_claims ?? 12));
     const search = await tavilySearch({
       query: `${briefingText} ${niche.focus ?? "gadgets e produtos inovadores"}`.slice(0, 400),
-      maxResults: Math.min(8, Math.max(3, gemini.research_max_sources ?? 5)),
+      maxResults: Math.min(5, Math.max(3, gemini.research_max_sources ?? 4)),
       beforeRequest: () => reserveTavilyCall(db, logger!, episode.id),
     });
     await logger.event({ episode_id: episode.id, event_type: "tavily_call", cost_estimate: 0,
       metadata: { credits: search.credits, sources: search.sources.length, request_id: search.requestId } });
 
-    const result = await geminiGenerate({
-      beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "research", model),
-      model,
-      prompt: buildResearchPrompt({
-        briefing: briefingText,
-        nicheName: niche.name ?? "gadgets e produtos inovadores",
-        focus: niche.focus ?? "produtos que resolvem um problema real de forma criativa",
-        maxClaims,
-        sources: search.sources,
-      }),
-      responseSchema: researchResponseSchema(maxClaims),
-      temperature: 0.3,
-    });
+    const models = [...new Set([configuredModel, "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"])];
+    let result: Awaited<ReturnType<typeof geminiGenerate>> | undefined;
+    let model = configuredModel;
+    let lastModelError: unknown;
+    for (const candidate of models) {
+      try {
+        result = await geminiGenerate({
+          beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "research", candidate),
+          model: candidate,
+          prompt: buildResearchPrompt({
+            briefing: briefingText,
+            nicheName: niche.name ?? "gadgets e produtos inovadores",
+            focus: niche.focus ?? "produtos que resolvem um problema real de forma criativa",
+            maxClaims,
+            sources: search.sources,
+          }),
+          responseSchema: researchResponseSchema(maxClaims),
+          temperature: 0.3,
+        });
+        model = candidate;
+        break;
+      } catch (err) {
+        lastModelError = err;
+        if (!(err instanceof AppError) || err.status !== 502) throw err;
+        logger.info("modelo de pesquisa indisponível; tentando fallback", { model: candidate });
+      }
+    }
+    if (!result) throw lastModelError ?? new AppError("Nenhum modelo Gemini de pesquisa respondeu", 502, "GEMINI_CALL_FAILED");
     await recordGeminiCall(logger, episode.id, "research", model, result.usage);
 
     let rawResearch: unknown;
