@@ -32,4 +32,4 @@ jobs:
       - run: bash scripts/setup-ffmpeg.sh
       - run: bash scripts/setup-piper.sh
       - name: Completar assets por checkpoint
-        run: deno run --config supabase/functions/deno.json --allow-env --allow-net --allow-read --allow-write --allow-run=edge-tts,python,ffprobe scripts/run-assets.ts
+        run: env -u LD_LIBRARY_PATH deno run --config supabase/functions/deno.json --allow-env --allow-net --allow-read --allow-write --allow-run=edge-tts,python,ffprobe scripts/run-assets.ts
