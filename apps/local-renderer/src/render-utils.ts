@@ -72,6 +72,10 @@ export function isMissingOptionalStorageObject(status: number, body: string): bo
   }
 }
 
+export function isTransientStorageStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
 export function selectAudioUrlForScene(
   assets: AudioAssetLike[],
   sceneOrder: number,

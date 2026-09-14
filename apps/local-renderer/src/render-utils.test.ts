@@ -8,6 +8,7 @@ import {
   escapeFfmpegFilterPath,
   finalRenderPath,
   isMissingOptionalStorageObject,
+  isTransientStorageStatus,
   padSceneOrder,
   sceneIntermediatePath,
   sceneProgress,
@@ -53,6 +54,14 @@ test("arquivo opcional ausente aceita 404 direto e envelope 400 do Storage", () 
   strictEqual(isMissingOptionalStorageObject(400, '{"statusCode":"404","code":"NoSuchKey"}'), true);
   strictEqual(isMissingOptionalStorageObject(400, '{"statusCode":"400","code":"InvalidKey"}'), false);
   strictEqual(isMissingOptionalStorageObject(500, '{"statusCode":"404"}'), false);
+});
+
+test("upload repete somente respostas transitórias do Storage", () => {
+  strictEqual(isTransientStorageStatus(408), true);
+  strictEqual(isTransientStorageStatus(429), true);
+  strictEqual(isTransientStorageStatus(520), true);
+  strictEqual(isTransientStorageStatus(400), false);
+  strictEqual(isTransientStorageStatus(404), false);
 });
 
 test("selectAudioUrlForScene aceita convenções com pad e sem pad", () => {

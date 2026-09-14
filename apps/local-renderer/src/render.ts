@@ -26,6 +26,7 @@ import {
   finalRenderPath,
   FPS,
   isMissingOptionalStorageObject,
+  isTransientStorageStatus,
   ORIENTATIONS,
   sceneIntermediatePath,
   sceneProgress,
@@ -144,18 +145,26 @@ class SupabaseRestClient {
 
   async uploadObject(bucket: string, path: string, localPath: string, contentType: string): Promise<string> {
     const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-    const res = await fetch(`${this.url}/storage/v1/object/${bucket}/${encodedPath}`, {
-      method: "POST",
-      headers: {
-        apikey: this.key,
-        Authorization: `Bearer ${this.key}`,
-        "Content-Type": contentType,
-        "x-upsert": "true",
-      },
-      body: await readFile(localPath),
-    });
-    if (!res.ok) throw new Error(`Upload Storage falhou (${res.status}): ${await res.text()}`);
-    return this.storagePublicUrl(bucket, path);
+    const body = await readFile(localPath);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const res = await fetch(`${this.url}/storage/v1/object/${bucket}/${encodedPath}`, {
+        method: "POST",
+        headers: {
+          apikey: this.key,
+          Authorization: `Bearer ${this.key}`,
+          "Content-Type": contentType,
+          "x-upsert": "true",
+        },
+        body,
+      });
+      if (res.ok) return this.storagePublicUrl(bucket, path);
+      const detail = await res.text();
+      if (!isTransientStorageStatus(res.status) || attempt === 3) {
+        throw new Error(`Upload Storage falhou (${res.status}): ${detail}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * 2 ** (attempt - 1)));
+    }
+    throw new Error("Upload Storage falhou após tentativas");
   }
 
   private async rest<T>(path: string, opts?: {
