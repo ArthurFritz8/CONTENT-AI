@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { scriptJsonSchema, isRenderReady } from "../schemas/script-json.ts";
 import { researchDataSchema } from "../schemas/research.ts";
-import { researchMatchesEvidence } from "../validators/research-evidence.ts";
+import { researchEvidenceSchema, researchMatchesEvidence } from "../validators/research-evidence.ts";
 import { createScriptQualityChecker } from "../validators/script-quality.ts";
 
 const webUrl = z.string().url().refine(value => {
@@ -27,6 +27,22 @@ function clip(text: string, length: number): string {
   return chars.length > length ? `${chars.slice(0, length - 1).join("")}…` : chars.join("");
 }
 
+const mediaReportSchema = z.object({
+  version: z.literal("1.0.0"), decode_verified: z.literal(true),
+  duration_seconds: z.number().positive().finite(), size_bytes: z.number().positive().finite(),
+  width: z.number().int().positive(), height: z.number().int().positive(),
+  warnings: z.array(z.string().max(500)).max(20),
+});
+
+function mediaQualityLines(value: unknown): string[] {
+  const parsed = z.object({ landscape: mediaReportSchema, portrait: mediaReportSchema }).safeParse(value);
+  if (!parsed.success) return ["QA técnico não registrado nesta versão. Conferir manualmente os dois arquivos."];
+  return Object.entries(parsed.data).flatMap(([orientation, report]) => [
+    `${orientation === "landscape" ? "Horizontal" : "Vertical"}: ${report.duration_seconds.toFixed(2)}s • ${report.width}×${report.height} • ${(report.size_bytes / 1_048_576).toFixed(2)} MiB • decodificação verificada`,
+    ...report.warnings.map(warning => `Atenção: ${warning}`),
+  ]);
+}
+
 export function validateReviewSnapshot(snapshot: unknown) {
   const { episode, assets, fact_check } = snapshotSchema.parse(snapshot);
   const script = episode.script_json;
@@ -43,6 +59,7 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
   const { episode, assets, report } = validateReviewSnapshot(snapshot);
   const script = episode.script_json;
   const scenes = [...script.scenes].sort((a, b) => a.order - b.order);
+  const evidence = researchEvidenceSchema.parse(episode.research_evidence);
   const caption = [
     "REVISÃO EDITORIAL",
     clip(script.metadata.youtube.title, 100), "",
@@ -61,6 +78,8 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
     "[ ] Uso das imagens/música autorizado e atribuições suficientes.",
     "[ ] Títulos/descrições fiéis; divulgação comercial clara quando aplicável.", "",
     "VÍDEOS", `Vertical: ${episode.metadata.render_outputs.portrait}`, `Horizontal: ${episode.metadata.render_outputs.landscape}`, "",
+    "QA TÉCNICO DOS ARQUIVOS", ...mediaQualityLines(episode.metadata.render_outputs.quality),
+    "Este controle verifica integridade técnica; não avalia estética, dicção, silêncio ou sincronismo das legendas.", "",
     "YOUTUBE", `Título: ${script.metadata.youtube.title}`, `Categoria editorial: ${script.metadata.youtube.category}`,
     `Tags: ${script.metadata.youtube.tags.join(", ")}`, "Descrição:", script.metadata.youtube.description, "",
     "TIKTOK / SHORTS", `Título TikTok: ${script.metadata.tiktok.title}`, `Hashtags: ${script.metadata.tiktok.hashtags.join(" ")}`,
@@ -71,7 +90,12 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
       `Visual planejado: ${scene.visual.description}`, "",
     ]), "FONTES E EVIDÊNCIAS", ...script.sources.flatMap((source, index) => [
       `${index + 1}. ${source.claim}`, source.source_url,
-    ]), "As citações foram fornecidas pelo mecanismo de busca do Gemini; não constituem verificação independente.", "",
+    ]), `Busca: ${evidence.provider === "tavily_search" ? "Tavily" : "Google Search via Gemini"} • coleta: ${evidence.captured_at}`,
+    "Citações e confiança estimada pelo modelo não constituem verificação independente. Confira fontes primárias antes de aprovar afirmações sobre saúde, desempenho ou benefícios do produto.",
+    ...(evidence.provider === "tavily_search" ? ["", "TRECHOS RECUPERADOS NA BUSCA (podem estar incompletos)",
+      ...evidence.sources.filter(source => script.sources.some(citation => new URL(citation.source_url).href === new URL(source.url).href)).flatMap(source => [
+        clip(source.title, 500), source.url, clip(source.content, 1200), "",
+      ])] : []), "",
     "ASSETS E LICENÇAS DECLARADAS", ...assets.flatMap(asset => [
       `${asset.type} | origem: ${asset.source} | licença: ${asset.license} | autor: ${asset.author ?? "não informado"}`,
       asset.url,

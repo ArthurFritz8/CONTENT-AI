@@ -5,6 +5,7 @@ import { createReadStream } from "node:fs";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { assessMedia, assertMatchingDurations, type MediaProbe } from "./media-quality.ts";
 import {
   buildAssSubtitles,
   canonicalStringify,
@@ -438,7 +439,7 @@ async function concatOrientation(
   ctx: RenderContext,
   orientation: Orientation,
   sceneFiles: string[],
-): Promise<string> {
+) {
   const concatListPath = join(ctx.workDir, `concat_${orientation}.txt`);
   const concatOutput = join(ctx.workDir, `episode_${orientation}_concat.mp4`);
   const finalOutput = join(ctx.workDir, `episode_${orientation}.mp4`);
@@ -478,10 +479,19 @@ async function concatOrientation(
     await copyFile(concatOutput, finalOutput);
   }
 
-  const contentHash = createHash("sha256");
-  for await (const chunk of createReadStream(finalOutput)) contentHash.update(chunk);
-  const remotePath = finalRenderPath(ctx.episode.id, orientation, contentHash.digest("hex"));
-  return await ctx.client.uploadObject(ctx.bucket, remotePath, finalOutput, "video/mp4");
+  let expectedDuration = 0;
+  for (const path of sceneFiles) expectedDuration += await ffprobeDuration(path);
+  const probe = JSON.parse(await run("ffprobe", ["-v", "error", "-show_streams", "-show_format", "-of", "json", finalOutput], { capture: true })) as MediaProbe;
+  const report = assessMedia(probe, orientation, expectedDuration, ctx.script.scenes.reduce((sum, scene) => sum + scene.duration_seconds, 0));
+  // Decode every frame and audio packet: valid MP4 headers alone do not prove integrity.
+  await run("ffmpeg", ["-v", "error", "-xerror", "-i", finalOutput, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"], { capture: true });
+  return { path: finalOutput, report: { ...report, decode_verified: true } };
+}
+
+async function uploadFinal(ctx: RenderContext, orientation: Orientation, path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return await ctx.client.uploadObject(ctx.bucket, finalRenderPath(ctx.episode.id, orientation, hash.digest("hex")), path, "video/mp4");
 }
 
 async function renderEpisode(episodeId: string): Promise<void> {
@@ -526,15 +536,24 @@ async function renderEpisode(episodeId: string): Promise<void> {
     });
 
     const checkpoints = await ensureSceneCheckpoints(ctx);
-    const [landscapeUrl, portraitUrl] = await Promise.all([
+    // Await both local jobs even on failure, so cleanup never races an active FFmpeg.
+    const results = await Promise.allSettled([
       concatOrientation(ctx, "landscape", checkpoints.landscape),
       concatOrientation(ctx, "portrait", checkpoints.portrait),
     ]);
+    const landscape = results[0]!;
+    const portrait = results[1]!;
+    if (landscape.status === "rejected") throw landscape.reason;
+    if (portrait.status === "rejected") throw portrait.reason;
+    assertMatchingDurations(landscape.value.report.duration_seconds, portrait.value.report.duration_seconds);
+    const landscapeUrl = await uploadFinal(ctx, "landscape", landscape.value.path);
+    const portraitUrl = await uploadFinal(ctx, "portrait", portrait.value.path);
     const renderOutputs = {
       landscape: landscapeUrl,
       portrait: portraitUrl,
       completed_at: new Date().toISOString(),
       strategy: "scene_checkpoint_concat",
+      quality: { landscape: landscape.value.report, portrait: portrait.value.report },
     };
 
     await client.patchEpisode(episodeId, {

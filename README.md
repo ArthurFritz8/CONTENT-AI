@@ -2,7 +2,7 @@
 
 Pipeline **zero-budget** de criação e publicação automática de vídeos (YouTube + Shorts; TikTok manual até auditoria da Content Posting API).
 
-**Estado verificado (ADR-015–023):** banco, seed, bucket, Vault, scheduler, secrets e sete Edge Functions estão implantados na Supabase. Gemini, Pexels, webhook/fila do Telegram e OAuth do canal YouTube foram validados com credenciais reais; o pipeline permanece pausado. A pesquisa automática usa Tavily no plano gratuito e aguarda somente a chave do operador. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de pesquisa](docs/ADR/ADR-023-pesquisa-gratuita-tavily.md) e [revisão pelo Telegram](docs/telegram-review.md) estão implementados. Geração ponta a ponta, QA audiovisual, primeiro upload privado e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
+**Estado verificado em 14/09/2026:** primeiro piloto gerado, revisado no Telegram e enviado ao YouTube como privado. Supabase, Tavily, Gemini, Pexels e fallback de voz no Actions integram o fluxo; o pipeline permanece pausado. [QA editorial](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md) e [evidências de pesquisa](docs/ADR/ADR-023-pesquisa-gratuita-tavily.md) continuam exigindo revisão humana. A nova [validação audiovisual e revisão com trechos das fontes](docs/ADR/ADR-025-qa-audiovisual-e-revisao-com-evidencias.md) verifica os próximos renders. Analytics, monitoramento/retencão e publicação pública/Shorts ainda faltam; TikTok segue manual. Veja a [auditoria atual](docs/auditoria-2026-09-14.md) e o [plano de implementação](docs/plano-implementacao.md).
 
 ## Fluxo (máquina de estados)
 
@@ -29,7 +29,7 @@ idea → research → script → assets → rendered → review → published �
 | Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |
 | Publicação | YouTube Data API v3 (cotas do projeto no Google Cloud Console) | Free |
 | Aprovação | Telegram Bot | Free |
-| Painel | Next.js (`apps/web-panel`) | Local |
+| Painel | `apps/web-panel` reservado; interface ainda não implementada | — |
 
 ## Estrutura
 
@@ -42,14 +42,14 @@ idea → research → script → assets → rendered → review → published �
 │   └── cron_jobs.sql    # Referência SQL do pg_cron; deploy automatizado pelo ADR-021
 ├── apps/
 │   ├── local-renderer/  # Engine de render (Node.js) — mesmo código roda no Actions e em dev local
-│   └── web-panel/       # Painel de fila/aprovação (Next.js)
+│   └── web-panel/       # Pacote reservado para painel futuro
 ├── packages/core/       # Prompts, schemas Zod, validadores compartilhados
-└── .github/workflows/   # Render remoto + health-check
+└── .github/workflows/   # Assets, render, piloto YouTube e CI
 ```
 
 ## Setup
 
-O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. OAuth e canal estão configurados, mas nenhum upload real foi feito. Publicação pública e analytics continuam pendentes.
+O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. O primeiro upload real e sua repetição idempotente foram concluídos; o operador confirmou o vídeo no Studio. Publicação pública e analytics continuam pendentes.
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
 

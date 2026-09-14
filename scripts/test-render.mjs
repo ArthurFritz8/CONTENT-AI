@@ -36,7 +36,7 @@ const server=createServer(async (req,res)=>{
 });
 try {
   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=blue:s=320x240','-frames:v','1',join(dir,'image.png')]);
-  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=0.7',join(dir,'audio.wav')]);
+  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=0.713',join(dir,'audio.wav')]);
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   base=`http://127.0.0.1:${server.address().port}`;
   const asset={url:`${base}/image.png`,license:'own',source:'manual'};
@@ -57,6 +57,10 @@ try {
   assert.equal(episode.status,'rendered');
   assert.equal(objects.size,8); // six intermediate scenes + two finals
   for(const orientation of ['portrait','landscape']) {
+    const quality=episode.metadata.render_outputs.quality[orientation];
+    assert.equal(quality.decode_verified,true);
+    assert.ok(Math.abs(quality.duration_seconds-3)<0.25);
+    assert.equal(quality.warnings.length,1); // real audio is shorter than the editorial target
     const path=join(dir,`${orientation}.mp4`);
     const outputUrl=new URL(episode.metadata.render_outputs[orientation]);
     const objectPath=decodeURIComponent(outputUrl.pathname.split('/storage/v1/object/public/')[1]);
@@ -72,5 +76,20 @@ try {
   episode.status='assets';
   await run();
   assert.equal(events.filter(event=>event.event_type==='render_checkpoint_saved'&&event.metadata.skipped).length,3);
-  console.log('FFmpeg real: dois formatos, áudio + gaps, upload e retomada de 3 checkpoints aprovados.');
+  const completedBefore=events.filter(event=>event.event_type==='render_completed').length;
+  const finalsBefore=[...objects.keys()].filter(key=>key.includes('/render/final/'));
+  // Simulate readable MP4 checkpoints whose audio track was lost in Storage.
+  for(const [key,bytes] of objects) {
+    if(key.includes('/render/final/')) continue;
+    const input=join(dir,'checkpoint.mp4'), output=join(dir,'silent.mp4');
+    await writeFile(input,bytes);
+    execFileSync('ffmpeg',['-y','-v','error','-i',input,'-c:v','copy','-an',output]);
+    objects.set(key,await readFile(output));
+  }
+  episode.status='assets';
+  await assert.rejects(run(),/QA audiovisual/);
+  assert.equal(episode.status,'failed');
+  assert.equal(events.filter(event=>event.event_type==='render_completed').length,completedBefore);
+  assert.deepEqual([...objects.keys()].filter(key=>key.includes('/render/final/')),finalsBefore);
+  console.log('FFmpeg real: dois formatos, QA com decode, retomada e bloqueio de checkpoints sem áudio aprovados.');
 } finally { server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true}); }

@@ -38,3 +38,28 @@ test("texto do modelo permanece texto e não é interpretado como markup na fich
   ok(packet.caption.includes("<b>Teste</b>"));
   strictEqual("parse_mode" in packet, false);
 });
+
+test("revisão antiga não recebe aprovação técnica fictícia", () => {
+  const packet = buildReviewPacket(makeReviewSnapshot(), id);
+  ok(packet.document.includes("QA técnico não registrado"));
+  ok(packet.document.includes("Google Search via Gemini"));
+  ok(!packet.document.includes("decodificação verificada"));
+});
+
+test("ficha mostra medições e trechos Tavily, distinguindo confiança de verificação", () => {
+  const snapshot = makeReviewSnapshot();
+  const report = { version: "1.0.0", decode_verified: true, duration_seconds: 34, size_bytes: 2_097_152,
+    width: 1920, height: 1080, warnings: ["Revisar ritmo."] };
+  const evidence = { version: "2.0.0", provider: "tavily_search", model: "fixture", captured_at: "2026-09-14T12:00:00Z",
+    query: "gadget", research: snapshot.episode.research_data,
+    sources: snapshot.episode.research_data.map(item => ({ title: "Fonte recuperada", url: item.source_url,
+      content: "Trecho da fonte para conferência do contexto pelo revisor.", score: 0.9 })) };
+  const updated = { ...snapshot, episode: { ...snapshot.episode, research_evidence: evidence,
+    metadata: { render_outputs: { ...snapshot.episode.metadata.render_outputs,
+      quality: { landscape: report, portrait: { ...report, width: 1080, height: 1920 } } } } } };
+  const packet = buildReviewPacket(updated, id);
+  for (const value of ["34.00s", "1080×1920", "Revisar ritmo.", "Busca: Tavily", "Trecho da fonte", "confiança estimada pelo modelo"]) {
+    ok(packet.document.includes(value), value);
+  }
+  ok(!packet.document.includes("Google Search via Gemini"));
+});

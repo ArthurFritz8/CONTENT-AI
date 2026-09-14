@@ -1,5 +1,7 @@
 # Plano de implementação e validação — ADR-015
 
+> Atualização de 14/09/2026: a primeira pesquisa/geração real, render com Piper, revisão Telegram e upload privado YouTube foram concluídos, incluindo repetição sem upload duplicado. O ADR-025 adiciona QA audiovisual aos próximos renders e trechos das fontes ao dossiê. As situações anteriores abaixo registram o planejamento histórico; para o diagnóstico atual e prioridades, consultar [auditoria de 14/09](auditoria-2026-09-14.md). Analytics, heartbeat/retenção, fidelidade de motion/transitions e publicação pública/Shorts permanecem pendentes. A chave de variante YouTube já foi implementada no ADR-019.
+
 ## Ordem de trabalho
 
 O pipeline de publicação não deve ser ativado só porque cinco funções fazem deploy. Esta ordem mantém os estados e reutiliza o core existente. Cada entrega termina com teste isolado; a próxima só depende do contrato aceito, não de reescrever a anterior.
