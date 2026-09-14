@@ -8,11 +8,12 @@ import { getSystemConfig } from "./supabase-client.ts";
 import type { JobLogger } from "./logger.ts";
 import type { GeminiUsage } from "./gemini.ts";
 
-export type GeminiCallType = "grounding" | "text" | "image" | "tts";
+export type GeminiCallType = "grounding" | "research" | "text" | "image" | "tts";
 
 interface BudgetConfig {
   gemini_requests_per_day_max?: number;
   gemini_grounding_requests_per_day_max?: number;
+  gemini_research_requests_per_day_max?: number;
   gemini_image_requests_per_day_max?: number;
   gemini_tts_requests_per_day_max?: number;
   hard_stop_on_exceed?: boolean;
@@ -21,6 +22,7 @@ interface BudgetConfig {
 // Fallbacks conservadores — valores efetivos em system_config.budget
 const FALLBACK_LIMITS: Record<GeminiCallType, number> = {
   grounding: 0,
+  research: 0,
   text: 0,
   image: 0,
   tts: 0,
@@ -30,12 +32,28 @@ function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
   switch (callType) {
     case "grounding":
       return cfg.gemini_grounding_requests_per_day_max ?? FALLBACK_LIMITS.grounding;
+    case "research":
+      return cfg.gemini_research_requests_per_day_max ?? FALLBACK_LIMITS.research;
     case "text":
       return cfg.gemini_requests_per_day_max ?? FALLBACK_LIMITS.text;
     case "image":
       return cfg.gemini_image_requests_per_day_max ?? FALLBACK_LIMITS.image;
     case "tts":
       return cfg.gemini_tts_requests_per_day_max ?? FALLBACK_LIMITS.tts;
+  }
+}
+
+export async function reserveTavilyCall(
+  db: SupabaseClient,
+  logger: JobLogger,
+  episodeId: string,
+): Promise<void> {
+  const { data, error } = await db.rpc("reserve_tavily_call");
+  if (error) throw new AppError("Falha ao reservar quota Tavily", 500, "DB_ERROR");
+  if (data !== true) {
+    await logger.event({ episode_id: episodeId, event_type: "budget_exceeded",
+      error_message: "Quota Tavily indisponível", metadata: { provider: "tavily" } });
+    throw new AppError("Quota Tavily indisponível", 429, "BUDGET_EXCEEDED");
   }
 }
 

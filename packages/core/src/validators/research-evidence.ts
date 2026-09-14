@@ -22,7 +22,7 @@ const groundingMetadataSchema = z.object({
   }).passthrough()).min(1).max(500),
 }).passthrough();
 
-export const researchEvidenceSchema = z.object({
+const googleEvidenceSchema = z.object({
   version: z.literal("1.0.0"),
   provider: z.literal("gemini_google_search"),
   model: z.string().min(1),
@@ -35,6 +35,37 @@ export const researchEvidenceSchema = z.object({
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Evidência excede 256 KiB" });
   }
 });
+
+const tavilySourceSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  url: z.string().url(),
+  content: z.string().trim().min(20).max(20_000),
+  score: z.number().min(0).max(1),
+});
+
+const tavilyEvidenceSchema = z.object({
+  version: z.literal("2.0.0"),
+  provider: z.literal("tavily_search"),
+  model: z.string().min(1),
+  captured_at: z.string().datetime(),
+  query: z.string().trim().min(1).max(2_000),
+  request_id: z.string().max(200).optional(),
+  sources: z.array(tavilySourceSchema).min(1).max(8),
+  research: researchDataSchema,
+}).superRefine((snapshot, ctx) => {
+  if (encoder.encode(JSON.stringify(snapshot, null, 1)).length > MAX_RESEARCH_EVIDENCE_BYTES) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Evidência excede 256 KiB" });
+  }
+  const urls = new Set(snapshot.sources.map(source => webUrl(source.url)));
+  snapshot.research.forEach((claim, index) => {
+    let url: string | null = null;
+    try { url = webUrl(claim.source_url); } catch { /* schema reports malformed URLs */ }
+    if (!url || !urls.has(url)) ctx.addIssue({ code: z.ZodIssueCode.custom,
+      path: ["research", index, "source_url"], message: "Claim referencia URL ausente do resultado Tavily" });
+  });
+});
+
+export const researchEvidenceSchema = z.union([googleEvidenceSchema, tavilyEvidenceSchema]);
 
 export type ResearchEvidence = z.infer<typeof researchEvidenceSchema>;
 
@@ -67,6 +98,7 @@ function claimSpans(text: string): Array<{ claim: string; start: number; end: nu
 /** Provider citation coverage, not independent fact verification. Throws on ambiguity. */
 export function groundedResearch(rawEvidence: unknown): ResearchData {
   const evidence = researchEvidenceSchema.parse(rawEvidence);
+  if (evidence.provider === "tavily_search") return evidence.research;
   const text = evidence.parts.map(part => part ?? "").join("");
   const jsonText = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const research = researchDataSchema.parse(JSON.parse(jsonText));

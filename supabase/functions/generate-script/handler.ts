@@ -216,7 +216,7 @@ export async function handleScript(req: Request): Promise<Response> {
     );
 
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
-    const model = gemini.text_model ?? "gemini-2.5-flash";
+    const model = gemini.text_model ?? "gemini-3.6-flash";
     const promptVersion = await getActivePromptVersion(db);
     // Fail closed before spending quota if editorial policy is missing or invalid.
     const quality = await loadScriptQualityChecker(db);

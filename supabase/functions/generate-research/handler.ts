@@ -1,15 +1,16 @@
 import { claimEpisode } from "../_shared/episode-lease.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
-// generate-research — Fase 1 (ADR-008): Gemini Flash + Google Search grounding.
-// idea → research. Salva claims com citações do provedor, ainda sujeitos à revisão humana.
+// generate-research — Fase 1 (ADR-023): Tavily Search + Gemini Flash.
+// idea → research. Salva resultados e claims juntos para revisão humana.
 
 import { z } from "zod";
 import { AppError, jsonResponse, toErrorResponse } from "../_shared/error-handler.ts";
 import { createServiceClient, getSystemConfig } from "../_shared/supabase-client.ts";
 import { JobLogger } from "../_shared/logger.ts";
 import { parseJsonBody } from "../_shared/validators.ts";
-import { assertGeminiBudget, recordGeminiCall } from "../_shared/budget-guard.ts";
+import { assertGeminiBudget, recordGeminiCall, reserveTavilyCall } from "../_shared/budget-guard.ts";
 import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
+import { tavilySearch } from "../_shared/tavily.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { buildResearchPrompt } from "../../../packages/core/src/prompts/research-prompt.ts";
 import { researchDataSchema, type ResearchData } from "../../../packages/core/src/schemas/research.ts";
@@ -24,6 +25,21 @@ interface NicheConfig {
 interface GeminiConfig {
   research_model?: string;
   research_max_claims?: number;
+  research_max_sources?: number;
+}
+
+function researchResponseSchema(maxClaims: number) {
+  return {
+    type: "ARRAY", minItems: 3, maxItems: maxClaims,
+    items: {
+      type: "OBJECT",
+      properties: {
+        claim: { type: "STRING" }, source_url: { type: "STRING" },
+        confidence: { type: "NUMBER", minimum: 0, maximum: 1 }, query_used: { type: "STRING" },
+      },
+      required: ["claim", "source_url", "confidence", "query_used"],
+    },
+  };
 }
 
 export async function handleResearch(req: Request): Promise<Response> {
@@ -61,21 +77,30 @@ export async function handleResearch(req: Request): Promise<Response> {
 
     const niche = await getSystemConfig<NicheConfig>(db, "niche", {});
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
-    const model = gemini.research_model ?? "gemini-2.5-flash";
+    const model = gemini.research_model ?? "gemini-3.6-flash";
+    const maxClaims = Math.min(20, Math.max(3, gemini.research_max_claims ?? 12));
+    const search = await tavilySearch({
+      query: `${briefingText} ${niche.focus ?? "gadgets e produtos inovadores"}`.slice(0, 400),
+      maxResults: Math.min(8, Math.max(3, gemini.research_max_sources ?? 5)),
+      beforeRequest: () => reserveTavilyCall(db, logger!, episode.id),
+    });
+    await logger.event({ episode_id: episode.id, event_type: "tavily_call", cost_estimate: 0,
+      metadata: { credits: search.credits, sources: search.sources.length, request_id: search.requestId } });
 
     const result = await geminiGenerate({
-      beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "grounding", model),
+      beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "research", model),
       model,
       prompt: buildResearchPrompt({
         briefing: briefingText,
         nicheName: niche.name ?? "gadgets e produtos inovadores",
         focus: niche.focus ?? "produtos que resolvem um problema real de forma criativa",
-        maxClaims: gemini.research_max_claims ?? 12,
+        maxClaims,
+        sources: search.sources,
       }),
-      grounding: true,
+      responseSchema: researchResponseSchema(maxClaims),
       temperature: 0.3,
     });
-    await recordGeminiCall(logger, episode.id, "grounding", model, result.usage);
+    await recordGeminiCall(logger, episode.id, "research", model, result.usage);
 
     let rawResearch: unknown;
     try { rawResearch = extractJson(result.text); } catch {
@@ -101,15 +126,15 @@ export async function handleResearch(req: Request): Promise<Response> {
     let grounded: ResearchData;
     try {
       evidence = researchEvidenceSchema.parse({
-        version: "1.0.0", provider: "gemini_google_search", model,
-        captured_at: new Date().toISOString(), parts: result.grounding?.parts,
-        grounding_metadata: result.grounding?.metadata,
+        version: "2.0.0", provider: "tavily_search", model,
+        captured_at: new Date().toISOString(), query: search.query,
+        request_id: search.requestId, sources: search.sources, research: parsed.data,
       });
       grounded = groundedResearch(evidence);
     } catch (err) {
-      await markEpisodeFailed(db, logger, episode.id, "research_grounding_failed",
+      await markEpisodeFailed(db, logger, episode.id, "research_evidence_failed",
         err instanceof Error ? err.message.slice(0, 1000) : "Evidência inválida", "idea");
-      throw new AppError("Pesquisa sem evidência de grounding válida para todos os claims", 502, "RESEARCH_GROUNDING_FAILED");
+      throw new AppError("Pesquisa sem evidência válida para todos os claims", 502, "RESEARCH_EVIDENCE_FAILED");
     }
 
     const { data: updated, error: updateError } = await db

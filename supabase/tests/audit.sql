@@ -80,11 +80,15 @@ reset role;
 
 select pg_temp.assert_true(not has_function_privilege('anon','public.consume_next_idea()','execute'),'anon RPC denied');
 select pg_temp.assert_true(not has_function_privilege('authenticated','public.reserve_gemini_call(text,text)','execute'),'user budget RPC denied');
+select pg_temp.assert_true(not has_function_privilege('authenticated','public.reserve_tavily_call()','execute'),'user Tavily budget RPC denied');
 select pg_temp.assert_true(not public.reserve_gemini_call('image','gemini-2.5-flash-image'),'paid image denied');
 select pg_temp.assert_true(not public.reserve_gemini_call('text','unknown-model'),'unknown model denied');
-update public.system_config set value=jsonb_set(value,'{gemini_models,gemini-2.5-flash,rpm}','1') where key='budget';
-select pg_temp.assert_true(public.reserve_gemini_call('text','gemini-2.5-flash'),'first reservation');
-select pg_temp.assert_true(not public.reserve_gemini_call('grounding','gemini-2.5-flash'),'shared model RPM enforced');
+update public.system_config set value=jsonb_set(value,'{gemini_models,gemini-3.6-flash,rpm}','1') where key='budget';
+select pg_temp.assert_true(public.reserve_gemini_call('text','gemini-3.6-flash'),'first reservation');
+select pg_temp.assert_true(not public.reserve_gemini_call('grounding','gemini-3.6-flash'),'shared model RPM enforced');
+update public.system_config set value=jsonb_set(jsonb_set(value,'{tavily_search_requests_per_month_max}','1'),'{tavily_search_requests_per_minute_max}','1') where key='budget';
+select pg_temp.assert_true(public.reserve_tavily_call(),'first Tavily reservation');
+select pg_temp.assert_true(not public.reserve_tavily_call(),'Tavily monthly/RPM cap enforced');
 
 update public.system_config set value=jsonb_set(value,'{max_episodes_per_day}','100') where key='pipeline';
 insert into public.idea_queue(briefing,niche) values('Fixture only','gadgets');

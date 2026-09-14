@@ -33,6 +33,7 @@ export type JobEventType =
   | "tts_consistency_regeneration"
   | "research_completed"
   | "gemini_call"
+  | "tavily_call"
   | "images_generated"
   | "tts_generated"
   | "subtitles_generated";

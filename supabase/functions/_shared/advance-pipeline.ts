@@ -2,6 +2,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { AppError } from "./error-handler.ts";
 import { claimEpisode } from "./episode-lease.ts";
 import { dispatchGithub } from "./github-dispatch.ts";
+import { workerCredential } from "./auth.ts";
 
 /** One bounded step per tick. Resuming existing work precedes consuming another idea. */
 export async function advancePipeline(db: SupabaseClient): Promise<Record<string, unknown> | null> {
@@ -35,9 +36,11 @@ export async function advancePipeline(db: SupabaseClient): Promise<Record<string
     } finally { await release(); }
   }
   const next: Record<string, string> = { idea: "generate-research", research: "generate-script", script: "generate-assets", assets: "trigger-render" };
+  const credential = workerCredential();
+  if (!credential) throw new AppError("Credencial do worker ausente", 500, "CONFIG_MISSING");
   const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/${next[episode.status]}`, {
     method: "POST", signal: AbortSignal.timeout(130_000),
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}`, apikey: credential },
     body: JSON.stringify({ episode_id: episode.id }),
   });
   if (!res.ok && res.status !== 409) throw new AppError(`Etapa ${next[episode.status]} respondeu ${res.status}`, 502, "STAGE_FAILED");

@@ -24,7 +24,7 @@ Automatiza o deploy cloud do CONTENT AI:
 
 Variáveis obrigatórias:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-  GEMINI_API_KEY, PEXELS_API_KEY, GITHUB_TOKEN, GITHUB_REPO
+  GEMINI_API_KEY, TAVILY_API_KEY, PEXELS_API_KEY, GITHUB_TOKEN, GITHUB_REPO
 
 Variáveis opcionais úteis:
   ENV_FILE=.env.cloud, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD,
@@ -117,6 +117,7 @@ set_supabase_secrets() {
   log "Configurando Supabase secrets"
   local secret_args=(
     "GEMINI_API_KEY=$GEMINI_API_KEY"
+    "TAVILY_API_KEY=$TAVILY_API_KEY"
     "PEXELS_API_KEY=$PEXELS_API_KEY"
     "GITHUB_TOKEN=$GITHUB_TOKEN"
     "GITHUB_REPO=$GITHUB_REPO"
@@ -212,7 +213,7 @@ main() {
   need_cmd npx
   need_cmd curl
   load_env
-  require_envs SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GEMINI_API_KEY PEXELS_API_KEY GITHUB_TOKEN GITHUB_REPO
+  require_envs SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GEMINI_API_KEY TAVILY_API_KEY PEXELS_API_KEY GITHUB_TOKEN GITHUB_REPO
 
   link_project_if_requested
   push_database

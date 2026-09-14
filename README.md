@@ -2,7 +2,7 @@
 
 Pipeline **zero-budget** de criação e publicação automática de vídeos (YouTube + Shorts; TikTok manual até auditoria da Content Posting API).
 
-**Estado verificado (ADR-015–021):** banco, seed, bucket, Vault, scheduler, secrets e sete Edge Functions estão implantados na Supabase. Gemini, Pexels, webhook/fila do Telegram e OAuth do canal YouTube foram validados com credenciais reais; o pipeline permanece pausado. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de grounding](docs/ADR/ADR-017-evidencias-de-grounding.md) e [revisão pelo Telegram](docs/telegram-review.md) estão implementados. Geração ponta a ponta, QA audiovisual, primeiro upload privado e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
+**Estado verificado (ADR-015–023):** banco, seed, bucket, Vault, scheduler, secrets e sete Edge Functions estão implantados na Supabase. Gemini, Pexels, webhook/fila do Telegram e OAuth do canal YouTube foram validados com credenciais reais; o pipeline permanece pausado. A pesquisa automática usa Tavily no plano gratuito e aguarda somente a chave do operador. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de pesquisa](docs/ADR/ADR-023-pesquisa-gratuita-tavily.md) e [revisão pelo Telegram](docs/telegram-review.md) estão implementados. Geração ponta a ponta, QA audiovisual, primeiro upload privado e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
 
 ## Fluxo (máquina de estados)
 
@@ -22,7 +22,8 @@ idea → research → script → assets → rendered → review → published �
 |---|---|---|
 | Orquestração | Supabase Edge Functions (Deno) + pg_cron | Free tier |
 | Banco | Supabase Postgres (máquina de estados auditável) | Free tier |
-| IA texto | Gemini Flash / Flash-Lite | Free tier |
+| Pesquisa | Tavily Search basic | 100/mês no limite interno; plano gratuito oferece 1.000 |
+| IA texto | Gemini 3.6 Flash | Free tier |
 | Imagem | Produto autorizado / Pexels | Free; Nano Banana API desabilitado (ADR-015) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
 | Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |

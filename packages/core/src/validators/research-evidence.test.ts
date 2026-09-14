@@ -91,3 +91,17 @@ test("pesquisa editada, incompleta ou com confiança alterada não reutiliza evi
   strictEqual(researchMatchesEvidence(research.slice(1), evidence), false);
   strictEqual(researchMatchesEvidence([{ ...research[0]!, claim: "Outra afirmação" }, research[1]!], evidence), false);
 });
+
+test("evidência Tavily aceita somente claims vinculados aos resultados preservados", () => {
+  const evidence = {
+    version: "2.0.0", provider: "tavily_search", model: "gemini-3.6-flash",
+    captured_at: "2026-09-14T00:00:00.000Z", query: "gadget usb", request_id: "req-1",
+    sources: research.map(item => ({ title: "Fonte", url: item.source_url,
+      content: `Trecho verificável suficientemente longo para: ${item.claim}`, score: 0.9 })),
+    research,
+  } as const;
+  deepStrictEqual(groundedResearch(evidence), research);
+  strictEqual(researchMatchesEvidence(research, evidence), true);
+  const invented = { ...evidence, research: [{ ...research[0]!, source_url: "https://invented.test" }, research[1]!] };
+  throws(() => groundedResearch(invented));
+});
