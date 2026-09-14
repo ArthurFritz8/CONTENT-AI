@@ -50,6 +50,8 @@ idea → research → script → assets → rendered → review → published �
 
 O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. Inicia desativado e depende da configuração OAuth. Publicação pública e analytics ainda estão pendentes.
 
+No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
+
 1. Node22.15+ e `npm ci`.
 2. Copie `.env.example` → `.env` e preencha as chaves (nunca commitar `.env`).
 3. `bash deploy.sh --check` verifica o código local; não faz deploy.

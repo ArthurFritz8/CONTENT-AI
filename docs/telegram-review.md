@@ -6,7 +6,7 @@ O bot apresenta uma ficha com título, resumo, natureza comercial/sintética, do
 
 1. Crie seu bot no BotFather e guarde o token fora do Git. Envie uma mensagem ao bot pelo usuário/chat que fará as revisões. Os IDs numéricos vêm do payload dessa mensagem (`message.from.id` e `message.chat.id`, consultáveis pelo Bot API `getUpdates` antes de configurar webhook). Não use nome de usuário no lugar do ID.
 2. Preencha `.env.cloud` com `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_USER_ID` e `TELEGRAM_WEBHOOK_SECRET`. O secret precisa de 32–256 caracteres aleatórios em A–Z, a–z, 0–9, `_` ou `-`, e é diferente do token do bot. O chat pode ser privado ou grupo; apenas o usuário configurado decide.
-3. Aplique as migrations, incluindo `20260912000000_telegram_review.sql`, e implante os workers com `deploy.sh`. O script envia os novos secrets e implanta `telegram-bot`. Somente esse endpoint usa `verify_jwt=false`; autenticação ocorre pelo header secreto e allowlist. Não desligue JWT dos demais workers.
+3. Aplique todas as migrations em ordem, incluindo `20260912000000_telegram_review.sql` e `20260912030000_telegram_idea_queue.sql`, e implante os workers com `deploy.sh`. O script envia os novos secrets e implanta `telegram-bot`. Somente esse endpoint usa `verify_jwt=false`; autenticação ocorre pelo header secreto e allowlist. Não desligue JWT dos demais workers.
 4. Valide as variáveis e registre o webhook, a partir da raiz do projeto:
 
 ```bash
@@ -28,7 +28,7 @@ O padrão é desabilitado. Para envio automático, `pipeline.enabled` também pr
 
 ## Decidir
 
-- **Aprovar versão:** registra usuário, data e fingerprint; mantém o episódio em `review`. Não faz upload. O publisher futuro deverá respeitar essa aprovação e a política de upload privado inicial.
+- **Aprovar versão:** registra usuário, data e fingerprint; mantém o episódio em `review`. Não faz upload. O [piloto privado YouTube](youtube-private-pilot.md) respeita essa aprovação e precisa ser disparado separadamente.
 - **Refazer render:** volta para `assets`, preserva roteiro/imagens/áudio e gera novos vídeos. Não reescreve o conteúdo. Exige nova aprovação.
 - **Reprovar:** move para `failed`, com origem `review` e razão `human_review_rejected`. Corrigir editorialmente antes de recuperar o episódio; não há editor de roteiro no bot nesta entrega.
 
@@ -44,4 +44,31 @@ Em `review_requests`, examine `delivery_status`, `delivery_error`, `decision` e 
 
 Erros de configuração ou dossiê inválido ficam registrados sem liberar botões de aprovação. Revise a configuração/QA e solicite outra ficha. Campos de aprovação preenchidos manualmente não substituem o ledger aprovado.
 
-Antes da rotina, valide uma ficha real: outro usuário/chat deve ser recusado; clique repetido deve gerar uma decisão; edição posterior deve exigir nova revisão. Aprovações legadas sem ledger precisam de reconciliação. O escopo atual não inclui entrada de ideias pelo chat, editor de roteiros ou publisher.
+Antes da rotina, valide uma ficha real: outro usuário/chat deve ser recusado; clique repetido deve gerar uma decisão; edição posterior deve exigir nova revisão. Aprovações legadas sem ledger precisam de reconciliação. O bot ainda não inclui editor de roteiros nem disparo da publicação pelo chat.
+
+## Enviar e acompanhar ideias
+
+Os comandos da fila funcionam no chat/usuário já autorizado, sem novas credenciais. Use comandos sem `@nome_do_bot`. Para o primeiro teste, mantenha `pipeline.enabled=false`: você poderá organizar pautas sem iniciar geração.
+
+```text
+/ideia Mostrar como um carregador compacto reduz a quantidade de fontes e cabos na mesa. Comparar praticidade, limitações e compatibilidade usando fontes verificáveis.
+```
+
+Inclua produto, problema e abordagem desejada. O texto precisa ter entre 20 e 2.000 caracteres. Para afiliação, acrescente uma linha explícita na mesma mensagem:
+
+```text
+/ideia Demonstrar um organizador de cabos para uma mesa pequena, com vantagens e limitações verificáveis.
+Afiliado: https://example.com/produto?ref=SEU_CODIGO
+```
+
+Troque a URL de exemplo pelo seu link HTTPS real. Não coloque senhas no URL. A afiliação será registrada separadamente e exigirá disclosure comercial. Links apenas citados na descrição são referências; para monetização, use a linha `Afiliado:`. O bot não baixa o link durante o cadastro.
+
+- `/fila`: ideias aguardando geração, seus IDs completos e até três episódios recentes. Mostra até dez ideias por vez, na ordem de prioridade/chegada. O limite padrão da fila é de 20 pendentes.
+- `/cancelar ID_DA_IDEIA`: retira uma ideia que ainda não começou. Use o ID da ideia, não o ID do episódio. Uma ideia já consumida retorna o episódio correspondente e não interrompe sua produção.
+- `/revisar ID_DO_EPISÓDIO`: reabre uma revisão; não é necessário para cadastrar uma ideia.
+
+O padrão permite dez adições por dia UTC, independentemente do limite de episódios gerados. Cancelar não devolve a cota de cadastro. Configure os limites em `system_config.telegram_queue`; para pausar novas entradas/retiradas, defina `enabled=false`. `/fila` continua disponível. A flag `telegram.enabled` controla as fichas de revisão e é independente da fila.
+
+Se a confirmação de cadastro não chegar, consulte `/fila` antes de enviar novamente. Updates repetidos do Telegram são ignorados, mas enviar o mesmo texto como uma nova mensagem cria outra solicitação. `telegram_commands.result` registra o resultado e `reply_status` informa se a resposta foi confirmada. Falhas de entrega não apagam a ideia.
+
+Com geração ativa, uma pauta pode ser consumida logo após o cadastro, respeitando o cap diário existente. A criação da pauta nunca publica um vídeo; a aprovação e o piloto privado continuam etapas separadas.

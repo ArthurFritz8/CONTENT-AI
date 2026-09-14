@@ -3,6 +3,7 @@ import { AppError, jsonResponse, toErrorResponse } from "../_shared/error-handle
 import { createServiceClient } from "../_shared/supabase-client.ts";
 import { requireTelegramSecret, telegramCall, telegramConfig } from "../_shared/telegram.ts";
 import { sendReview } from "../_shared/review-delivery.ts";
+import { executeQueueCommand, parseQueueCommand } from "../_shared/telegram-queue.ts";
 
 const id = z.number().int().safe();
 const sender = z.object({ id, is_bot: z.literal(false) });
@@ -69,6 +70,14 @@ export async function handleTelegram(req: Request): Promise<Response> {
       return jsonResponse({ result: data });
     }
     const text = msg.text?.trim() ?? "";
+    let queueCommand: ReturnType<typeof parseQueueCommand> = null;
+    let commandHint: string | undefined;
+    try { queueCommand = parseQueueCommand(text); }
+    catch (error) {
+      if (!(error instanceof AppError) || error.code !== "INVALID_COMMAND") throw error;
+      commandHint = error.message;
+    }
+    if (queueCommand) return jsonResponse(await executeQueueCommand(db, update.update_id, config.chatId, config.userId, queueCommand));
     const review = /^\/revisar\s+([0-9a-f-]{36})$/i.exec(text);
     const episode = z.string().uuid().safeParse(review?.[1]);
     const { data: reserved, error } = await db.from("telegram_commands").upsert({ update_id: update.update_id,
@@ -81,7 +90,7 @@ export async function handleTelegram(req: Request): Promise<Response> {
       if (sent?.review_sent) return jsonResponse(sent);
     }
     await telegramCall("sendMessage", { chat_id: config.chatId,
-      text: "CONTENT AI — Revisão editorial\n\nVocê recebe título, resumo, vídeos e um anexo com roteiro, fontes e licenças.\n\nAprovar registra a versão; não publica. Refazer render mantém roteiro/assets. Reprovar interrompe o episódio.\n\n/revisar UUID_DO_EPISÓDIO — solicita uma nova ficha de episódio em review, invalidando botões anteriores.\n\nSe nenhuma ficha chegou, confirme o estado review e telegram.enabled. Em entrega incerta, envie o comando novamente como uma nova mensagem." });
+      text: commandHint ?? "CONTENT AI — Seu estúdio de conteúdo\n\n/ideia descrição — envie uma pauta com produto, problema e abordagem (20–2.000 caracteres).\n/fila — consulte ideias pendentes e episódios recentes.\n/cancelar ID_DA_IDEIA — retire uma pauta antes de começar.\n\nSe houver afiliação, acrescente uma linha: Afiliado: https://...\n\nVocê recebe título, vídeos e roteiro completo para revisão. Aprovar registra a versão; não publica. Refazer render mantém roteiro/assets. Reprovar interrompe o episódio.\n\n/revisar UUID_DO_EPISÓDIO — solicita uma nova ficha em review e invalida botões anteriores.\n\nSe uma confirmação não chegar, consulte /fila antes de reenviar a ideia. Para fichas, confira review e telegram.enabled." });
     return jsonResponse({ ok: true });
   } catch (err) { return toErrorResponse(err); }
 }

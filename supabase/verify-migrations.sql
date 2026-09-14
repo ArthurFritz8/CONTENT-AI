@@ -3,6 +3,10 @@
 do $$
 declare tbl text;
 begin
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='telegram_commands' and column_name='reply_status')
+    or has_function_privilege('anon','public.telegram_queue_command(bigint,text,text,text,text,uuid,text)','execute') then
+    raise exception 'Telegram queue command ledger missing or unsafe (ADR-020)';
+  end if;
   if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='publishes' and column_name='session_url')
     or has_function_privilege('anon','public.claim_youtube_upload(uuid,uuid)','execute') then
     raise exception 'Private upload ledger missing or unsafe (ADR-019)';
