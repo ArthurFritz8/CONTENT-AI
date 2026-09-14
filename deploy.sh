@@ -188,13 +188,13 @@ deploy_functions() {
   log "Deployando Edge Functions obrigatórias"
   for fn in "${required[@]}"; do
     [[ -d "supabase/functions/$fn" ]] || fail "Função obrigatória ausente: supabase/functions/$fn"
-    supabase functions deploy "$fn"
+    supabase functions deploy "$fn" --import-map supabase/functions/deno.json --use-api
   done
 
   log "Verificando Edge Functions opcionais/futuras"
   for fn in "${optional[@]}"; do
     if [[ -d "supabase/functions/$fn" ]]; then
-      supabase functions deploy "$fn"
+      supabase functions deploy "$fn" --import-map supabase/functions/deno.json --use-api
     else
       warn "Função opcional ausente, pulando deploy: $fn"
     fi
