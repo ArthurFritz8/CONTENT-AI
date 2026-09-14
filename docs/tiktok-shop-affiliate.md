@@ -23,3 +23,18 @@ Não coloque esses valores no Telegram, no Gemini, no navegador, em screenshots 
 O primeiro teste deve buscar no máximo 20 produtos por palavra-chave, sem criar colaboração, publicar conteúdo ou alterar a vitrine. Depois de validar a resposta, o fluxo poderá persistir um snapshot com `product_id`, loja, preço, comissão, moeda, imagem, elegibilidade, `captured_at` e `request_id`. O link promocional só deve ser gerado para o produto que passar pelos filtros editoriais e de disponibilidade.
 
 O resultado ainda exige revisão humana: comissão, preço, estoque, elegibilidade regional e termos da colaboração podem mudar. Se a API não estiver aprovada, a linha manual `Afiliado: URL` continua funcionando.
+
+## Endpoint preparado no projeto
+
+Depois que a aprovação e os três secrets estiverem ativos, o worker autenticado
+`POST /functions/v1/affiliate-catalog` expõe duas operações:
+
+```json
+{"action":"search","keywords":["organizador de cabos"],"page_size":20,"sort_field":"commission_rate","sort_order":"DESC"}
+```
+
+Ele busca produtos de colaboração aberta, normaliza os campos essenciais e grava
+um snapshot em `affiliate_products`. Para gerar o link, o mesmo endpoint aceita
+`{"action":"generate_link","material":{...}}`; o payload `material` deve seguir
+o schema vigente do Partner Center. Nenhuma dessas operações é chamada pelo
+orquestrador enquanto o catálogo não estiver aprovado e configurado.
