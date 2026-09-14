@@ -6,7 +6,6 @@ cd "$ROOT_DIR"
 
 ENV_FILE="${ENV_FILE:-.env}"
 SUPABASE_CLI_VERSION="${SUPABASE_CLI_VERSION:-latest}"
-STORAGE_BUCKET="${STORAGE_BUCKET:-assets}"
 SMOKE_TEST=0
 CHECK_ONLY=0
 
@@ -24,11 +23,12 @@ Automatiza o deploy cloud do CONTENT AI:
   - smoke test opcional de infraestrutura, sem criação/publicação
 
 Variáveis obrigatórias:
-  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_URL,
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
   GEMINI_API_KEY, PEXELS_API_KEY, GITHUB_TOKEN, GITHUB_REPO
 
 Variáveis opcionais úteis:
   ENV_FILE=.env.cloud, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD,
+  SUPABASE_ACCESS_TOKEN,
   OPENROUTER_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
   YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN
 EOF
@@ -95,10 +95,6 @@ supabase() {
   npx --yes "supabase@${SUPABASE_CLI_VERSION}" "$@"
 }
 
-psql_cloud() {
-  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 "$@"
-}
-
 link_project_if_requested() {
   if [[ -n "${SUPABASE_PROJECT_REF:-}" ]]; then
     log "Linkando projeto Supabase ($SUPABASE_PROJECT_REF)"
@@ -114,20 +110,7 @@ link_project_if_requested() {
 
 push_database() {
   log "Aplicando migrations no Supabase Cloud"
-  supabase db push
-
-  log "Aplicando seed.sql (bootstrap insert-only)"
-  psql_cloud -f supabase/seed.sql
-  psql_cloud -f supabase/verify-migrations.sql
-}
-
-upsert_storage_bucket() {
-  log "Criando/atualizando bucket público '$STORAGE_BUCKET'"
-  psql_cloud -v storage_bucket="$STORAGE_BUCKET" <<'SQL'
-insert into storage.buckets (id, name, public)
-values (:'storage_bucket', :'storage_bucket', true)
-on conflict (id) do update set public = true, name = excluded.name;
-SQL
+  supabase db push --include-seed
 }
 
 set_supabase_secrets() {
@@ -140,6 +123,7 @@ set_supabase_secrets() {
     "GITHUB_BRANCH=$GITHUB_BRANCH"
     "BUDGET_CEILING=$BUDGET_CEILING"
     "TTS_PREFERRED_ENGINE=$TTS_PREFERRED_ENGINE"
+    "CONTENT_AI_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
   )
 
   local optional=(
@@ -201,64 +185,14 @@ deploy_functions() {
   done
 }
 
-configure_vault_and_cron_base() {
-  log "Configurando Vault, pg_cron e pg_net"
-  psql_cloud \
-    -v project_url="$SUPABASE_URL" \
-    -v service_role_key="$SUPABASE_SERVICE_ROLE_KEY" <<'SQL'
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-create schema if not exists vault;
-create extension if not exists supabase_vault with schema vault;
-
-delete from vault.secrets where name in ('project_url', 'service_role_key');
-select vault.create_secret(:'project_url', 'project_url');
-select vault.create_secret(:'service_role_key', 'service_role_key');
-SQL
-}
-
-schedule_cron_if_function_exists() {
-  local job_name="$1"
-  local schedule="$2"
-  local function_name="$3"
-
-  if [[ ! -d "supabase/functions/$function_name" ]]; then
-    warn "Cron $job_name pulado: função $function_name ainda não existe"
-    return
-  fi
-
-  log "Agendando cron $job_name -> $function_name"
-  psql_cloud \
-    -v job_name="$job_name" \
-    -v schedule="$schedule" \
-    -v function_name="$function_name" <<'SQL'
-select cron.unschedule(jobid) from cron.job where jobname = :'job_name';
-select cron.schedule(:'job_name', :'schedule', format($body$
-  select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url' limit 1) || '/functions/v1/%s',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1)
-    ),
-    body := '{}'::jsonb,
-    timeout_milliseconds := 140000
-  )
-$body$, :'function_name'));
-SQL
-}
-
 configure_cron_jobs() {
-  configure_vault_and_cron_base
-  psql_cloud -c "select cron.unschedule(jobid) from cron.job where jobname = 'orchestrator-daily';"
-  schedule_cron_if_function_exists "orchestrator-tick" "* * * * *" "orchestrator"
-  schedule_cron_if_function_exists "heartbeat-daily" "0 9 * * *" "heartbeat"
-  schedule_cron_if_function_exists "analytics-weekly" "0 10 * * 1" "collect-analytics"
+  log "Configurando Vault, bucket assets e pg_cron"
+  node scripts/configure-supabase-cloud.mjs
 }
 
 run_smoke_test() {
   if [[ "$SMOKE_TEST" != "1" ]]; then return; fi
   log "Smoke de infraestrutura (sem consumir ideias, IA ou publicar)"
-  psql_cloud -f supabase/verify-migrations.sql
   local code
   code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$SUPABASE_URL/functions/v1/orchestrator" -H 'Content-Type: application/json' -d '{}')
   [[ "$code" == "401" ]] || fail "Endpoint aceitou chamada anônima ou não está disponível (HTTP $code)"
@@ -276,14 +210,12 @@ main() {
     return
   fi
   need_cmd npx
-  need_cmd psql
   need_cmd curl
   load_env
-  require_envs SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_DB_URL GEMINI_API_KEY PEXELS_API_KEY GITHUB_TOKEN GITHUB_REPO
+  require_envs SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GEMINI_API_KEY PEXELS_API_KEY GITHUB_TOKEN GITHUB_REPO
 
   link_project_if_requested
   push_database
-  upsert_storage_bucket
   set_supabase_secrets
   set_github_actions_secrets
   deploy_functions

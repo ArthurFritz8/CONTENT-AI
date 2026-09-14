@@ -25,5 +25,9 @@ begin
   if not exists(select 1 from pg_trigger where tgname='episodes_z_gate' and not tgisinternal) then raise exception 'Approval gate missing'; end if;
   if has_function_privilege('anon','public.consume_next_idea()','execute') then raise exception 'Unsafe RPC permissions'; end if;
   if not exists(select 1 from storage.buckets where id='assets' and public) then raise exception 'Public assets bucket missing'; end if;
+  if has_function_privilege('anon','public.configure_content_ai_scheduler(text,text)','execute')
+    or has_function_privilege('authenticated','public.configure_content_ai_scheduler(text,text)','execute') then
+    raise exception 'Cloud scheduler setup RPC is exposed';
+  end if;
   if not exists(select 1 from public.system_config where key='budget' and value ? 'gemini_models') then raise exception 'Model quotas must be configured'; end if;
 end $$;

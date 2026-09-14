@@ -2,7 +2,7 @@
 
 Pipeline **zero-budget** de criação e publicação automática de vídeos (YouTube + Shorts; TikTok manual até auditoria da Content Posting API).
 
-**Estado verificado (ADR-015–018):** implementação até `review`, com configuração cloud ainda pendente. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de grounding](docs/ADR/ADR-017-evidencias-de-grounding.md) e [revisão pelo Telegram](docs/telegram-review.md) implementados. Validação real Gemini/Telegram, QA audiovisual, publishers e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os bloqueios e critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
+**Estado verificado (ADR-015–021):** banco, seed, bucket, Vault, scheduler, secrets e sete Edge Functions estão implantados na Supabase. Gemini, Pexels, webhook/fila do Telegram e OAuth do canal YouTube foram validados com credenciais reais; o pipeline permanece pausado. [QA determinístico](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de grounding](docs/ADR/ADR-017-evidencias-de-grounding.md) e [revisão pelo Telegram](docs/telegram-review.md) estão implementados. Geração ponta a ponta, QA audiovisual, primeiro upload privado e analytics continuam pendentes. [Auditoria por eixo](docs/auditoria-2026-09-11.md) e [plano de implementação](docs/plano-implementacao.md) registram os critérios de aceite. TikTok segue manual: o caso de uso privado atual conflita com as regras da API.
 
 ## Fluxo (máquina de estados)
 
@@ -38,7 +38,7 @@ idea → research → script → assets → rendered → review → published �
 │   ├── migrations/      # Schema versionado
 │   ├── functions/       # Edge Functions (Deno)
 │   ├── seed.sql         # Configs padrão (budget guard etc.)
-│   └── cron_jobs.sql    # pg_cron via Vault (aplicar manualmente — ver ADR-002)
+│   └── cron_jobs.sql    # Referência SQL do pg_cron; deploy automatizado pelo ADR-021
 ├── apps/
 │   ├── local-renderer/  # Engine de render (Node.js) — mesmo código roda no Actions e em dev local
 │   └── web-panel/       # Painel de fila/aprovação (Next.js)
@@ -48,7 +48,7 @@ idea → research → script → assets → rendered → review → published �
 
 ## Setup
 
-O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. Inicia desativado e depende da configuração OAuth. Publicação pública e analytics ainda estão pendentes.
+O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. OAuth e canal estão configurados, mas nenhum upload real foi feito. Publicação pública e analytics continuam pendentes.
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
 
