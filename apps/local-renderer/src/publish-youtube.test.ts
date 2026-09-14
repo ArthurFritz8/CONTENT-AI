@@ -33,7 +33,7 @@ function fixture() {
   const http: HttpFetch = async (input, init = {}) => {
     const url = String(input);
     calls.push(`${init.method ?? "GET"} ${url.split("?")[0]}`);
-    equal(init.redirect, "error");
+    equal(init.redirect, init.method === "PUT" && url.startsWith(session) ? "manual" : "error");
     if (url.startsWith(origin)) return new Response(media);
     if (url.includes("oauth2.googleapis.com")) return json({ access_token: "fixture-access" });
     if (url.includes("/channels?")) return json({ items: [{ id: channelId }] });

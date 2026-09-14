@@ -6,7 +6,7 @@ export class YoutubeError extends Error {
   constructor(message: string, status = 0, retryAfterMs = 0) { super(message); this.status = status; this.retryAfterMs = retryAfterMs; }
 }
 export async function safeFetch(http: HttpFetch, url: string, init: RequestInit = {}): Promise<Response> {
-  try { return await http(url, { ...init, redirect: "error", signal: AbortSignal.timeout(60_000) }); }
+  try { return await http(url, { ...init, redirect: init.redirect ?? "error", signal: AbortSignal.timeout(60_000) }); }
   catch { throw new YoutubeError("Falha de rede; retome a sessão persistida (detalhes sensíveis omitidos)"); }
 }
 export function sessionUrl(value: string): string {
@@ -47,10 +47,11 @@ export class YoutubeClient {
   }
   async status(url: string, bytes: number): Promise<UploadProgress> {
     return await uploadProgress(await this.call(sessionUrl(url), { method: "PUT",
+      redirect: "manual",
       headers: { "Content-Length": "0", "Content-Range": `bytes */${bytes}` } }), bytes);
   }
   async chunk(url: string, bytes: Uint8Array<ArrayBuffer>, offset: number, total: number): Promise<UploadProgress> {
-    return await uploadProgress(await this.call(sessionUrl(url), { method: "PUT", body: bytes,
+    return await uploadProgress(await this.call(sessionUrl(url), { method: "PUT", redirect: "manual", body: bytes,
       headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength),
         "Content-Range": `bytes ${offset}-${offset + bytes.byteLength - 1}/${total}` } }), total);
   }
