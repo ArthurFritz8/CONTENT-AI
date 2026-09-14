@@ -216,7 +216,13 @@ export async function handleScript(req: Request): Promise<Response> {
     );
 
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
-    const model = gemini.text_model ?? "gemini-3.6-flash";
+    const configuredModel = gemini.text_model ?? "gemini-3.6-flash";
+    const modelCandidates = [...new Set([
+      configuredModel,
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash",
+      "gemini-3.6-flash",
+    ])];
     const promptVersion = await getActivePromptVersion(db);
     // Fail closed before spending quota if editorial policy is missing or invalid.
     const quality = await loadScriptQualityChecker(db);
@@ -233,6 +239,7 @@ export async function handleScript(req: Request): Promise<Response> {
     let lastErrors: string[] = [];
     let lastInvalidJson = "";
     let attempts = 0;
+    let usedModel = configuredModel;
 
     for (const attempt of [1, 2] as const) {
       attempts = attempt;
@@ -241,13 +248,28 @@ export async function handleScript(req: Request): Promise<Response> {
         ? basePrompt
         : `${basePrompt}\n\n${buildRepairPrompt(lastInvalidJson, lastErrors)}`;
 
-      const result = await geminiGenerate({
-        beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "text", model),
-        model,
-        prompt,
-        responseSchema: SCRIPT_RESPONSE_SCHEMA,
-        temperature: gemini.script_temperature ?? 0.7,
-      });
+      let result: Awaited<ReturnType<typeof geminiGenerate>> | undefined;
+      let model = configuredModel;
+      let lastModelError: unknown;
+      for (const candidate of modelCandidates) {
+        try {
+          result = await geminiGenerate({
+            beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "text", candidate),
+            model: candidate,
+            prompt,
+            responseSchema: SCRIPT_RESPONSE_SCHEMA,
+            temperature: gemini.script_temperature ?? 0.7,
+          });
+          model = candidate;
+          usedModel = candidate;
+          break;
+        } catch (err) {
+          lastModelError = err;
+          if (!(err instanceof AppError) || err.status !== 502) throw err;
+          logger.info("modelo de roteiro indisponível; tentando fallback", { model: candidate, attempt });
+        }
+      }
+      if (!result) throw lastModelError ?? new AppError("Nenhum modelo Gemini de roteiro respondeu", 502, "GEMINI_CALL_FAILED");
       await recordGeminiCall(logger, episode.id, "text", model, result.usage);
 
       let normalized: Record<string, unknown>;
@@ -325,7 +347,7 @@ export async function handleScript(req: Request): Promise<Response> {
     await logger.event({
       episode_id: episode.id,
       event_type: "script_generated",
-      model_used: model,
+      model_used: usedModel,
       prompt_version: promptVersion,
       cost_estimate: 0,
       metadata: { attempts, scenes: scriptJson.scenes.length, script_hash: scriptHash },
