@@ -54,7 +54,7 @@ Os comandos da fila funcionam no chat/usuário já autorizado, sem novas credenc
 /ideia Mostrar como um carregador compacto reduz a quantidade de fontes e cabos na mesa. Comparar praticidade, limitações e compatibilidade usando fontes verificáveis.
 ```
 
-Inclua produto, problema e abordagem desejada. O texto precisa ter entre 20 e 2.000 caracteres. Para afiliação, acrescente uma linha explícita na mesma mensagem:
+Inclua produto, problema, público e abordagem desejada. O texto precisa ter entre 20 e 2.000 caracteres. Para afiliação, acrescente uma linha explícita na mesma mensagem:
 
 ```text
 /ideia Demonstrar um organizador de cabos para uma mesa pequena, com vantagens e limitações verificáveis.
@@ -62,6 +62,8 @@ Afiliado: https://example.com/produto?ref=SEU_CODIGO
 ```
 
 Troque a URL de exemplo pelo seu link HTTPS real. Não coloque senhas no URL. A afiliação será registrada separadamente e exigirá disclosure comercial. Links apenas citados na descrição são referências; para monetização, use a linha `Afiliado:`. O bot não baixa o link durante o cadastro.
+
+Para pautas comerciais, descreva também uma limitação ou condição de uso que você quer que seja investigada. O pipeline coloca o link e o disclosure nas descrições automaticamente; o CTA falado ainda precisa passar pela revisão. No TikTok Shop, confira o link no celular e anexe o produto manualmente antes de publicar.
 
 - `/fila`: ideias aguardando geração, seus IDs completos e até três episódios recentes. Mostra até dez ideias por vez, na ordem de prioridade/chegada. O limite padrão da fila é de 20 pendentes.
 - `/cancelar ID_DA_IDEIA`: retira uma ideia que ainda não começou. Use o ID da ideia, não o ID do episódio. Uma ideia já consumida retorna o episódio correspondente e não interrompe sua produção.

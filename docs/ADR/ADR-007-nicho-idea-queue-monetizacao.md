@@ -28,10 +28,10 @@ Definir a origem do pipeline (estado `idea`): de onde vêm as ideias, qual o nic
 - Padrões em `system_config.fact_check` (regex por categoria, `\m`/`\M` word boundaries do Postgres) — calibráveis sem deploy. Implementação do `fact-checker.ts` virá com a etapa de QA (usa esta config como fonte).
 
 ### 4. Monetização em 3 fases
-- **Fase 1 (MVP)**: orgânico YouTube (canal dark + Shorts) + upload manual TikTok.
-- **Fase 2**: TikTok Shop com afiliados (após auditoria da Content Posting API).
+- **Fase 1 (MVP)**: conteúdo produto-primeiro, links de afiliado registrados desde a pauta, YouTube privado para validação e upload manual TikTok/TikTok Shop. O link e o disclosure são inseridos deterministicamente nas descrições; o operador confere e anexa o produto na loja.
+- **Fase 2**: distribuição pública e operação recorrente após medir conversão e retenção; TikTok Shop continua sujeito à elegibilidade e às regras vigentes da conta.
 - **Fase 3**: tráfego pago (somente com renda própria do projeto — mantém zero-budget).
-- Disclosure: `commercial_content=true` sempre que houver `product_url`/`affiliate_link` (imposto em cadeia: idea_queue → product_compliance → script_json → publicação).
+- Disclosure: `commercial_content=true` sempre que houver `product_url`/`affiliate_link` (imposto em cadeia: idea_queue → product_compliance → script_json → descrição/CTA → revisão/publicação). O link original nunca é confiado ao modelo.
 
 ## Prevenção
 - Consumo atômico com SKIP LOCKED elimina duplicatas por concorrência — dupla camada com o `script_hash` UNIQUE.

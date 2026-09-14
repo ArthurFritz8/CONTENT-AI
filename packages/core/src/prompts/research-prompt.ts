@@ -24,10 +24,11 @@ ${input.briefing}
 FONTES ENCONTRADAS PELO MECANISMO DE BUSCA:
 ${input.sources.map((source, index) => `[${index + 1}] ${source.title}\nURL: ${source.url}\nTrecho: ${source.content}`).join("\n\n")}
 
-TAREFA: extraia das fontes acima fatos VERIFICÁVEIS sobre este produto/tema:
-- funcionalidades concretas (specs, capacidades, medidas)
-- reviews e avaliações reais
-- comparações com produtos concorrentes
+TAREFA: extraia das fontes acima fatos VERIFICÁVEIS sobre este produto/tema para uma recomendação de compra responsável:
+- funcionalidades concretas (specs, capacidades, medidas e compatibilidade)
+- como o produto é usado e para qual problema ele serve
+- limitações, condições de uso, pontos negativos e comparações com concorrentes quando a fonte informar
+- preço, desconto, estoque, entrega e garantia SOMENTE quando a fonte for oficial e o dado estiver explícito; esses dados mudam rápido e devem ser tratados como temporários
 
 REGRAS OBRIGATÓRIAS:
 1. Cada fato DEVE ter exatamente uma das URLs listadas acima. Copie a URL literalmente; NUNCA invente ou altere URLs.
@@ -37,6 +38,7 @@ REGRAS OBRIGATÓRIAS:
 5. confidence: 0.9+ para specs oficiais, 0.6-0.8 para reviews, abaixo de 0.6 não incluir.
 6. Entre 3 e ${input.maxClaims} claims. Idioma: português do Brasil.
 7. Cada claim deve ser uma frase factual curta e estar explicitamente sustentado pelo trecho da fonte escolhida. Não inclua inferências nem fatos ausentes dos trechos.
+8. Não transforme uma página de afiliado, anúncio ou imagem stock em prova independente de desempenho. Marque limitações e contexto quando existirem; omita alegações de benefício sem fonte.
 
 FORMATO DA RESPOSTA — retorne APENAS um array JSON, sem markdown, sem texto extra:
 [

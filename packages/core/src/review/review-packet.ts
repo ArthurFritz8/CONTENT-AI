@@ -12,7 +12,7 @@ const snapshotSchema = z.object({
   episode: z.object({
     id: z.string().uuid(), script_json: scriptJsonSchema, render_url: webUrl,
     research_data: researchDataSchema, research_evidence: z.unknown(),
-    product_compliance: z.object({ commercial_content: z.boolean().optional() }).passthrough().nullable(),
+    product_compliance: z.object({ commercial_content: z.boolean().optional(), affiliate_link: webUrl.optional() }).passthrough().nullable(),
     metadata: z.object({ render_outputs: z.object({ landscape: webUrl, portrait: webUrl }).passthrough() }),
   }),
   assets: z.array(z.object({
@@ -103,6 +103,10 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
     "TRANSPARÊNCIA", `Conteúdo sintético: ${script.disclosures.contains_synthetic_media ? "sim" : "não"}`,
     `Conteúdo comercial: ${script.disclosures.commercial_content ? "sim" : "não"}`,
     `Disclosure: ${script.disclosures.commercial_disclosure_text ?? "não aplicável"}`, "",
+    ...(episode.product_compliance?.affiliate_link ? [
+      `Link de afiliado registrado: ${episode.product_compliance.affiliate_link}`,
+      "Confira se o link abre o produto correto e se a campanha/loja ainda está ativa.", "",
+    ] : []),
     "ALERTAS", ...report.findings.map(f => f.message), "",
     "DECISÃO", "Aprovar versão: mantém review e registra consentimento para esta versão; não faz upload.",
     "Refazer render: gera os vídeos novamente com o mesmo roteiro/assets; exige nova revisão.",

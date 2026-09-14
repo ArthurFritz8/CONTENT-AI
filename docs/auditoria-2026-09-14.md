@@ -27,6 +27,7 @@ O projeto tem um MVP funcional para uso pessoal supervisionado. Ainda não é um
 | P1 | Ritmo e fidelidade do roteiro visual | Renderer hoje aplica zoom crescente a todas as cenas e concatena com cortes, ignorando `ken_burns` e `transition` declarados. Implementar opções reais com atualização da revisão dos checkpoints e amostras visuais comparativas; calibrar texto para duração desejada. |
 | P1 | Operação recuperável | Detectar jobs travados, progresso obsoleto, reservas expiradas e pressão no Storage. Reconciliar Actions antes de repetir; limpeza pela API Storage preservando aprovados e uploads pendentes. |
 | P2 | Métricas após publicação | Consultar pelo ID existente; upsert por janela; falha de coleta nunca dispara novo upload. |
+| P1 — entregue no código | Produto e conversão | A pauta comercial agora injeta o link HTTPS e disclosure nas duas descrições de forma idempotente; o prompt exige problema, demonstração, limitação e público adequado. TikTok Shop ainda exige anexação manual do produto. |
 | P2 | Identidade editorial e formatos | Definir padrão de capa, abertura, voz, legendas e CTA; roteiro próprio para curto/longo. Imagens stock não devem ser apresentadas como prova do produto específico. |
 | P3 | Painel web | Implementar quando Telegram e relatórios deixarem de atender ao uso pessoal; não adicionar infraestrutura apenas por aparência. |
 

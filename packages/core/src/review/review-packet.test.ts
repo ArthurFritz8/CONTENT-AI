@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import { ok, throws, strictEqual } from "node:assert";
+import assert from "node:assert/strict";
 import { makeReviewSnapshot } from "../testing/review-fixture.ts";
 import { buildReviewPacket } from "./review-packet.ts";
 
@@ -62,4 +63,19 @@ test("ficha mostra medições e trechos Tavily, distinguindo confiança de verif
     ok(packet.document.includes(value), value);
   }
   ok(!packet.document.includes("Google Search via Gemini"));
+});
+
+test("ficha comercial exibe o link registrado para conferência humana", () => {
+  const snapshot = makeReviewSnapshot();
+  snapshot.episode.product_compliance = { commercial_content: true, affiliate_link: "https://shop.example/p/123?aff=fritz" } as any;
+  snapshot.episode.script_json.disclosures = {
+    contains_synthetic_media: true, commercial_content: true,
+    commercial_disclosure_text: "Este vídeo contém link de afiliado.",
+  };
+  snapshot.episode.script_json.metadata.youtube.description += " Este vídeo contém link de afiliado.";
+  snapshot.episode.script_json.metadata.tiktok.description += " Este vídeo contém link de afiliado.";
+  snapshot.episode.script_json.scenes.at(-1)!.narration_text += " Este vídeo contém link de afiliado.";
+  snapshot.episode.script_json.narration.full_text = snapshot.episode.script_json.scenes.map(scene => scene.narration_text).join(" ");
+  const packet = buildReviewPacket(snapshot, id);
+  assert.ok(packet.document.includes("Link de afiliado registrado: https://shop.example/p/123?aff=fritz"));
 });

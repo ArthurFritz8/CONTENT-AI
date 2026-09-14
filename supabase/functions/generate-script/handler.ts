@@ -18,6 +18,7 @@ import { researchMatchesEvidence } from "../../../packages/core/src/validators/r
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import type { ScriptQualityReport } from "../../../packages/core/src/validators/script-quality.ts";
 import { loadScriptQualityChecker, recordScriptQuality } from "../_shared/script-quality.ts";
+import { applyAffiliateMetadata } from "../../../packages/core/src/publish/affiliate-metadata.ts";
 import {
   buildRepairPrompt,
   buildScriptPrompt,
@@ -136,6 +137,7 @@ function normalizeSystemFields(
   episodeId: string,
   promptVersion: string,
   isCommercial: boolean,
+  affiliateLink: string | null,
 ): Record<string, unknown> {
   const scenes = Array.isArray(raw.scenes)
     ? raw.scenes.map((s) => ({
@@ -150,8 +152,9 @@ function normalizeSystemFields(
     commercial_content: isCommercial,
     ...(isCommercial ? {} : { commercial_disclosure_text: null }),
   };
+  const withAffiliate = applyAffiliateMetadata({ ...raw, disclosures }, affiliateLink, isCommercial);
   return {
-    ...raw,
+    ...(withAffiliate as Record<string, unknown>),
     episode_id: episodeId,
     prompt_version: promptVersion,
     music: null,
@@ -214,6 +217,9 @@ export async function handleScript(req: Request): Promise<Response> {
     const isCommercial = Boolean(
       (episode.product_compliance as { commercial_content?: boolean } | null)?.commercial_content,
     );
+    const affiliateLink = isCommercial
+      ? (episode.product_compliance as { affiliate_link?: string } | null)?.affiliate_link ?? null
+      : null;
 
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
     const configuredModel = gemini.text_model ?? "gemini-3.6-flash";
@@ -276,7 +282,7 @@ export async function handleScript(req: Request): Promise<Response> {
       try {
         const raw = extractJson(result.text);
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Roteiro deve ser um objeto JSON");
-        normalized = normalizeSystemFields(raw as Record<string, unknown>, episode.id, promptVersion, isCommercial);
+        normalized = normalizeSystemFields(raw as Record<string, unknown>, episode.id, promptVersion, isCommercial, affiliateLink);
       } catch (err) {
         lastErrors = [err instanceof Error ? err.message : "JSON inválido"];
         lastInvalidJson = result.text.slice(0, 8000);
