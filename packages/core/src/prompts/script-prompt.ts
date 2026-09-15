@@ -14,6 +14,8 @@ export interface ScriptPromptInput {
   briefing: string;
   researchData: ResearchData;
   isCommercial: boolean;
+  // ADR-030: quando definido, o personagem fixo pode ser usado em cenas específicas
+  spokesmodel?: { characterDescription: string; maxScenesPerEpisode: number };
 }
 
 export function buildScriptPrompt(input: ScriptPromptInput): string {
@@ -45,6 +47,7 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO ORIENTADA AO PRODUTO:
 - highlight_words: 1 a 2 palavras-chave POR CENA, copiadas exatamente como aparecem em narration_text, para destaque visual na legenda.
 - narration_text: tom conversacional, português do Brasil, frases curtas para narração.
 ${input.isCommercial ? '- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado. Se você comprar pelo link, podemos receber uma comissão."). Copie esse disclosure literalmente na narração do CTA e nas descrições YouTube e TikTok. O sistema acrescentará o link exato do produto às descrições; não invente nem altere URLs.' : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
+${input.spokesmodel ? `- Personagem fixo disponível (opcional, ADR-030): "${input.spokesmodel.characterDescription}". Você pode marcar scenes[].presenter=true em no máximo ${input.spokesmodel.maxScenesPerEpisode} cena(s) deste roteiro, apenas quando isso agregar de verdade (ex.: hook mostrando o produto na mão, ou cta reforçando o convite) — varie: nem todo vídeo precisa usar, e nunca use em mais cenas do que o limite. Nas demais cenas, presenter=false (padrão).` : "- Não há personagem fixo disponível agora: todas as scenes[].presenter devem ser false."}
 
 Retorne APENAS o JSON no formato especificado.`;
 }

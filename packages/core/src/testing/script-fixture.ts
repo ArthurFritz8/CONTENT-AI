@@ -11,6 +11,7 @@ export function makeValidScript(): ScriptJson {
     ken_burns: "in" as const,
     visual: { description: `Imagem da cena ${order}`, search_query: `query ${order}` },
     highlight_words: [],
+    presenter: false,
     asset_landscape: null,
     asset_portrait: null,
     subtitle_position: "bottom_center" as const,

@@ -20,6 +20,19 @@ test("highlight_words: default vazio e máximo 3", () => {
   strictEqual(scriptJsonSchema.safeParse(invalid).success, false);
 });
 
+test("presenter: default false quando ausente (ADR-030)", () => {
+  const script = makeValidScript();
+  delete (script.scenes[0] as { presenter?: boolean }).presenter;
+  const parsed = scriptJsonSchema.parse(script);
+  strictEqual(parsed.scenes[0]!.presenter, false);
+
+  const withPresenter = makeValidScript();
+  withPresenter.scenes[0]!.presenter = true;
+  const parsedTrue = scriptJsonSchema.parse(withPresenter);
+  strictEqual(parsedTrue.scenes[0]!.presenter, true);
+});
+
+
 test("rejeita menos de 3 cenas", () => {
   const script = makeValidScript();
   script.scenes = script.scenes.slice(0, 2);

@@ -8,7 +8,7 @@ import { getSystemConfig } from "./supabase-client.ts";
 import type { JobLogger } from "./logger.ts";
 import type { GeminiUsage } from "./gemini.ts";
 
-export type GeminiCallType = "grounding" | "research" | "text" | "image" | "tts";
+export type GeminiCallType = "grounding" | "research" | "text" | "image" | "tts" | "spokesmodel";
 
 interface BudgetConfig {
   gemini_requests_per_day_max?: number;
@@ -16,6 +16,9 @@ interface BudgetConfig {
   gemini_research_requests_per_day_max?: number;
   gemini_image_requests_per_day_max?: number;
   gemini_tts_requests_per_day_max?: number;
+  // ADR-030: caminho separado e opt-in do 'image' vetado pelo ADR-015; custo real, não free tier.
+  gemini_spokesmodel_requests_per_day_max?: number;
+  gemini_spokesmodel_cost_usd_estimate?: number;
   hard_stop_on_exceed?: boolean;
 }
 
@@ -26,6 +29,7 @@ const FALLBACK_LIMITS: Record<GeminiCallType, number> = {
   text: 0,
   image: 0,
   tts: 0,
+  spokesmodel: 0,
 };
 
 function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
@@ -40,6 +44,8 @@ function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
       return cfg.gemini_image_requests_per_day_max ?? FALLBACK_LIMITS.image;
     case "tts":
       return cfg.gemini_tts_requests_per_day_max ?? FALLBACK_LIMITS.tts;
+    case "spokesmodel":
+      return cfg.gemini_spokesmodel_requests_per_day_max ?? FALLBACK_LIMITS.spokesmodel;
   }
 }
 
@@ -106,17 +112,24 @@ export async function assertGeminiBudget(
 }
 
 export async function recordGeminiCall(
+  db: SupabaseClient,
   logger: JobLogger,
   episodeId: string,
   callType: GeminiCallType,
   model: string,
   usage: GeminiUsage,
 ): Promise<void> {
+  // ADR-030: spokesmodel é a única chamada com custo real hoje; demais permanecem free tier.
+  let costEstimate = 0;
+  if (callType === "spokesmodel") {
+    const cfg = await getSystemConfig<BudgetConfig>(db, "budget", {});
+    costEstimate = cfg.gemini_spokesmodel_cost_usd_estimate ?? 0.04;
+  }
   await logger.event({
     episode_id: episodeId,
     event_type: "gemini_call",
     model_used: model,
-    cost_estimate: 0, // free tier
+    cost_estimate: costEstimate,
     metadata: { call_type: callType, ...usage },
   });
 }

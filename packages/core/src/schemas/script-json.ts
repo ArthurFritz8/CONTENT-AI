@@ -37,6 +37,8 @@ export const sceneSchema = z.object({
   }),
   // palavras-chave da narração destacadas na legenda (ADR-010)
   highlight_words: z.array(z.string().min(1)).max(3).default([]),
+  // true = usar o personagem/apresentador fixo nesta cena (ADR-030); decisão do próprio roteiro, opt-in e raro
+  presenter: z.boolean().default(false),
   // null até o estado 'assets' (contrato estagiado — ADR-005)
   asset_landscape: assetRefSchema.nullable(),
   asset_portrait: assetRefSchema.nullable(),

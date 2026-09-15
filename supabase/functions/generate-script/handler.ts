@@ -32,6 +32,29 @@ interface GeminiConfig {
   script_temperature?: number;
 }
 
+interface SpokesmodelConfig {
+  enabled?: boolean;
+  character_description?: string;
+  max_scenes_per_episode?: number;
+}
+
+/** ADR-030: presenter é opt-in e limitado mesmo se o modelo ignorar a instrução do prompt. */
+function enforcePresenterCap(
+  scenes: Array<Record<string, unknown>>,
+  cfg: SpokesmodelConfig,
+): Array<Record<string, unknown>> {
+  if (!cfg.enabled) return scenes.map((s) => ({ ...s, presenter: false }));
+  const cap = Math.max(0, cfg.max_scenes_per_episode ?? 1);
+  let used = 0;
+  return scenes.map((s) => {
+    if (s.presenter === true && used < cap) {
+      used += 1;
+      return s;
+    }
+    return { ...s, presenter: false };
+  });
+}
+
 // Subset OpenAPI aceito pelo Gemini: garante JSON parseável com campos obrigatórios.
 // Invariantes cross-field (order contíguo, roles, soma 60-600s) ficam no Zod.
 const SCENE_RESPONSE_SCHEMA = {
@@ -53,6 +76,7 @@ const SCENE_RESPONSE_SCHEMA = {
       required: ["description", "search_query"],
     },
     highlight_words: { type: "ARRAY", items: { type: "STRING" } },
+    presenter: { type: "BOOLEAN" },
     subtitle_position: { type: "STRING", enum: ["bottom_center", "bottom_left"] },
   },
   required: [
@@ -65,6 +89,7 @@ const SCENE_RESPONSE_SCHEMA = {
     "ken_burns",
     "visual",
     "highlight_words",
+    "presenter",
     "subtitle_position",
   ],
 };
@@ -138,14 +163,16 @@ function normalizeSystemFields(
   promptVersion: string,
   isCommercial: boolean,
   affiliateLink: string | null,
+  spokesmodel: SpokesmodelConfig,
 ): Record<string, unknown> {
-  const scenes = Array.isArray(raw.scenes)
+  const withoutAssets = Array.isArray(raw.scenes)
     ? raw.scenes.map((s) => ({
       ...(s as Record<string, unknown>),
       asset_landscape: null,
       asset_portrait: null,
     }))
     : raw.scenes;
+  const scenes = Array.isArray(withoutAssets) ? enforcePresenterCap(withoutAssets, spokesmodel) : withoutAssets;
   const disclosures = {
     ...(raw.disclosures as Record<string, unknown> ?? {}),
     contains_synthetic_media: true,
@@ -222,6 +249,7 @@ export async function handleScript(req: Request): Promise<Response> {
       : null;
 
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
+    const spokesmodel = await getSystemConfig<SpokesmodelConfig>(db, "spokesmodel", {});
     const configuredModel = gemini.text_model ?? "gemini-3.6-flash";
     const modelCandidates = [...new Set([
       configuredModel,
@@ -237,6 +265,9 @@ export async function handleScript(req: Request): Promise<Response> {
       briefing: briefingText,
       researchData: research.data,
       isCommercial,
+      spokesmodel: spokesmodel.enabled && spokesmodel.character_description
+        ? { characterDescription: spokesmodel.character_description, maxScenesPerEpisode: Math.max(0, spokesmodel.max_scenes_per_episode ?? 1) }
+        : undefined,
     });
 
     // Tentativa 1 + repair loop (máx. 1 retry com os erros do Zod no prompt)
@@ -276,13 +307,13 @@ export async function handleScript(req: Request): Promise<Response> {
         }
       }
       if (!result) throw lastModelError ?? new AppError("Nenhum modelo Gemini de roteiro respondeu", 502, "GEMINI_CALL_FAILED");
-      await recordGeminiCall(logger, episode.id, "text", model, result.usage);
+      await recordGeminiCall(db, logger, episode.id, "text", model, result.usage);
 
       let normalized: Record<string, unknown>;
       try {
         const raw = extractJson(result.text);
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Roteiro deve ser um objeto JSON");
-        normalized = normalizeSystemFields(raw as Record<string, unknown>, episode.id, promptVersion, isCommercial, affiliateLink);
+        normalized = normalizeSystemFields(raw as Record<string, unknown>, episode.id, promptVersion, isCommercial, affiliateLink, spokesmodel);
       } catch (err) {
         lastErrors = [err instanceof Error ? err.message : "JSON inválido"];
         lastInvalidJson = result.text.slice(0, 8000);

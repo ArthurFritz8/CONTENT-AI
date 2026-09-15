@@ -15,6 +15,7 @@ import {
   recordGeminiCall,
 } from "../_shared/budget-guard.ts";
 import { geminiGenerateImage } from "../_shared/gemini.ts";
+import { ensureSpokesmodelReference, generatePresenterSceneImage, type SpokesmodelConfig } from "../_shared/spokesmodel.ts";
 import { searchPexelsPhoto } from "../_shared/pexels.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { loadScriptQualityChecker, recordScriptQuality } from "../_shared/script-quality.ts";
@@ -198,11 +199,12 @@ async function stageImages(args: {
   episode: EpisodeRow;
   script: z.infer<typeof scriptJsonSchema>;
   cfg: AssetsConfig;
+  spokesmodelCfg: SpokesmodelConfig;
   bucket: string;
   assets: ExistingAsset[];
 }): Promise<{ script: z.infer<typeof scriptJsonSchema>; counts: Record<string, number> }> {
-  const { db, logger, episode, script, cfg, bucket, assets } = args;
-  const counts = { affiliate: 0, generated: 0, pexels: 0, skipped: 0 };
+  const { db, logger, episode, script, cfg, spokesmodelCfg, bucket, assets } = args;
+  const counts = { affiliate: 0, generated: 0, pexels: 0, skipped: 0, presenter: 0 };
 
   if (allScenesHaveImages(script.scenes, assets)) {
     const scenes = script.scenes.map((scene) => ({
@@ -225,6 +227,18 @@ async function stageImages(args: {
   const rows: AssetRowInsert[] = [];
   let affiliateUrl: string | null = null;
 
+  // ADR-030: referência buscada 1x por invocação e reaproveitada em todas as cenas presenter=true.
+  let spokesmodelReference: { bytes: Uint8Array; mimeType: string } | null = null;
+  if (spokesmodelCfg.enabled && script.scenes.some((s) => s.presenter)) {
+    try {
+      spokesmodelReference = await ensureSpokesmodelReference({ db, logger, episodeId: episode.id, bucket, cfg: spokesmodelCfg, imageModel });
+    } catch (err) {
+      logger.info("Personagem fixo indisponível nesta geração; cenas usarão fallback padrão", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   const resolvedScenes: Scene[] = [];
   for (const scene of [...script.scenes].sort((a, b) => a.order - b.order)) {
     const existingLandscape = assetFor(assets, "image", scene.order, "landscape");
@@ -233,6 +247,46 @@ async function stageImages(args: {
       counts.skipped += 1;
       resolvedScenes.push({ ...scene, asset_landscape: assetRef(existingLandscape), asset_portrait: assetRef(existingPortrait) });
       continue;
+    }
+
+    if (scene.presenter && spokesmodelReference && spokesmodelCfg.character_description) {
+      try {
+        const img = await generatePresenterSceneImage({
+          db, logger, episodeId: episode.id, imageModel,
+          sceneDescription: scene.visual.description,
+          characterDescription: spokesmodelCfg.character_description,
+          reference: spokesmodelReference,
+        });
+        const url = await uploadToStorage(
+          db, bucket,
+          `episodes/${episode.id}/images/scene_${padSceneOrder(scene.order)}_presenter.${extFromMime(img.mimeType)}`,
+          img.bytes, img.mimeType,
+        );
+        for (const orientation of ORIENTATIONS) {
+          if (!assetFor(assets, "image", scene.order, orientation)) {
+            rows.push({
+              episode_id: episode.id,
+              type: "image",
+              url,
+              license: "generated",
+              source: "gemini",
+              author: null,
+              metadata: { scene_order: scene.order, orientation, role: scene.role, source_plan: "spokesmodel", presenter: true },
+            });
+          }
+        }
+        resolvedScenes.push({
+          ...scene,
+          asset_landscape: { url, license: "generated", source: "gemini" },
+          asset_portrait: { url, license: "generated", source: "gemini" },
+        });
+        counts.presenter += 1;
+        continue;
+      } catch (err) {
+        logger.info("Falha ao gerar cena com personagem fixo; usando fallback padrão", {
+          scene: scene.order, error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     let source = planByOrder.get(scene.order)!;
@@ -273,7 +327,7 @@ async function stageImages(args: {
       if (!url) {
         const img = await geminiGenerateImage({ model: imageModel, prompt: scene.visual.description,
           beforeRequest: () => assertGeminiBudget(db, logger, episode.id, "image", imageModel) });
-        await recordGeminiCall(logger, episode.id, "image", imageModel, img.usage);
+        await recordGeminiCall(db, logger, episode.id, "image", imageModel, img.usage);
         url = await uploadToStorage(
           db,
           bucket,
@@ -345,7 +399,7 @@ async function synthesizeWithBudget(args: {
   const result = await synthesizeTts(args.engine, args.text, args.cfg, () =>
     assertGeminiBudget(args.db, args.logger, args.episodeId, "tts", args.cfg.gemini_tts_model ?? "gemini-2.5-flash-preview-tts"));
   if (args.engine === "gemini" && result.usage) {
-    await recordGeminiCall(args.logger, args.episodeId, "tts", args.cfg.gemini_tts_model ?? "gemini-2.5-flash-preview-tts", result.usage);
+    await recordGeminiCall(args.db, args.logger, args.episodeId, "tts", args.cfg.gemini_tts_model ?? "gemini-2.5-flash-preview-tts", result.usage);
   }
   return result;
 }
@@ -618,10 +672,11 @@ export async function handleAssets(req: Request): Promise<Response> {
     }
     const cfg = await getSystemConfig<AssetsConfig>(db, "assets", {});
     const ttsCfg = await getSystemConfig<TtsConfig>(db, "tts", {});
+    const spokesmodelCfg = await getSystemConfig<SpokesmodelConfig>(db, "spokesmodel", {});
     const bucket = cfg.storage_bucket ?? "assets";
     let assets = await fetchEpisodeAssets(db, episode.id);
 
-    const images = await stageImages({ db, logger, episode: episodeForFailure, script, cfg, bucket, assets });
+    const images = await stageImages({ db, logger, episode: episodeForFailure, script, cfg, spokesmodelCfg, bucket, assets });
     assets = await fetchEpisodeAssets(db, episode.id);
 
     const audio = await stageTts({

@@ -8,13 +8,16 @@ insert into system_config (key, value) values
     "gemini_research_requests_per_day_max": 20,
     "gemini_image_requests_per_day_max": 10,
     "gemini_tts_requests_per_day_max": 50,
+    "gemini_spokesmodel_requests_per_day_max": 20,
+    "gemini_spokesmodel_cost_usd_estimate": 0.04,
     "tavily_search_requests_per_month_max": 100,
     "tavily_search_requests_per_minute_max": 5,
     "gemini_models": {
       "gemini-3.5-flash": {"rpd": 20, "rpm": 5},
       "gemini-3.6-flash": {"rpd": 20, "rpm": 5},
       "gemini-3.1-flash-lite": {"rpd": 20, "rpm": 5},
-      "gemini-2.5-flash-preview-tts": {"rpd": 10, "rpm": 3}
+      "gemini-2.5-flash-preview-tts": {"rpd": 10, "rpm": 3},
+      "gemini-2.5-flash-image": {"rpd": 20, "rpm": 5}
     },
     "actions_minutes_per_month_max": 2500,
     "hard_stop_on_exceed": true
@@ -33,6 +36,12 @@ insert into system_config (key, value) values
     "pexels_fallback_query": "technology gadget",
     "affiliate_image_max_bytes": 5242880,
     "affiliate_image_hosts": []
+  }'::jsonb),
+  ('spokesmodel', '{
+    "enabled": false,
+    "character_description": null,
+    "reference_image_url": null,
+    "max_scenes_per_episode": 1
   }'::jsonb),
   ('tts', '{
     "chain": ["gemini", "edge", "piper"],

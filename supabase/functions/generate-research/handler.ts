@@ -115,7 +115,7 @@ export async function handleResearch(req: Request): Promise<Response> {
       }
     }
     if (!result) throw lastModelError ?? new AppError("Nenhum modelo Gemini de pesquisa respondeu", 502, "GEMINI_CALL_FAILED");
-    await recordGeminiCall(logger, episode.id, "research", model, result.usage);
+    await recordGeminiCall(db, logger, episode.id, "research", model, result.usage);
 
     let rawResearch: unknown;
     try { rawResearch = extractJson(result.text); } catch {
