@@ -307,7 +307,7 @@ export async function handleScript(req: Request): Promise<Response> {
         }
       }
       if (!result) throw lastModelError ?? new AppError("Nenhum modelo Gemini de roteiro respondeu", 502, "GEMINI_CALL_FAILED");
-      await recordGeminiCall(db, logger, episode.id, "text", model, result.usage);
+      await recordGeminiCall(logger, episode.id, "text", model, result.usage);
 
       let normalized: Record<string, unknown>;
       try {

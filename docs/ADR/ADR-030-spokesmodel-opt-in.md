@@ -1,5 +1,7 @@
 # ADR-030 — Personagem/apresentador fixo (spokesmodel) opt-in
 
+Status: **substituído pelo ADR-031**. O usuário, ao ver o custo real envolvido (faturamento Gemini para gerar imagem), decidiu não gastar nada; a implementação de geração via Nano Banana descrita abaixo foi revertida antes de qualquer deploy e nunca chegou a rodar em produção. Mantido como registro histórico do debate e das travas técnicas descobertas (ainda válidas).
+
 ## Objetivo
 
 Permitir que o roteiro use, em cenas específicas e raras, um personagem de IA fixo e consistente entre todos os episódios fazendo a demonstração/propaganda do produto — sem reabrir o veto do ADR-015 à geração de imagem genérica.

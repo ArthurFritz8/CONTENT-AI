@@ -162,35 +162,13 @@ function wavDurationSeconds(bytes: Uint8Array): number {
   return byteRate > 0 ? dataBytes / byteRate : 0;
 }
 
-function utf8ToBase64(bytes: Uint8Array): string {
-  // Evita "Maximum call stack size exceeded" do spread em imagens grandes.
-  const CHUNK = 8192;
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
-
-/**
- * Nano Banana: retorna a imagem como inlineData base64 (ADR-009).
- * `referenceImages` (ADR-030) condiciona a geração a uma ou mais imagens de entrada
- * para consistência de personagem entre cenas/episódios — recurso nativo do modelo.
- */
+/** Nano Banana: retorna a imagem como inlineData base64 (ADR-009). */
 export async function geminiGenerateImage(
-  opts: {
-    model: string;
-    prompt: string;
-    beforeRequest: () => Promise<void>;
-    referenceImages?: Array<{ bytes: Uint8Array; mimeType: string }>;
-  },
+  opts: { model: string; prompt: string; beforeRequest: () => Promise<void> },
 ): Promise<GeminiImageResult> {
   return await retryWithBackoff(
     async () => {
       await opts.beforeRequest();
-      const referenceParts = (opts.referenceImages ?? []).map((ref) => ({
-        inlineData: { mimeType: ref.mimeType, data: utf8ToBase64(ref.bytes) },
-      }));
       const res = await fetch(
         `${API_BASE}/models/${opts.model}:generateContent`,
         {
@@ -198,7 +176,7 @@ export async function geminiGenerateImage(
           signal: AbortSignal.timeout(30_000),
           headers: { "Content-Type": "application/json", "x-goog-api-key": getApiKey() },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [...referenceParts, { text: opts.prompt }] }],
+            contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
           }),
         },
       );
