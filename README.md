@@ -29,7 +29,7 @@ idea → research → script → assets → rendered → review → published �
 | Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |
 | Publicação | YouTube Data API v3 (cotas do projeto no Google Cloud Console) | Free |
 | Aprovação | Telegram Bot | Free |
-| Painel | `apps/web-panel` reservado; interface ainda não implementada | — |
+| Painel | Fritz Inova Content Studio hospedado; login do operador, fila, episódios, renders e controle do pipeline | Sites free tier |
 
 ## Estrutura
 
@@ -42,7 +42,7 @@ idea → research → script → assets → rendered → review → published �
 │   └── cron_jobs.sql    # Referência SQL do pg_cron; deploy automatizado pelo ADR-021
 ├── apps/
 │   ├── local-renderer/  # Engine de render (Node.js) — mesmo código roda no Actions e em dev local
-│   └── web-panel/       # Pacote reservado para painel futuro
+│   └── web-panel/       # Referência do painel operacional hospedado (ADR-028)
 ├── packages/core/       # Prompts, schemas Zod, validadores compartilhados
 └── .github/workflows/   # Assets, render, piloto YouTube e CI
 ```
@@ -52,6 +52,8 @@ idea → research → script → assets → rendered → review → published �
 O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. O primeiro upload real e sua repetição idempotente foram concluídos; o operador confirmou o vídeo no Studio. Publicação pública e analytics continuam pendentes.
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
+
+O [painel web operacional](https://fritz-inova-content-studio.geminepestudante7.chatgpt.site) apresenta o produto publicamente e disponibiliza ao operador autenticado a fila, os episódios, os renders e o controle de pausa do pipeline. A arquitetura e os limites de segurança estão no [ADR-028](docs/ADR/ADR-028-painel-web-operacional.md).
 
 1. Node22.15+ e `npm ci`.
 2. Copie `.env.example` → `.env` e preencha as chaves (nunca commitar `.env`).

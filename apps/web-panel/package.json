@@ -1,5 +1,7 @@
 {
   "name": "@content-ai/web-panel",
   "version": "0.1.0",
-  "private": true
+  "private": true,
+  "description": "Referência do Fritz Inova Content Studio hospedado; ver ADR-028",
+  "homepage": "https://fritz-inova-content-studio.geminepestudante7.chatgpt.site"
 }
