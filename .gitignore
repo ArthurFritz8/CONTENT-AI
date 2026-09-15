@@ -14,6 +14,8 @@ dist/
 .next/
 .turbo/
 *.tsbuildinfo
+apps/web-panel/test-results/
+apps/web-panel/playwright-report/
 
 # modelos locais (Piper — binários grandes)
 models/
@@ -23,6 +25,9 @@ output/
 *.mp4
 *.wav
 *.mp3
+
+# rascunhos locais (não fazem parte do pipeline versionado)
+tmp/
 
 # supabase local
 supabase/.temp/

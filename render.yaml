@@ -1,0 +1,27 @@
+# Free web service. Video jobs run in GitHub Actions; state stays in Supabase.
+services:
+  - type: web
+    name: fritz-inova-studio
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build --workspace=@content-ai/web-panel
+    startCommand: npm start --workspace=@content-ai/web-panel
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: WEB_PANEL_ALLOWED_USER_IDS
+        sync: false

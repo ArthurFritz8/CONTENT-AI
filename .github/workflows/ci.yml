@@ -9,6 +9,21 @@ on:
   pull_request:
 
 jobs:
+  test-web-panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test --workspace=@content-ai/web-panel
+      - run: npm run build --workspace=@content-ai/web-panel
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser --workspace=@content-ai/web-panel
+
   test-edge-functions:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -54,7 +69,7 @@ jobs:
           for migration in supabase/migrations/*.sql; do
             sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f "$migration"
           done
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/telegram-queue.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/telegram-queue.sql -f supabase/tests/web-panel.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
           pids=()
           for i in $(seq 1 12); do

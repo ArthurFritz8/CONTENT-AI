@@ -29,7 +29,7 @@ idea → research → script → assets → rendered → review → published �
 | Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |
 | Publicação | YouTube Data API v3 (cotas do projeto no Google Cloud Console) | Free |
 | Aprovação | Telegram Bot | Free |
-| Painel | Fritz Inova Content Studio hospedado; login do operador, fila, episódios, renders e controle do pipeline | Sites free tier |
+| Painel | Next.js no repositório principal; autenticação Supabase, fila editável, vídeos, fontes e operação | Render Free; implantação conforme ADR-029 |
 
 ## Estrutura
 
@@ -42,7 +42,7 @@ idea → research → script → assets → rendered → review → published �
 │   └── cron_jobs.sql    # Referência SQL do pg_cron; deploy automatizado pelo ADR-021
 ├── apps/
 │   ├── local-renderer/  # Engine de render (Node.js) — mesmo código roda no Actions e em dev local
-│   └── web-panel/       # Referência do painel operacional hospedado (ADR-028)
+│   └── web-panel/       # Aplicação Next.js operacional (ADR-029)
 ├── packages/core/       # Prompts, schemas Zod, validadores compartilhados
 └── .github/workflows/   # Assets, render, piloto YouTube e CI
 ```
@@ -53,7 +53,7 @@ O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão hor
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
 
-O [painel web operacional](https://fritz-inova-content-studio.geminepestudante7.chatgpt.site) apresenta o produto publicamente e disponibiliza ao operador autenticado a fila, os episódios, os renders e o controle de pausa do pipeline. A arquitetura e os limites de segurança estão no [ADR-028](docs/ADR/ADR-028-painel-web-operacional.md).
+O novo [painel web](apps/web-panel/README.md) fica neste repositório e utiliza Render Free + Supabase. Oferece português brasileiro, inglês e espanhol, temas claro/escuro/automático, fila editável, busca, vídeos, roteiro, fontes, histórico e configurações operacionais. O [ADR-029](docs/ADR/ADR-029-painel-operacional-render.md) substitui a arquitetura do painel anterior no Sites; o endereço antigo permanece até a implantação e verificação do novo serviço.
 
 1. Node22.15+ e `npm ci`.
 2. Copie `.env.example` → `.env` e preencha as chaves (nunca commitar `.env`).

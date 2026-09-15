@@ -1,0 +1,44 @@
+name: Deploy web panel
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: render-web-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy the commit validated by CI
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          PANEL_PUBLIC_URL: ${{ vars.PANEL_PUBLIC_URL }}
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          node --input-type=module <<'NODE'
+          const {RENDER_DEPLOY_HOOK:hook,PANEL_PUBLIC_URL:site,VERIFIED_SHA:sha,GH_TOKEN:token,REPOSITORY:repo}=process.env;
+          if(!hook || !site) { console.log('Render has not been configured. No deployment requested.'); process.exit(0); }
+          const current=await fetch(`https://api.github.com/repos/${repo}/commits/main`,{headers:{Authorization:`Bearer ${token}`}});
+          if(!current.ok) throw new Error('Could not verify main');
+          if((await current.json()).sha!==sha) {console.log('A newer commit exists on main. Skipping stale deployment.');process.exit(0);}
+          const url=new URL(hook);
+          if(url.origin!=='https://api.render.com'||!url.pathname.startsWith('/deploy/'))throw new Error('Invalid deploy hook');
+          url.searchParams.set('ref',sha);
+          const started=await fetch(url,{method:'POST',signal:AbortSignal.timeout(30000)});
+          if(!started.ok)throw new Error(`Deploy request failed (${started.status})`);
+          console.log('Deploy requested. Waiting for the exact commit to become healthy.');
+          const base=new URL(site);if(base.protocol!=='https:')throw new Error('HTTPS required');
+          for(let i=0;i<60;i++){
+            await new Promise(resolve=>setTimeout(resolve,10000));
+            try {const r=await fetch(new URL('/api/health',base),{signal:AbortSignal.timeout(10000)});if(r.ok&&(await r.json()).version===sha){console.log('Verified production deployment.');process.exit(0);}}catch{}
+          }
+          throw new Error('Deployment was requested, but the new version was not verified within the timeout. Check Render logs.');
+          NODE
