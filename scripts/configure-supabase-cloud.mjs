@@ -25,8 +25,13 @@ try {
     }),
   });
   const result = await response.json().catch(() => null);
-  const jobNames = Array.isArray(result?.jobs) ? result.jobs.map((j) => j.job_name) : [];
-  if (!response.ok || result?.configured !== true || !jobNames.includes("orchestrator-tick")) {
+  const jobNames = Array.isArray(result?.jobs)
+    ? result.jobs.map((job) => job.job_name)
+    : typeof result?.job_name === "string"
+      ? [result.job_name]
+      : [];
+  const expectedJobs = ["orchestrator-tick", "discover-trends-daily"];
+  if (!response.ok || result?.configured !== true || expectedJobs.some((name) => !jobNames.includes(name))) {
     throw new Error(`Supabase recusou a configuração do scheduler (HTTP ${response.status}).`);
   }
   console.log(`Vault, bucket assets e ${jobNames.join(", ")} configurados.`);
@@ -34,4 +39,3 @@ try {
   console.error(error instanceof Error ? error.message : "Falha na configuração cloud.");
   process.exitCode = 1;
 }
-

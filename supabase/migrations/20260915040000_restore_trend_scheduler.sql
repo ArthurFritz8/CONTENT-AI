@@ -1,24 +1,5 @@
--- Cloud scheduler bootstrap without requiring psql on the operator machine.
--- The service key is received only by this service-role RPC and stored in Vault.
-
-do $extensions$
-begin
-  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
-    create extension if not exists pg_cron;
-  end if;
-  if exists (select 1 from pg_available_extensions where name = 'pg_net') then
-    create extension if not exists pg_net;
-  end if;
-  if exists (select 1 from pg_available_extensions where name = 'supabase_vault') then
-    create schema if not exists vault;
-    create extension if not exists supabase_vault with schema vault;
-  end if;
-end;
-$extensions$;
-
-insert into storage.buckets (id, name, public)
-values ('assets', 'assets', true)
-on conflict (id) do update set name = excluded.name, public = true;
+-- Restore the scheduler definition after the cloud prerequisites migration.
+-- Required for projects where 20260915030000 was already applied.
 
 create or replace function public.configure_content_ai_scheduler(
   p_project_url text,
@@ -29,7 +10,8 @@ security definer
 set search_path = public, pg_temp
 as $configure$
 declare
-  v_job_id bigint;
+  v_tick_job_id bigint;
+  v_trends_job_id bigint;
 begin
   if not exists (select 1 from pg_extension where extname = 'pg_cron')
     or not exists (select 1 from pg_extension where extname = 'pg_net')
@@ -49,7 +31,7 @@ begin
 
   perform cron.unschedule(jobid)
     from cron.job
-   where jobname in ('orchestrator-daily', 'orchestrator-tick');
+   where jobname in ('orchestrator-daily', 'orchestrator-tick', 'discover-trends-daily');
 
   select cron.schedule('orchestrator-tick', '* * * * *', $job$
     select net.http_post(
@@ -59,24 +41,38 @@ begin
         'Content-Type', 'application/json',
         'Authorization', 'Bearer ' ||
           (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1),
-        'apikey',
-          (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1)
+        'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1)
       ),
       body := '{}'::jsonb,
       timeout_milliseconds := 140000
     );
-  $job$) into v_job_id;
+  $job$) into v_tick_job_id;
+
+  select cron.schedule('discover-trends-daily', '0 13 * * *', $job$
+    select net.http_post(
+      url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url' limit 1)
+        || '/functions/v1/discover-trends',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' ||
+          (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1),
+        'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key' limit 1)
+      ),
+      body := '{}'::jsonb,
+      timeout_milliseconds := 60000
+    );
+  $job$) into v_trends_job_id;
 
   return jsonb_build_object(
     'configured', true,
-    'job_name', 'orchestrator-tick',
-    'job_id', v_job_id,
-    'schedule', '* * * * *'
+    'jobs', jsonb_build_array(
+      jsonb_build_object('job_name', 'orchestrator-tick', 'job_id', v_tick_job_id, 'schedule', '* * * * *'),
+      jsonb_build_object('job_name', 'discover-trends-daily', 'job_id', v_trends_job_id, 'schedule', '0 13 * * *')
+    )
   );
 end;
 $configure$;
 
-revoke all on function public.configure_content_ai_scheduler(text, text)
-  from public, anon, authenticated;
-grant execute on function public.configure_content_ai_scheduler(text, text)
-  to service_role;
+revoke all on function public.configure_content_ai_scheduler(text, text) from public, anon, authenticated;
+grant execute on function public.configure_content_ai_scheduler(text, text) to service_role;
+

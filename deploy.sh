@@ -65,6 +65,7 @@ need_cmd() {
 }
 
 load_env() {
+  local configure_github_actions_secrets_override="${CONFIGURE_GITHUB_ACTIONS_SECRETS-}"
   if [[ -f "$ENV_FILE" ]]; then
     log "Carregando variáveis de $ENV_FILE"
     set -a
@@ -73,6 +74,9 @@ load_env() {
     set +a
   else
     warn "Arquivo $ENV_FILE não encontrado; usando variáveis já exportadas no ambiente"
+  fi
+  if [[ -n "$configure_github_actions_secrets_override" ]]; then
+    CONFIGURE_GITHUB_ACTIONS_SECRETS="$configure_github_actions_secrets_override"
   fi
   GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
   BUDGET_CEILING="${BUDGET_CEILING:-50}"
