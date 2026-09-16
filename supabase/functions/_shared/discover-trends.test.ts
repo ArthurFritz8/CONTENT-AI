@@ -42,6 +42,8 @@ Deno.test("discover-trends insere sugestões com prioridade baixa e nunca excede
   withEnv(async () => {
     const savedFetch = globalThis.fetch;
     const inserted: Record<string, unknown>[] = [];
+    // A escolha entre Tavily/HN depende do dia real (rotação diária). O mock
+    // suporta ambas as fontes para o resultado não depender da data da CI.
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
@@ -56,6 +58,16 @@ Deno.test("discover-trends insere sugestões com prioridade baixa e nunca excede
       if (url.pathname.endsWith("/idea_queue") && init?.method === "POST") {
         inserted.push(body);
         return new Response(null, { status: 201 });
+      }
+      if (url.pathname.endsWith("/rpc/reserve_tavily_call")) return json(true);
+      if (url.hostname === "api.tavily.com") {
+        return json({
+          query: "gadgets criativos lançamento tendência novidade",
+          results: [
+            { title: "Gadget A", url: "https://example.com/a", content: "Conteúdo de exemplo suficiente.", score: 0.9 },
+            { title: "Gadget B", url: "https://example.com/b", content: "Conteúdo de exemplo suficiente.", score: 0.8 },
+          ],
+        });
       }
       if (url.hostname === "hn.algolia.com") {
         return json({

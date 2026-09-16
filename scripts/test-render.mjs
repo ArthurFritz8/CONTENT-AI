@@ -41,7 +41,7 @@ try {
   base=`http://127.0.0.1:${server.address().port}`;
   const asset={url:`${base}/image.png`,license:'own',source:'manual'};
   episode={id,status:'assets',metadata:{},render_url:null,script_json:{
-    episode_id:id,prompt_version:'1.0.0',gap_seconds:0.3,music:null,
+    episode_id:id,prompt_version:'1.0.0',editorial_style:'explicativo_pausado',gap_seconds:0.3,music:null,
     narration:{full_text:'Teste de áudio.',language:'pt-BR',estimated_duration_seconds:60},
     metadata:{youtube:{title:'Teste',description:'Teste',tags:['teste'],category:'Education'},tiktok:{title:'Teste',description:'Teste',hashtags:['#teste']}},
     sources:[{claim:'Fixture',source_url:'https://example.com'}],disclosures:{contains_synthetic_media:true,commercial_content:false,commercial_disclosure_text:null},
