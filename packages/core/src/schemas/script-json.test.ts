@@ -32,6 +32,19 @@ test("presenter: default false quando ausente (ADR-030)", () => {
   strictEqual(parsedTrue.scenes[0]!.presenter, true);
 });
 
+test("editorial_style: obrigatório e não pode ser vazio (ADR-033)", () => {
+  const script = makeValidScript();
+  strictEqual(scriptJsonSchema.safeParse(script).success, true);
+
+  const missing = makeValidScript();
+  delete (missing as { editorial_style?: string }).editorial_style;
+  strictEqual(scriptJsonSchema.safeParse(missing).success, false);
+
+  const empty = makeValidScript();
+  empty.editorial_style = "";
+  strictEqual(scriptJsonSchema.safeParse(empty).success, false);
+});
+
 
 test("rejeita menos de 3 cenas", () => {
   const script = makeValidScript();

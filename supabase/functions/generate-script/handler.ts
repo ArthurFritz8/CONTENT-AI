@@ -97,6 +97,7 @@ const SCENE_RESPONSE_SCHEMA = {
 const SCRIPT_RESPONSE_SCHEMA = {
   type: "OBJECT",
   properties: {
+    editorial_style: { type: "STRING" },
     metadata: {
       type: "OBJECT",
       properties: {
@@ -153,7 +154,7 @@ const SCRIPT_RESPONSE_SCHEMA = {
       required: ["contains_synthetic_media", "commercial_content"],
     },
   },
-  required: ["metadata", "narration", "scenes", "sources", "disclosures"],
+  required: ["metadata", "narration", "scenes", "sources", "disclosures", "editorial_style"],
 };
 
 /** Campos de sistema nunca ficam a cargo do modelo (ADR-008). */
@@ -363,7 +364,7 @@ export async function handleScript(req: Request): Promise<Response> {
         script_json: scriptJson,
         script_hash: scriptHash,
         prompt_version: promptVersion,
-        metadata: { ...scriptJson.metadata, script_qa: { ...qualityReport, policy_hash: quality.policy_hash, script_hash: scriptHash } },
+        metadata: { ...scriptJson.metadata, editorial_style: scriptJson.editorial_style, script_qa: { ...qualityReport, policy_hash: quality.policy_hash, script_hash: scriptHash } },
         status: "script",
       })
       .eq("id", episode.id)
@@ -387,7 +388,7 @@ export async function handleScript(req: Request): Promise<Response> {
       model_used: usedModel,
       prompt_version: promptVersion,
       cost_estimate: 0,
-      metadata: { attempts, scenes: scriptJson.scenes.length, script_hash: scriptHash },
+      metadata: { attempts, scenes: scriptJson.scenes.length, script_hash: scriptHash, editorial_style: scriptJson.editorial_style },
     });
 
     logger.info("script gerado", { episode_id: episode.id, attempts, script_hash: scriptHash });

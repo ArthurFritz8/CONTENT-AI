@@ -66,6 +66,11 @@ insert into system_config (key, value) values
     "checkpoint_interval_percent": 10,
     "dispatch_ttl_minutes": 45
   }'::jsonb),
+  ('trend_discovery', '{
+    "enabled": false,
+    "max_pending": 5,
+    "query": null
+  }'::jsonb),
   ('pipeline', '{
     "enabled": false,
     "max_episodes_per_day": 1,

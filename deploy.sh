@@ -171,7 +171,7 @@ set_github_actions_secrets() {
 
 deploy_functions() {
   local required=(orchestrator generate-research generate-script generate-assets trigger-render telegram-bot publish-youtube)
-  local optional=(publish-tiktok collect-analytics heartbeat affiliate-catalog)
+  local optional=(publish-tiktok collect-analytics heartbeat affiliate-catalog discover-trends)
 
   log "Deployando Edge Functions obrigatórias"
   for fn in "${required[@]}"; do

@@ -45,10 +45,21 @@ export const sceneSchema = z.object({
   subtitle_position: z.enum(["bottom_center", "bottom_left"]),
 });
 
+export const EDITORIAL_STYLES = [
+  "hook_choque_ritmo_rapido",
+  "storytelling_pessoal",
+  "comparacao_lado_a_lado",
+  "mito_vs_verdade",
+  "unboxing_primeira_impressao",
+  "explicativo_pausado",
+] as const;
+
 export const scriptJsonSchema = z
   .object({
     episode_id: z.string().uuid(),
     prompt_version: z.string().regex(semverRegex, "prompt_version deve ser semver (x.y.z)"),
+    // Rótulo do estilo editorial escolhido pelo roteirista (ADR-033) — varia por vídeo, usado em analytics.
+    editorial_style: z.string().min(1).max(80),
     metadata: z.object({
       youtube: z.object({
         title: z.string().min(1).max(YOUTUBE_TITLE_MAX),

@@ -12,7 +12,7 @@ Deno.test("assets retoma áudio salvo por cena e não promove antes de todas as 
   const scenes = ["hook","content","cta"].map((role,order)=>({ id: `s${order}`, order, role, duration_seconds: 20,
     narration_text: "Texto de teste", transition: "cut", ken_burns: "static", visual: {description:"Teste",search_query:"test"},
     highlight_words: [], asset_landscape: ref, asset_portrait: ref, subtitle_position: "bottom_center" }));
-  const script = { episode_id:id,prompt_version:"1.0.0",gap_seconds:0.5,music:null,scenes,
+  const script = { episode_id:id,prompt_version:"1.0.0",editorial_style:"explicativo_pausado",gap_seconds:0.5,music:null,scenes,
     narration:{full_text:"Texto de teste Texto de teste Texto de teste",language:"pt-BR",estimated_duration_seconds:60},
     sources:[{claim:"Teste",source_url:"https://example.com/source"}],
     disclosures:{contains_synthetic_media:true,commercial_content:false,commercial_disclosure_text:null},

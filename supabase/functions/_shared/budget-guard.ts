@@ -46,12 +46,12 @@ function limitFor(cfg: BudgetConfig, callType: GeminiCallType): number {
 export async function reserveTavilyCall(
   db: SupabaseClient,
   logger: JobLogger,
-  episodeId: string,
+  episodeId?: string,
 ): Promise<void> {
   const { data, error } = await db.rpc("reserve_tavily_call");
   if (error) throw new AppError("Falha ao reservar quota Tavily", 500, "DB_ERROR");
   if (data !== true) {
-    await logger.event({ episode_id: episodeId, event_type: "budget_exceeded",
+    await logger.event({ ...(episodeId ? { episode_id: episodeId } : {}), event_type: "budget_exceeded",
       error_message: "Quota Tavily indisponível", metadata: { provider: "tavily" } });
     throw new AppError("Quota Tavily indisponível", 429, "BUDGET_EXCEEDED");
   }

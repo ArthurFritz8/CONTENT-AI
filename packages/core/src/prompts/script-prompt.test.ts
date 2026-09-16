@@ -1,6 +1,7 @@
 import { ok, strictEqual } from "node:assert";
 import { test } from "node:test";
 import { buildScriptPrompt } from "./script-prompt.ts";
+import { EDITORIAL_STYLES } from "../schemas/script-json.ts";
 
 const baseInput = {
   briefing: "Organizador de cabos para mesa de trabalho.",
@@ -24,4 +25,13 @@ test("com spokesmodel habilitado, inclui descrição do personagem e o limite de
   ok(prompt.includes("Mulher, 30 anos, cabelo cacheado castanho, jaleco casual"));
   ok(prompt.includes("no máximo 1 cena"));
   strictEqual(prompt.toLowerCase().includes("não há personagem fixo"), false);
+});
+
+test("inclui o catálogo completo de estilos editoriais e pede variedade (ADR-033)", () => {
+  const prompt = buildScriptPrompt(baseInput);
+  ok(prompt.includes("editorial_style"));
+  for (const style of EDITORIAL_STYLES) {
+    ok(prompt.includes(style), `catálogo deve mencionar ${style}`);
+  }
+  ok(prompt.toLowerCase().includes("varie"));
 });

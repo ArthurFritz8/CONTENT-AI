@@ -36,7 +36,8 @@ export type JobEventType =
   | "tavily_call"
   | "images_generated"
   | "tts_generated"
-  | "subtitles_generated";
+  | "subtitles_generated"
+  | "trend_discovered";
 
 export interface JobEventInsert {
   episode_id?: string;
