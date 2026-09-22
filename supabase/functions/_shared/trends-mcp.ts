@@ -6,8 +6,8 @@ import {
 } from "./error-handler.ts";
 
 const API_URL = "https://api.trendsmcp.ai/api";
-export const TRENDS_MCP_SOURCE_URL =
-  "https://www.trendsmcp.ai/tiktok-shop-hot-products-api";
+export const TRENDS_MCP_SOURCE_URL = "https://www.trendsmcp.ai/docs/mcp";
+const TRENDS_MCP_FEED = "Amazon Best Sellers Top Rated";
 
 const trendSchema = z.object({
   title: z.string().trim().min(1).max(1_000).optional(),
@@ -18,7 +18,9 @@ const trendSchema = z.object({
   url: z.string().optional(),
   rank: z.number().int().positive().optional(),
 }).passthrough();
-const trendListSchema = z.array(trendSchema).max(200);
+const positionalTrendSchema = z.array(z.unknown()).min(2).max(50);
+const trendListSchema = z.array(z.union([trendSchema, positionalTrendSchema]))
+  .max(200);
 const responseSchema = z.union([
   trendListSchema,
   z.object({
@@ -28,6 +30,10 @@ const responseSchema = z.union([
     items: trendListSchema.optional(),
   }).passthrough(),
 ]);
+const envelopeSchema = z.object({
+  statusCode: z.number().int(),
+  body: z.unknown(),
+}).passthrough();
 
 export interface TrendsMcpCandidate {
   title: string;
@@ -59,6 +65,28 @@ function httpsUrl(value: unknown): string | null {
   }
 }
 
+function unwrapPayload(raw: unknown): unknown {
+  const envelope = envelopeSchema.safeParse(raw);
+  if (!envelope.success) return raw;
+  if (envelope.data.statusCode < 200 || envelope.data.statusCode >= 300) {
+    throw new AppError(
+      `Trends MCP falhou internamente (${envelope.data.statusCode})`,
+      502,
+      "TRENDS_MCP_CALL_FAILED",
+    );
+  }
+  if (typeof envelope.data.body !== "string") return envelope.data.body;
+  try {
+    return JSON.parse(envelope.data.body);
+  } catch {
+    throw new AppError(
+      "Trends MCP retornou envelope inválido",
+      502,
+      "TRENDS_MCP_INVALID_RESPONSE",
+    );
+  }
+}
+
 export async function trendsMcpHotProducts(opts: {
   maxResults: number;
   beforeRequest: () => Promise<void>;
@@ -75,7 +103,7 @@ export async function trendsMcpHotProducts(opts: {
       },
       body: JSON.stringify({
         mode: "get_top_trends",
-        type: "TikTok Shop Hot Products",
+        type: TRENDS_MCP_FEED,
         limit: Math.min(20, Math.max(1, opts.maxResults)),
       }),
     });
@@ -86,7 +114,9 @@ export async function trendsMcpHotProducts(opts: {
         "TRENDS_MCP_CALL_FAILED",
       );
     }
-    const parsed = responseSchema.safeParse(await response.json());
+    const parsed = responseSchema.safeParse(
+      unwrapPayload(await response.json()),
+    );
     if (!parsed.success) {
       throw new AppError(
         "Trends MCP retornou resposta inválida",
@@ -100,6 +130,23 @@ export async function trendsMcpHotProducts(opts: {
         parsed.data.items ?? [];
     const candidates: TrendsMcpCandidate[] = [];
     for (const trend of values) {
+      if (Array.isArray(trend)) {
+        const rawRank = trend[0];
+        const rawTitle = trend[1];
+        if (typeof rawTitle !== "string" || !rawTitle.trim()) continue;
+        candidates.push({
+          title: rawTitle.trim().slice(0, 1_000),
+          url: null,
+          rank: typeof rawRank === "number" && Number.isInteger(rawRank) &&
+              rawRank > 0
+            ? rawRank
+            : null,
+        });
+        if (candidates.length >= Math.min(20, Math.max(1, opts.maxResults))) {
+          break;
+        }
+        continue;
+      }
       const title = trend.title ?? trend.name ?? trend.topic ?? trend.keyword ??
         trend.product;
       if (!title) continue;

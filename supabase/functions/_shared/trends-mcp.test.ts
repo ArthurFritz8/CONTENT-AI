@@ -19,17 +19,16 @@ Deno.test("Trends MCP envia get_top_trends e normaliza o ranking", () =>
       (async (_input: string | URL | Request, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body));
         assertEquals(body.mode, "get_top_trends");
-        assertEquals(body.type, "TikTok Shop Hot Products");
+        assertEquals(body.type, "Amazon Best Sellers Top Rated");
         return new Response(
           JSON.stringify({
-            trends: [
-              {
-                title: "Ventilador portátil",
-                rank: 1,
-                url: "https://example.com/fan",
-              },
-              { name: "Teclado mecânico", rank: 2, url: "javascript:alert(1)" },
-            ],
+            statusCode: 200,
+            body: JSON.stringify({
+              data: [
+                [1, "Ventilador portátil"],
+                [2, "Teclado mecânico"],
+              ],
+            }),
           }),
           { headers: { "Content-Type": "application/json" } },
         );
@@ -40,13 +39,38 @@ Deno.test("Trends MCP envia get_top_trends e normaliza o ranking", () =>
         beforeRequest: () => Promise.resolve(),
       });
       assertEquals(result, [
-        {
-          title: "Ventilador portátil",
-          rank: 1,
-          url: "https://example.com/fan",
-        },
+        { title: "Ventilador portátil", rank: 1, url: null },
         { title: "Teclado mecânico", rank: 2, url: null },
       ]);
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+  }));
+
+Deno.test("Trends MCP rejeita erro encapsulado em HTTP 200", () =>
+  withKey(async () => {
+    const savedFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          statusCode: 400,
+          body: JSON.stringify({
+            error: "invalid_request",
+            message: "unsupported feed",
+          }),
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      )) as typeof fetch;
+    try {
+      await assertRejects(
+        () =>
+          trendsMcpHotProducts({
+            maxResults: 5,
+            beforeRequest: () => Promise.resolve(),
+          }),
+        AppError,
+        "Trends MCP falhou internamente (400)",
+      );
     } finally {
       globalThis.fetch = savedFetch;
     }
