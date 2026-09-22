@@ -72,6 +72,7 @@ insert into system_config (key, value) values
     "query": null
   }'::jsonb),
   ('trend_sources', '{
+    "primary": "trends_mcp",
     "socialcrawl": {
       "enabled": true,
       "region": "BR",
@@ -83,6 +84,16 @@ insert into system_config (key, value) values
       "max_results": 5,
       "max_requests_per_day": 3
     }
+  }'::jsonb),
+  ('amazon_associates', '{
+    "enabled": false,
+    "marketplace": "amazon.com.br",
+    "link_mode": "manual_sitestripe",
+    "associate_tag": null,
+    "youtube_channel_url": null,
+    "shorts_destination": "channel_profile",
+    "require_manual_asin_validation": true,
+    "require_disclosure": true
   }'::jsonb),
   ('pipeline', '{
     "enabled": false,

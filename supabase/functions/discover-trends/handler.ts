@@ -45,6 +45,7 @@ interface SourceConfig {
 }
 
 interface TrendSourcesConfig {
+  primary?: "trends_mcp" | "socialcrawl";
   socialcrawl?: SourceConfig;
   trends_mcp?: SourceConfig;
 }
@@ -71,6 +72,25 @@ function titleDedupeKey(provider: string, title: string): string {
 
 function errorCode(err: unknown): string {
   return err instanceof AppError ? err.code : "UNKNOWN_ERROR";
+}
+
+function candidateBriefing(candidate: Candidate): string {
+  const shortStructure =
+    "Estrutura obrigatória para YouTube Short vertical de até 60 segundos: hook visual e verbal forte nos primeiros 2 segundos; " +
+    "apresentar o problema real; demonstrar o produto em uso; explicar benefícios verificáveis sem promessas absolutas; " +
+    "encerrar com CTA curto.";
+  if (candidate.provider === "trends_mcp") {
+    return `Candidato não confirmado (trends_mcp / Amazon Best Sellers): "${candidate.title}". ` +
+      `Sinal primário de demanda: ${candidate.sourceUrl}. ${shortStructure} ` +
+      "Antes de aprovar, localizar manualmente o mesmo item na Amazon.com.br, validar ASIN, disponibilidade no Brasil, " +
+      "elegibilidade no Programa de Associados e o link especial gerado pelo SiteStripe. Até essa validação, usar CTA editorial " +
+      "(comentar/salvar); depois dela, direcionar para o link do perfil e informar que pode haver comissão. " +
+      "Não copiar preço, desconto, avaliação, estoque, imagem ou alegação comercial do agregador.";
+  }
+  return `Candidato não confirmado (${candidate.provider}): "${candidate.title}". Fonte: ${candidate.sourceUrl}. ` +
+    `${shortStructure} Pesquisar o produto/tema real e validar manualmente disponibilidade no Brasil, elegibilidade, ` +
+    "comissão e vínculo afiliado antes de aprovar. Até existir link validado, usar CTA editorial (comentar/salvar). " +
+    "Esta sugestão não é um produto afiliado confirmado.";
 }
 
 export async function handleDiscoverTrends(req: Request): Promise<Response> {
@@ -133,69 +153,67 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     > = [];
     let candidates: Candidate[] = [];
 
-    if (sources.socialcrawl?.enabled) {
-      try {
-        const found = await socialCrawlSearch({
-          query,
-          region: sources.socialcrawl.region ?? "BR",
-          maxResults: sources.socialcrawl.max_results ?? 5,
-          beforeRequest: () =>
-            reserveTrendSourceCall(db, logger, "socialcrawl"),
-        });
-        candidates = found.map((item) => ({
-          title: item.title,
-          sourceUrl: item.productUrl ??
-            "https://www.socialcrawl.dev/docs/tiktokshop",
-          dedupeKey: item.productUrl
-            ? dedupeKeyFrom(item.productUrl)
-            : titleDedupeKey("socialcrawl", item.productId ?? item.title),
-          provider: "socialcrawl",
-        }));
-        attempts.push({
-          source: "socialcrawl",
-          outcome: candidates.length ? "selected" : "empty",
-          count: candidates.length,
-        });
-      } catch (err) {
-        attempts.push({
-          source: "socialcrawl",
-          outcome: "failed",
-          code: errorCode(err),
-        });
-        logger.info("fonte de tendências indisponível", {
-          source: "socialcrawl",
-          code: errorCode(err),
-        });
+    const sourceOrder = sources.primary === "socialcrawl"
+      ? ["socialcrawl", "trends_mcp"] as const
+      : ["trends_mcp", "socialcrawl"] as const;
+    for (const source of sourceOrder) {
+      if (candidates.length) break;
+      if (source === "trends_mcp" && sources.trends_mcp?.enabled) {
+        try {
+          const found = await trendsMcpHotProducts({
+            maxResults: sources.trends_mcp.max_results ?? 5,
+            beforeRequest: () =>
+              reserveTrendSourceCall(db, logger, "trends_mcp"),
+          });
+          candidates = found.map((item) => ({
+            title: item.title,
+            sourceUrl: item.url ?? TRENDS_MCP_SOURCE_URL,
+            dedupeKey: titleDedupeKey("trends_mcp", item.title),
+            provider: "trends_mcp",
+          }));
+          attempts.push({
+            source,
+            outcome: candidates.length ? "selected" : "empty",
+            count: candidates.length,
+          });
+        } catch (err) {
+          attempts.push({ source, outcome: "failed", code: errorCode(err) });
+          logger.info("fonte de tendências indisponível", {
+            source,
+            code: errorCode(err),
+          });
+        }
       }
-    }
-
-    if (!candidates.length && sources.trends_mcp?.enabled) {
-      try {
-        const found = await trendsMcpHotProducts({
-          maxResults: sources.trends_mcp.max_results ?? 5,
-          beforeRequest: () => reserveTrendSourceCall(db, logger, "trends_mcp"),
-        });
-        candidates = found.map((item) => ({
-          title: item.title,
-          sourceUrl: item.url ?? TRENDS_MCP_SOURCE_URL,
-          dedupeKey: titleDedupeKey("trends_mcp", item.title),
-          provider: "trends_mcp",
-        }));
-        attempts.push({
-          source: "trends_mcp",
-          outcome: candidates.length ? "selected" : "empty",
-          count: candidates.length,
-        });
-      } catch (err) {
-        attempts.push({
-          source: "trends_mcp",
-          outcome: "failed",
-          code: errorCode(err),
-        });
-        logger.info("fonte de tendências indisponível", {
-          source: "trends_mcp",
-          code: errorCode(err),
-        });
+      if (source === "socialcrawl" && sources.socialcrawl?.enabled) {
+        try {
+          const found = await socialCrawlSearch({
+            query,
+            region: sources.socialcrawl.region ?? "BR",
+            maxResults: sources.socialcrawl.max_results ?? 5,
+            beforeRequest: () =>
+              reserveTrendSourceCall(db, logger, "socialcrawl"),
+          });
+          candidates = found.map((item) => ({
+            title: item.title,
+            sourceUrl: item.productUrl ??
+              "https://www.socialcrawl.dev/docs/tiktokshop",
+            dedupeKey: item.productUrl
+              ? dedupeKeyFrom(item.productUrl)
+              : titleDedupeKey("socialcrawl", item.productId ?? item.title),
+            provider: "socialcrawl",
+          }));
+          attempts.push({
+            source,
+            outcome: candidates.length ? "selected" : "empty",
+            count: candidates.length,
+          });
+        } catch (err) {
+          attempts.push({ source, outcome: "failed", code: errorCode(err) });
+          logger.info("fonte de tendências indisponível", {
+            source,
+            code: errorCode(err),
+          });
+        }
       }
     }
 
@@ -258,11 +276,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     let created = 0;
     for (const candidate of candidates) {
       if (created >= budget) break;
-      const briefing =
-        `Candidato não confirmado (${candidate.provider}): "${candidate.title}". Fonte: ${candidate.sourceUrl}. ` +
-        "Pesquisar o produto/tema real por trás dessa tendência e criar um vídeo no nicho de gadgets e produtos " +
-        "inovadores — mostrar o problema que resolve e uma demonstração de uso. Validar manualmente disponibilidade no " +
-        "Brasil, elegibilidade, comissão e vínculo afiliado antes de aprovar. Esta sugestão não é um produto afiliado confirmado.";
+      const briefing = candidateBriefing(candidate);
       const { error: insertError } = await db.from("idea_queue").insert({
         briefing,
         niche: nicheName,

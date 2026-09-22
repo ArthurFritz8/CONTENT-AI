@@ -156,7 +156,7 @@ Deno.test("discover-trends insere sugestões com prioridade baixa e nunca excede
     }
   }));
 
-Deno.test("discover-trends usa cascata e nunca promove candidato externo a afiliado confirmado", () =>
+Deno.test("discover-trends prioriza Amazon para Shorts e não cria link afiliado sem ASIN validado", () =>
   withEnv(async () => {
     const savedFetch = globalThis.fetch;
     const inserted: Record<string, unknown>[] = [];
@@ -189,6 +189,7 @@ Deno.test("discover-trends usa cascata e nunca promove candidato externo a afili
           if (key === "eq.trend_sources") {
             return json({
               value: {
+                primary: "trends_mcp",
                 socialcrawl: { enabled: true, region: "BR", max_results: 5 },
                 trends_mcp: { enabled: true, max_results: 5 },
               },
@@ -228,17 +229,107 @@ Deno.test("discover-trends usa cascata e nunca promove candidato externo a afili
       assertEquals(res.status, 201);
       const body = await res.json();
       assertEquals(body.source, "trends_mcp");
-      assertEquals(reserved, ["socialcrawl", "trends_mcp"]);
+      assertEquals(reserved, ["trends_mcp"]);
       assertEquals(inserted.length, 1);
       assertEquals(inserted[0].source, "trend_discovery");
       assertEquals(inserted[0].product_url, undefined);
       assertEquals(inserted[0].product_image_url, undefined);
-      assertEquals(
-        String(inserted[0].briefing).includes(
-          "não é um produto afiliado confirmado",
-        ),
-        true,
-      );
+      const briefing = String(inserted[0].briefing);
+      for (
+        const required of [
+          "Amazon Best Sellers",
+          "YouTube Short",
+          "hook",
+          "demonstrar o produto",
+          "CTA",
+          "ASIN",
+          "SiteStripe",
+        ]
+      ) assertEquals(briefing.includes(required), true);
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+  }));
+
+Deno.test("discover-trends recorre ao SocialCrawl quando Amazon não retorna candidatos", () =>
+  withEnv(async () => {
+    const savedFetch = globalThis.fetch;
+    const inserted: Record<string, unknown>[] = [];
+    const reserved: string[] = [];
+    globalThis.fetch =
+      (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+        );
+        const json = (value: unknown) =>
+          new Response(JSON.stringify(value), {
+            headers: { "Content-Type": "application/json" },
+          });
+        const body = typeof init?.body === "string"
+          ? JSON.parse(init.body)
+          : null;
+        if (url.pathname.endsWith("/system_config")) {
+          const key = url.searchParams.get("key");
+          if (key === "eq.trend_discovery") {
+            return json({ value: { enabled: true, max_pending: 1 } });
+          }
+          if (key === "eq.niche") {
+            return json({
+              value: {
+                name: "gadgets_produtos_inovadores",
+                focus: "gadgets úteis",
+              },
+            });
+          }
+          if (key === "eq.trend_sources") {
+            return json({
+              value: {
+                primary: "trends_mcp",
+                trends_mcp: { enabled: true, max_results: 5 },
+                socialcrawl: { enabled: true, region: "BR", max_results: 5 },
+              },
+            });
+          }
+        }
+        if (url.pathname.endsWith("/idea_queue") && init?.method === "HEAD") {
+          return new Response(null, {
+            status: 200,
+            headers: { "content-range": "*/0" },
+          });
+        }
+        if (url.pathname.endsWith("/idea_queue") && init?.method === "POST") {
+          inserted.push(body);
+          return new Response(null, { status: 201 });
+        }
+        if (url.pathname.endsWith("/rpc/reserve_trend_source_call")) {
+          reserved.push(body.p_source);
+          return json(true);
+        }
+        if (url.hostname === "api.trendsmcp.ai") {
+          return json({ statusCode: 200, body: JSON.stringify({ data: [] }) });
+        }
+        if (url.hostname === "www.socialcrawl.dev") {
+          return json({
+            data: {
+              products: [{
+                id: "br-1",
+                title: "Luminária articulada",
+                product_url: "https://shop.example/br-1",
+              }],
+            },
+          });
+        }
+        return new Response(null, { status: 204 });
+      }) as typeof fetch;
+    try {
+      const res = await handleDiscoverTrends(req());
+      assertEquals(res.status, 201);
+      const body = await res.json();
+      assertEquals(body.source, "socialcrawl");
+      assertEquals(reserved, ["trends_mcp", "socialcrawl"]);
+      assertEquals(inserted.length, 1);
+      assertEquals(inserted[0].product_url, undefined);
+      assertEquals(inserted[0].product_image_url, undefined);
     } finally {
       globalThis.fetch = savedFetch;
     }

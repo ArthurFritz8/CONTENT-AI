@@ -1,5 +1,7 @@
 # ADR-034 — Descoberta de candidatos a produto sem API oficial ativa
 
+> **Atualização de 22/09/2026:** o ADR-035 substitui a prioridade das fontes e a estratégia de monetização. A Amazon passa a ser a fonte primária para Shorts; o caminho oficial do TikTok Shop fica encerrado enquanto vigorar a decisão do operador de não usar CNPJ.
+
 ## Objetivo
 
 Manter a descoberta automática de possíveis produtos para vídeos enquanto o aplicativo do TikTok Shop Partner Center não pode concluir a aprovação empresarial, sem fabricar elegibilidade afiliada e sem remover o conector oficial preparado no ADR-027.
@@ -14,10 +16,10 @@ Manter a descoberta automática de possíveis produtos para vídeos enquanto o a
 
 ## Solução
 
-1. Preservar `affiliate-catalog` e `_shared/tiktok-shop.ts` para reativação futura do caminho oficial.
+1. Preservar `affiliate-catalog` e `_shared/tiktok-shop.ts` apenas como código arquivado; não investir no caminho oficial sem uma decisão explícita futura do operador.
 2. Estender `discover-trends` com uma cascata de **sinais**, nesta ordem:
-   - SocialCrawl (`region=BR`);
-   - Trends MCP (`Amazon Best Sellers Top Rated`, sinal geral de produto enquanto o feed anunciado de TikTok Shop não estiver disponível na API);
+   - Trends MCP (`Amazon Best Sellers Top Rated`, sinal primário de produto para Shorts);
+   - SocialCrawl (`region=BR`, fallback opcional de descoberta pública do TikTok Shop);
    - Tavily/Hacker News, já aprovados no ADR-032.
 3. Toda resposta externa entra apenas em `idea_queue` com `source='trend_discovery'`, prioridade 500 e texto explícito de que se trata de candidato não confirmado.
 4. Não preencher `product_url` nem `product_image_url` a partir dessas fontes. No schema atual, `product_url` transforma a ideia em conteúdo comercial ao ser consumida; isso seria incorreto sem link afiliado oficial.
@@ -32,4 +34,4 @@ Manter a descoberta automática de possíveis produtos para vídeos enquanto o a
 - `trend_discovery.enabled=false` permanece como trava global. Cotas por fonte são configuráveis e começam conservadoras.
 - SocialCrawl é uma integração removível e não é considerada fonte oficial. Se os termos, a proveniência ou a cobertura BR deixarem de ser aceitáveis, basta desabilitá-la em `trend_sources` sem alterar o pipeline.
 - O cliente do Trends MCP valida também o `statusCode` interno porque o provedor pode retornar erro de aplicação dentro de uma resposta HTTP 200. Uma futura troca para o feed de TikTok Shop exige primeiro um teste real da chave, sem confiar apenas na página promocional.
-- Quando o cadastro empresarial puder ser aprovado, uma nova revisão deste ADR deve restaurar a API oficial como confirmação primária e implementar OAuth conforme o ADR-027.
+- Não reabrir investigação de OAuth ou feeds do TikTok Shop enquanto o operador mantiver a decisão de não usar CNPJ. Uma reversão exige nova decisão e novo ADR.

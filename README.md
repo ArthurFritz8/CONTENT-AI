@@ -22,7 +22,7 @@ idea → research → script → assets → rendered → review → published �
 |---|---|---|
 | Orquestração | Supabase Edge Functions (Deno) + pg_cron | Free tier |
 | Banco | Supabase Postgres (máquina de estados auditável) | Free tier |
-| Pesquisa | SocialCrawl BR → Trends MCP → Tavily/Hacker News | Free tiers com quotas internas; resultados são apenas candidatos revisados |
+| Pesquisa | Trends MCP/Amazon → SocialCrawl BR → Tavily/Hacker News | Free tiers com quotas internas; resultados são apenas candidatos revisados |
 | IA texto | Gemini 3.6 Flash | Free tier |
 | Imagem | Produto autorizado / Pexels | Free; Nano Banana API desabilitado (ADR-015) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
@@ -53,7 +53,7 @@ O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão hor
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
 
-A descoberta automática de produtos usa a cascata documentada no [ADR-034](docs/ADR/ADR-034-descoberta-produtos-sem-api-oficial.md). SocialCrawl e Trends MCP alimentam somente candidatos em `idea_queue`: não preenchem link afiliado, não confirmam comissão e nunca dispensam a revisão humana. A integração oficial do ADR-027 permanece no código para quando o aplicativo puder concluir a aprovação no Partner Center.
+A descoberta automática de produtos usa a cascata documentada nos [ADR-034](docs/ADR/ADR-034-descoberta-produtos-sem-api-oficial.md) e [ADR-035](docs/ADR/ADR-035-amazon-shorts-associados.md). O ranking Amazon do Trends MCP é o sinal primário para Shorts; SocialCrawl BR e Tavily/Hacker News são fallbacks. Todas as fontes alimentam somente candidatos em `idea_queue`: não preenchem link afiliado nem confirmam comissão. Para monetizar, o operador valida manualmente o ASIN na Amazon.com.br, cria o link especial no SiteStripe e só então o adiciona no painel. O conector do TikTok Shop permanece arquivado no código, sem novas tentativas enquanto o operador mantiver a decisão de não usar CNPJ.
 
 O novo [painel web](apps/web-panel/README.md) fica neste repositório e utiliza Render Free + Supabase. Oferece português brasileiro, inglês e espanhol, temas claro/escuro/automático, fila editável, busca, vídeos, roteiro, fontes, histórico e configurações operacionais. O [ADR-029](docs/ADR/ADR-029-painel-operacional-render.md) substitui a arquitetura do painel anterior no Sites; o endereço antigo permanece até a implantação e verificação do novo serviço.
 
