@@ -22,7 +22,7 @@ idea → research → script → assets → rendered → review → published �
 |---|---|---|
 | Orquestração | Supabase Edge Functions (Deno) + pg_cron | Free tier |
 | Banco | Supabase Postgres (máquina de estados auditável) | Free tier |
-| Pesquisa | Tavily Search basic | 100/mês no limite interno; plano gratuito oferece 1.000 |
+| Pesquisa | SocialCrawl BR → Trends MCP → Tavily/Hacker News | Free tiers com quotas internas; resultados são apenas candidatos revisados |
 | IA texto | Gemini 3.6 Flash | Free tier |
 | Imagem | Produto autorizado / Pexels | Free; Nano Banana API desabilitado (ADR-015) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
@@ -52,6 +52,8 @@ idea → research → script → assets → rendered → review → published �
 O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. O primeiro upload real e sua repetição idempotente foram concluídos; o operador confirmou o vídeo no Studio. Publicação pública e analytics continuam pendentes.
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.
+
+A descoberta automática de produtos usa a cascata documentada no [ADR-034](docs/ADR/ADR-034-descoberta-produtos-sem-api-oficial.md). SocialCrawl e Trends MCP alimentam somente candidatos em `idea_queue`: não preenchem link afiliado, não confirmam comissão e nunca dispensam a revisão humana. A integração oficial do ADR-027 permanece no código para quando o aplicativo puder concluir a aprovação no Partner Center.
 
 O novo [painel web](apps/web-panel/README.md) fica neste repositório e utiliza Render Free + Supabase. Oferece português brasileiro, inglês e espanhol, temas claro/escuro/automático, fila editável, busca, vídeos, roteiro, fontes, histórico e configurações operacionais. O [ADR-029](docs/ADR/ADR-029-painel-operacional-render.md) substitui a arquitetura do painel anterior no Sites; o endereço antigo permanece até a implantação e verificação do novo serviço.
 

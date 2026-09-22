@@ -71,6 +71,19 @@ insert into system_config (key, value) values
     "max_pending": 5,
     "query": null
   }'::jsonb),
+  ('trend_sources', '{
+    "socialcrawl": {
+      "enabled": true,
+      "region": "BR",
+      "max_results": 5,
+      "max_requests_per_day": 20
+    },
+    "trends_mcp": {
+      "enabled": true,
+      "max_results": 5,
+      "max_requests_per_day": 3
+    }
+  }'::jsonb),
   ('pipeline', '{
     "enabled": false,
     "max_episodes_per_day": 1,
