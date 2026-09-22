@@ -3,7 +3,7 @@ import { scriptJsonSchema, isRenderReady } from "../schemas/script-json.ts";
 import { researchDataSchema } from "../schemas/research.ts";
 import { researchEvidenceSchema, researchMatchesEvidence } from "../validators/research-evidence.ts";
 import { createScriptQualityChecker } from "../validators/script-quality.ts";
-import { affiliateLinksFromCompliance } from "../publish/affiliate-metadata.ts";
+import { affiliateLinksFromCompliance, affiliateLinkForPlatform } from "../publish/affiliate-metadata.ts";
 
 const webUrl = z.string().url().refine(value => {
   const url = new URL(value);
@@ -25,7 +25,9 @@ const snapshotSchema = z.object({
         tiktok: affiliateWebUrl.optional(),
       }).strict().optional(),
     }).passthrough().nullable(),
-    metadata: z.object({ render_outputs: z.object({ landscape: webUrl, portrait: webUrl }).passthrough() }),
+    metadata: z.object({ render_outputs: z.object({ landscape: webUrl, portrait: webUrl,
+      platforms: z.object({ tiktok: z.object({ portrait: webUrl, commercial: z.literal(false), quality: z.unknown() }) }).passthrough().optional(),
+    }).passthrough() }),
   }),
   assets: z.array(z.object({
     type: z.string(), url: webUrl, source: z.string(), license: z.string(), author: z.string().nullable(),
@@ -61,7 +63,11 @@ export function validateReviewSnapshot(snapshot: unknown) {
   if (episode.render_url !== episode.metadata.render_outputs.portrait) throw new Error("Vídeo principal diverge da versão apresentada");
   if (script.episode_id !== episode.id || !isRenderReady(script)) throw new Error("Roteiro/render inválido para revisão");
   if (!researchMatchesEvidence(episode.research_data, episode.research_evidence)) throw new Error("Evidência de pesquisa inválida");
-  const report = createScriptQualityChecker(fact_check)(script, episode.research_data, Boolean(episode.product_compliance?.commercial_content));
+  if (script.platform_ctas && !episode.metadata.render_outputs.platforms?.tiktok) throw new Error("Render TikTok com CTA orgânico ausente");
+  if (script.platform_ctas) mediaReportSchema.parse(episode.metadata.render_outputs.platforms!.tiktok.quality);
+  const report = createScriptQualityChecker(fact_check)(script, episode.research_data, script.platform_ctas
+    ? Boolean(affiliateLinkForPlatform(episode.product_compliance, "youtube"))
+    : Boolean(episode.product_compliance?.commercial_content));
   if (!report.passed) throw new Error("Roteiro reprovado no QA; revisão não enviada");
   return { episode, assets, report };
 }
@@ -93,6 +99,12 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
     "[ ] Uso das imagens/música autorizado e atribuições suficientes.",
     "[ ] Títulos/descrições fiéis; divulgação comercial clara quando aplicável.", "",
     "VÍDEOS", `Vertical: ${episode.metadata.render_outputs.portrait}`, `Horizontal: ${episode.metadata.render_outputs.landscape}`, "",
+    ...(script.platform_ctas ? [
+      `TikTok orgânico: ${episode.metadata.render_outputs.platforms!.tiktok.portrait}`,
+      `CTA YouTube: ${script.platform_ctas.youtube.narration_text}`,
+      `CTA TikTok: ${script.platform_ctas.tiktok.narration_text}`,
+      "Aprovar exige assistir às duas versões de CTA. Publique no TikTok somente o arquivo orgânico identificado acima.", "",
+    ] : []),
     "QA TÉCNICO DOS ARQUIVOS", ...mediaQualityLines(episode.metadata.render_outputs.quality),
     "Este controle verifica integridade técnica; não avalia estética, dicção, silêncio ou sincronismo das legendas.", "",
     "YOUTUBE", `Título: ${script.metadata.youtube.title}`, `Categoria editorial: ${script.metadata.youtube.category}`,
@@ -134,6 +146,7 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
     reply_markup: { inline_keyboard: [
       [{ text: "▶ Assistir vertical", url: episode.metadata.render_outputs.portrait },
         { text: "▶ Assistir horizontal", url: episode.metadata.render_outputs.landscape }],
+      ...(script.platform_ctas ? [[{ text: "▶ TikTok orgânico", url: episode.metadata.render_outputs.platforms!.tiktok.portrait }]] : []),
       [{ text: "Aprovar versão", callback_data: `rv:a:${requestId}` }],
       [{ text: "Refazer render", callback_data: `rv:r:${requestId}` }, { text: "Reprovar", callback_data: `rv:x:${requestId}` }],
     ] },

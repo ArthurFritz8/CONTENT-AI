@@ -103,7 +103,7 @@ export async function GET(request: Request) {
       const p = pagination(params),
         filters: Record<string, string> = {
           select:
-            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision",
+            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision,source,validated_at",
           status: "eq.pending",
           order: "priority.asc,created_at.asc,id.asc",
           limit: String(p.limit),
@@ -158,6 +158,7 @@ export async function GET(request: Request) {
           videos: {
             portrait: mediaUrl(outputs?.portrait || e.render_url, c.url),
             landscape: mediaUrl(outputs?.landscape, c.url),
+            tiktok: mediaUrl(outputs?.platforms?.tiktok?.portrait, c.url),
           },
         },
         events: events.data.map((e: any) => ({

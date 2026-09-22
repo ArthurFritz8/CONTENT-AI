@@ -1,4 +1,5 @@
 import { claimEpisode } from "../_shared/episode-lease.ts";
+import { applyGrowthStrategy, growthStrategySchema, growthBriefing } from "../../../packages/core/src/publish/growth-strategy.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
 // generate-script — Fase 2 (ADR-008): Gemini Flash + responseSchema, SEM grounding.
 // research → script. Repair loop de 1 tentativa; campos de sistema normalizados
@@ -252,7 +253,9 @@ export async function handleScript(req: Request): Promise<Response> {
     const affiliateLinks = affiliateLinksFromCompliance(
       episode.product_compliance,
     );
-    const isCommercial = Object.keys(affiliateLinks).length > 0 || Boolean(
+    const growthRaw = await getSystemConfig<unknown>(db, "growth_strategy", null);
+    const growth = growthRaw === null ? null : growthStrategySchema.parse(growthRaw);
+    const isCommercial = growth ? Boolean(affiliateLinks.youtube) : Object.keys(affiliateLinks).length > 0 || Boolean(
       (episode.product_compliance as { commercial_content?: boolean } | null)
         ?.commercial_content,
     );
@@ -271,7 +274,8 @@ export async function handleScript(req: Request): Promise<Response> {
     const quality = await loadScriptQualityChecker(db);
 
     const basePrompt = buildScriptPrompt({
-      briefing: briefingText,
+      briefing: growth ? `${briefingText}\n${growthBriefing(growth)}` : briefingText,
+      platformGrowth: Boolean(growth),
       researchData: research.data,
       isCommercial,
       commercialPlatforms: Object.keys(affiliateLinks) as Array<
@@ -326,7 +330,7 @@ export async function handleScript(req: Request): Promise<Response> {
         const raw = extractJson(result.text);
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Roteiro deve ser um objeto JSON");
         normalized = normalizeSystemFields(
-          raw as Record<string, unknown>,
+          growth ? applyGrowthStrategy(raw as Record<string, any>, growth, affiliateLinks.youtube, episode.id) : raw as Record<string, unknown>,
           episode.id,
           promptVersion,
           isCommercial,

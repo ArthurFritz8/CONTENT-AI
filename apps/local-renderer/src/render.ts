@@ -18,6 +18,7 @@ import {
   type Scene,
   type ScriptJson,
   type TtsWordBoundary,
+  platformMediaScenes,
 } from "@content-ai/core";
 import {
   buildConcatList,
@@ -548,12 +549,25 @@ async function renderEpisode(episodeId: string): Promise<void> {
     assertMatchingDurations(landscape.value.report.duration_seconds, portrait.value.report.duration_seconds);
     const landscapeUrl = await uploadFinal(ctx, "landscape", landscape.value.path);
     const portraitUrl = await uploadFinal(ctx, "portrait", portrait.value.path);
+    let tiktokOutput: { portrait: string; quality: unknown; commercial: false } | undefined;
+    if (script.platform_ctas) {
+      // Only the ending changes. All preceding portrait checkpoints are reused.
+      const tiktokCta = platformMediaScenes(script).at(-1)!;
+      const tiktokCtx: RenderContext = { ...ctx, script: { ...script, scenes: [tiktokCta] } };
+      const extra = await ensureSceneCheckpoints(tiktokCtx);
+      const tiktok = await concatOrientation(ctx, "portrait", [...checkpoints.portrait.slice(0, -1), extra.portrait[0]!]);
+      tiktokOutput = { portrait: await uploadFinal(ctx, "portrait", tiktok.path), quality: tiktok.report, commercial: false };
+    }
     const renderOutputs = {
       landscape: landscapeUrl,
       portrait: portraitUrl,
       completed_at: new Date().toISOString(),
       strategy: "scene_checkpoint_concat",
       quality: { landscape: landscape.value.report, portrait: portrait.value.report },
+      ...(tiktokOutput ? { platforms: {
+        youtube: { portrait: portraitUrl, landscape: landscapeUrl, commercial: script.disclosures.commercial_content },
+        tiktok: tiktokOutput,
+      } } : {}),
     };
 
     await client.patchEpisode(episodeId, {

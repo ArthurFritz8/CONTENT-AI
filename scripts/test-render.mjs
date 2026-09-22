@@ -23,9 +23,10 @@ const server=createServer(async (req,res)=>{
     if(req.method==='PATCH') { if(episode.status==='assets') Object.assign(episode,JSON.parse(bytes)); res.writeHead(204).end(); }
     else res.end(JSON.stringify([episode]));
   } else if(url.pathname==='/rest/v1/system_config') res.end(JSON.stringify([{value:{storage_bucket:'assets',preset:'ultrafast',cleanup_tmp:true}}]));
-  else if(url.pathname==='/rest/v1/assets') res.end(JSON.stringify([0,1,2].map(scene=>({type:'audio',url:`${base}/audio.wav`,metadata:{scene_order:scene}}))));
+  else if(url.pathname==='/rest/v1/assets') res.end(JSON.stringify((episode.script_json.platform_ctas?[0,1,2,3]:[0,1,2]).map(scene=>({type:'audio',url:`${base}/${scene===3?'organic':'audio'}.wav`,metadata:{scene_order:scene}}))));
   else if(url.pathname==='/rest/v1/job_events') { events.push(JSON.parse(bytes));res.writeHead(201).end(); }
   else if(url.pathname==='/audio.wav') { res.setHeader('Content-Type','audio/wav'); res.end(await readFile(join(dir,'audio.wav'))); }
+  else if(url.pathname==='/organic.wav') { res.setHeader('Content-Type','audio/wav'); res.end(await readFile(join(dir,'organic.wav'))); }
   else if(url.pathname==='/image.png') { res.setHeader('Content-Type','image/png');res.end(await readFile(join(dir,'image.png'))); }
   else if(url.pathname.startsWith('/storage/v1/object/')) {
     const key=decodeURIComponent(url.pathname.replace('/storage/v1/object/public/','').replace('/storage/v1/object/',''));
@@ -37,6 +38,7 @@ const server=createServer(async (req,res)=>{
 try {
   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=blue:s=320x240','-frames:v','1',join(dir,'image.png')]);
   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=0.713',join(dir,'audio.wav')]);
+  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=880:duration=1.413',join(dir,'organic.wav')]);
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   base=`http://127.0.0.1:${server.address().port}`;
   const asset={url:`${base}/image.png`,license:'own',source:'manual'};
@@ -92,4 +94,19 @@ try {
   assert.equal(events.filter(event=>event.event_type==='render_completed').length,completedBefore);
   assert.deepEqual([...objects.keys()].filter(key=>key.includes('/render/final/')),finalsBefore);
   console.log('FFmpeg real: dois formatos, QA com decode, retomada e bloqueio de checkpoints sem áudio aprovados.');
+  episode.status='assets';
+  episode.script_json.platform_ctas={youtube:{narration_text:'Teste de áudio.',commercial:false},tiktok:{narration_text:'Conte sua opinião.',commercial:false},organic_blocked_phrases:['compre']};
+  await run();
+  const variants=episode.metadata.render_outputs.platforms;
+  assert.equal(episode.status,'rendered');
+  assert.equal(variants.tiktok.commercial,false);
+  assert.notEqual(variants.tiktok.portrait,variants.youtube.portrait);
+  assert.ok(Math.abs(variants.tiktok.quality.duration_seconds-3.7)<0.25);
+  assert.equal(variants.tiktok.quality.decode_verified,true);
+  const priorCheckpoints=events.filter(event=>event.event_type==='render_checkpoint_saved'&&event.metadata.skipped).length;
+  episode.status='assets';
+  await run();
+  assert.equal(events.filter(event=>event.event_type==='render_checkpoint_saved'&&event.metadata.skipped).length-priorCheckpoints,4);
+  assert.equal(episode.metadata.render_outputs.platforms.tiktok.portrait,variants.tiktok.portrait);
+  console.log('FFmpeg real: CTA orgânico com áudio/duração próprios, corpo compartilhado e retomada das duas versões aprovados.');
 } finally { server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true}); }

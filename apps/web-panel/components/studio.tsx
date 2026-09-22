@@ -736,6 +736,7 @@ export default function Studio({
                                 <td className="wide-cell">
                                   <strong>{r.briefing}</strong>
                                   <small>#{r.id.slice(0, 8)}</small>
+                                  {r.source === "trend_discovery" && !r.validated_at && <small>{t("candidateHint")}</small>}
                                 </td>
                                 <td>
                                   <AffiliateLinks
@@ -994,7 +995,7 @@ export default function Studio({
                 {t("cancel")}
               </button>
               <button className="button primary" disabled={busy}>
-                {busy ? t("saving") : t(editing.id ? "save" : "createIdea")}
+                {busy ? t("saving") : t(editing.id ? (editing.source === "trend_discovery" && !editing.validated_at ? "validateIdea" : "save") : "createIdea")}
               </button>
             </div>
           </form>
@@ -1343,7 +1344,7 @@ function EpisodeDetail({
             {tab === "player" && (
               <>
                 <div className="video-controls">
-                  {["portrait", "landscape"].map((key) => (
+                  {(e.videos?.tiktok ? ["portrait", "landscape", "tiktok"] : ["portrait", "landscape"]).map((key) => (
                     <button
                       key={key}
                       className={`button small ${orientation === key ? "dark" : "secondary"}`}
@@ -1355,7 +1356,7 @@ function EpisodeDetail({
                 </div>
                 {e.videos?.[orientation] ? (
                   <>
-                    <div className={`video-stage ${orientation}`}>
+                    <div className={`video-stage ${orientation === "tiktok" ? "portrait" : orientation}`}>
                       <video
                         key={e.videos[orientation]}
                         controls
@@ -1387,6 +1388,7 @@ function EpisodeDetail({
               (script ? (
                 <>
                   <h3>{script.metadata?.youtube?.title}</h3>
+                  {script.platform_ctas && <div className="info-note"><p>YouTube: {script.platform_ctas.youtube.narration_text}</p><p>{t("tiktok")}: {script.platform_ctas.tiktok.narration_text}</p></div>}
                   <p className="preserve">
                     {script.metadata?.youtube?.description}
                   </p>

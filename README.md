@@ -49,6 +49,8 @@ idea → research → script → assets → rendered → review → published �
 
 ## Setup
 
+O [ADR-037](docs/ADR/ADR-037-crescimento-organico-por-plataforma.md) acrescenta encerramentos reais por plataforma: TikTok orgânico e YouTube com conversão somente após link validado. O painel e o Telegram identificam o vídeo TikTok separado. Candidatos automáticos aguardam **Salvar e validar pauta** antes de entrar em produção. O [plano de crescimento](docs/estrategia-crescimento.md) define calendário semanal, agendamento manual e métricas de 30/60/90 dias; produção automática permanece pausada e o piloto de upload continua horizontal/privado.
+
 O [piloto privado do YouTube](docs/youtube-private-pilot.md) envia a versão horizontal aprovada pelo Telegram, com retomada e proteção contra duplicação. O primeiro upload real e sua repetição idempotente foram concluídos; o operador confirmou o vídeo no Studio. Publicação pública e analytics continuam pendentes.
 
 No [Telegram](docs/telegram-review.md), use `/ideia` para cadastrar pautas, `/fila` para acompanhar e `/cancelar` para retirar ideias pendentes. A revisão do vídeo continua separada da entrada de ideias.

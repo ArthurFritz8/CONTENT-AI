@@ -1,4 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import { growthFixture } from "../../../packages/core/src/testing/growth-fixture.ts";
 import { handleDiscoverTrends } from "../discover-trends/handler.ts";
 
 function withEnv<T>(fn: () => Promise<T>): Promise<T> {
@@ -88,6 +89,7 @@ Deno.test("discover-trends insere sugestões com prioridade baixa e nunca excede
             });
           }
           if (key === "eq.trend_sources") return json({ value: {} });
+          if (key === "eq.growth_strategy") return json({ value: null });
           return json({ value: {} });
         }
         if (url.pathname.endsWith("/idea_queue") && init?.method === "HEAD") {
@@ -175,6 +177,7 @@ Deno.test("discover-trends prioriza Amazon para Shorts e não cria link afiliado
           : null;
         if (url.pathname.endsWith("/system_config")) {
           const key = url.searchParams.get("key");
+          if (key === "eq.growth_strategy") return json({ value: growthFixture });
           if (key === "eq.trend_discovery") {
             return json({ value: { enabled: true, max_pending: 2 } });
           }
@@ -239,13 +242,15 @@ Deno.test("discover-trends prioriza Amazon para Shorts e não cria link afiliado
         const required of [
           "Amazon Best Sellers",
           "YouTube Short",
-          "hook",
-          "demonstrar o produto",
+          "Hook",
+          "demonstração",
+          "TikTok orgânico",
+          "SEM venda e sem link",
           "CTA",
           "ASIN",
           "SiteStripe",
         ]
-      ) assertEquals(briefing.includes(required), true);
+      ) assertEquals(briefing.includes(required), true, `Missing briefing fragment: ${required}`);
     } finally {
       globalThis.fetch = savedFetch;
     }

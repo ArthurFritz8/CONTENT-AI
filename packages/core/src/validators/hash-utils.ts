@@ -26,6 +26,7 @@ export async function sha256Hex(input: string): Promise<string> {
  */
 export async function computeScriptHash(script: ScriptJson): Promise<string> {
   const editorial = {
+    ...(script.platform_ctas ? { platform_ctas: script.platform_ctas } : {}),
     metadata: script.metadata,
     narration: script.narration,
     scenes: script.scenes.map(

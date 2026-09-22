@@ -36,4 +36,8 @@ begin
     raise exception 'Cloud scheduler setup RPC is exposed';
   end if;
   if not exists(select 1 from public.system_config where key='budget' and value ? 'gemini_models') then raise exception 'Model quotas must be configured'; end if;
+  if not exists(select 1 from public.system_config where key='growth_strategy')
+    or not exists(select 1 from information_schema.columns where table_schema='public' and table_name='idea_queue' and column_name='validated_at') then
+    raise exception 'Growth policy and candidate validation required (ADR-037)';
+  end if;
 end $$;

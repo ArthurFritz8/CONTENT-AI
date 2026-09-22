@@ -3,13 +3,30 @@ import { makeValidScript } from "../../../packages/core/src/testing/script-fixtu
 import { makeResearchEvidence } from "../../../packages/core/src/testing/research-fixture.ts";
 import { handleScript } from "../generate-script/handler.ts";
 import { handleAssets } from "../generate-assets/handler.ts";
+import { growthFixture } from "../../../packages/core/src/testing/growth-fixture.ts";
 
 const policy = { blocked_patterns: { medical: ["\\mcura\\M"] }, require_source_per_claim: true };
+
+Deno.test("growth gera CTAs e metadados comerciais somente para YouTube com link validado", async () => {
+  for (const affiliate of [undefined, "https://amazon.example/product?tag=validated"]) {
+    await scenario({ growth: true, affiliate }, async ({ response, episode, prompts }) => {
+      assertEquals(response.status, 200);
+      const script = episode.script_json as ReturnType<typeof makeValidScript>;
+      assertEquals(script.platform_ctas?.youtube.commercial, Boolean(affiliate));
+      assertEquals(script.platform_ctas?.tiktok.commercial, false);
+      assertEquals(script.metadata.tiktok.description, "Descrição TikTok");
+      assertStringIncludes(prompts[0], "TikTok orgânico");
+      if (affiliate) assertStringIncludes(script.metadata.youtube.description, affiliate);
+      else assertEquals(script.platform_ctas?.youtube.narration_text, script.platform_ctas?.tiktok.narration_text);
+    });
+  }
+});
 
 async function scenario(options: {
   replies?: unknown[]; config?: unknown; stage?: "script" | "assets";
   failAudit?: boolean; changeState?: boolean; editedScript?: boolean;
   missingEvidence?: boolean; changedResearch?: boolean;
+  growth?: boolean; affiliate?: string;
 }, verify: (result: {
   response: Response; episode: Record<string, unknown>; events: Array<Record<string, unknown>>;
   calls: number; reservations: number; prompts: string[];
@@ -22,7 +39,7 @@ async function scenario(options: {
   if (options.editedScript) script.metadata.youtube.title = "Cura tudo";
   const episode: Record<string, unknown> = {
     id: script.episode_id, status: options.stage === "assets" ? "script" : "research",
-    briefing: { text: "Um gadget útil" }, product_compliance: { commercial_content: false },
+    briefing: { text: "Um gadget útil" }, product_compliance: options.affiliate ? { commercial_content: true, affiliate_links: { youtube: options.affiliate } } : { commercial_content: false },
     script_json: script,
     research_data: script.sources.map(source => ({ ...source, confidence: 0.9, query_used: "produto" })),
   };
@@ -58,6 +75,7 @@ async function scenario(options: {
     }
     if (url.pathname.endsWith("/system_config")) {
       if (url.searchParams.get("key") === "eq.fact_check") return json({ value: "config" in options ? options.config : policy });
+      if (url.searchParams.get("key") === "eq.growth_strategy") return json({ value: options.growth ? growthFixture : null });
       return json({ value: {} });
     }
     if (url.pathname.endsWith("/prompt_versions")) return json({ version: "1.0.0" });

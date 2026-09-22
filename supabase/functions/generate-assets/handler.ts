@@ -1,5 +1,7 @@
 import { downloadImage } from "../_shared/asset-download.ts";
 import { claimEpisode } from "../_shared/episode-lease.ts";
+import { platformMediaScenes } from "../../../packages/core/src/publish/growth-strategy.ts";
+import { affiliateLinkForPlatform } from "../../../packages/core/src/publish/affiliate-metadata.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
 // generate-assets — script → assets (ADR-012): imagens + TTS + legendas com checkpoints internos.
 // O estado assets significa que tudo que o renderer precisa já existe.
@@ -636,7 +638,9 @@ export async function handleAssets(req: Request): Promise<Response> {
     if (!researchMatchesEvidence(research.data, episode.research_evidence)) {
       throw new AppError("Pesquisa sem evidência válida ou alterada após grounding", 422, "RESEARCH_EVIDENCE_INVALID");
     }
-    const report = quality.check(script, research.data, Boolean(episode.product_compliance?.commercial_content));
+    const report = quality.check(script, research.data, script.platform_ctas
+      ? Boolean(affiliateLinkForPlatform(episode.product_compliance, "youtube"))
+      : Boolean(episode.product_compliance?.commercial_content));
     if (!report.passed) {
       await recordScriptQuality(db, episode.id, report, {
         stage: "generate-assets", script_hash: await computeScriptHash(script), policy_hash: quality.policy_hash,
@@ -656,7 +660,7 @@ export async function handleAssets(req: Request): Promise<Response> {
       db,
       logger,
       episode: episodeForFailure,
-      scenes: images.script.scenes,
+      scenes: platformMediaScenes(images.script),
       cfg: ttsCfg,
       bucket,
       assets,
@@ -667,7 +671,7 @@ export async function handleAssets(req: Request): Promise<Response> {
       db,
       logger,
       episode: episodeForFailure,
-      scenes: images.script.scenes,
+      scenes: platformMediaScenes(images.script),
       audio,
       bucket,
       assets,

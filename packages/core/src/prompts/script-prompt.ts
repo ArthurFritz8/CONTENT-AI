@@ -15,6 +15,7 @@ export interface ScriptPromptInput {
   briefing: string;
   researchData: ResearchData;
   isCommercial: boolean;
+  platformGrowth?: boolean;
   commercialPlatforms?: Array<"youtube" | "tiktok">;
   // ADR-030: quando definido, o personagem fixo pode ser usado em cenas específicas
   spokesmodel?: { characterDescription: string; maxScenesPerEpisode: number };
@@ -47,6 +48,8 @@ export function buildScriptPrompt(input: ScriptPromptInput): string {
 BRIEFING:
 ${input.briefing}
 
+${input.platformGrowth ? "VERSÕES POR PLATAFORMA: o corpo do vídeo (hook/content), as imagens e a descrição TikTok devem ser estritamente editoriais: sem venda, link, comissão ou convite de compra. Demonstre somente o que as evidências e imagens autorizadas permitem; nunca finja experiência pessoal ou teste. O sistema substituirá o encerramento por dois CTAs: TikTok engajamento; YouTube link no perfil e disclosure somente após validação do link. Não coloque textos comerciais no visual compartilhado. Formato curto: mire a soma mínima de duração do contrato; não prometa lista de vários produtos quando a pesquisa só cobre um." : ""}
+
 FATOS PESQUISADOS (use APENAS estes — não invente fatos nem fontes):
 ${claims}
 
@@ -70,7 +73,7 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO ORIENTADA AO PRODUTO:
 - visual.search_query: consulta curta em inglês para banco de imagens (fallback).
 - highlight_words: 1 a 2 palavras-chave POR CENA, copiadas exatamente como aparecem em narration_text, para destaque visual na legenda.
 - narration_text: tom conversacional, português do Brasil, frases curtas para narração, com o tom do estilo escolhido.
-${input.isCommercial ? `- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado. Se você comprar pelo link, podemos receber uma comissão."). Copie esse disclosure literalmente na narração do CTA e nas descrições YouTube e TikTok. Plataformas com link validado: ${commercialPlatforms}. O sistema acrescentará em cada descrição somente o link pertencente àquela plataforma; não invente, copie ou altere URLs.` : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
+${input.isCommercial ? `- disclosures.commercial_content=true e commercial_disclosure_text preenchido. Copie esse disclosure literalmente na narração do CTA e ${input.platformGrowth ? "somente na descrição YouTube; TikTok não pode conter disclosure de afiliado nem link comercial" : "nas descrições YouTube e TikTok"}. Plataformas com link validado: ${commercialPlatforms}. O sistema acrescentará em cada descrição somente o link pertencente àquela plataforma; não invente, copie ou altere URLs.` : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
 ${input.spokesmodel ? `- Personagem fixo disponível (opcional, ADR-030): "${input.spokesmodel.characterDescription}". Você pode marcar scenes[].presenter=true em no máximo ${input.spokesmodel.maxScenesPerEpisode} cena(s) deste roteiro, apenas quando isso agregar de verdade e combinar com o estilo escolhido (ex.: storytelling_pessoal e unboxing_primeira_impressao costumam se beneficiar mais de um presenter do que comparacao_lado_a_lado) — varie: nem todo vídeo precisa usar, e nunca use em mais cenas do que o limite. Nas demais cenas, presenter=false (padrão).` : "- Não há personagem fixo disponível agora: todas as scenes[].presenter devem ser false."}
 
 Retorne APENAS o JSON no formato especificado.`;

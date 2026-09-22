@@ -66,7 +66,7 @@ export function applyAffiliateMetadata(
   commercial: boolean,
 ): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
-  const root = raw as { metadata?: ScriptMetadata; disclosures?: { commercial_disclosure_text?: unknown } & Record<string, unknown> };
+  const root = raw as { platform_ctas?: unknown; metadata?: ScriptMetadata; disclosures?: { commercial_disclosure_text?: unknown } & Record<string, unknown> };
   const metadata = root.metadata;
   if (!metadata || !metadata.youtube || !metadata.tiktok || typeof metadata.youtube.description !== "string" ||
     typeof metadata.tiktok.description !== "string") return raw;
@@ -91,7 +91,7 @@ export function applyAffiliateMetadata(
       },
       tiktok: {
         ...metadata.tiktok,
-        description: addLine(metadata.tiktok.description, suffix(links.tiktok)),
+        description: root.platform_ctas ? metadata.tiktok.description : addLine(metadata.tiktok.description, suffix(links.tiktok)),
       },
     },
     disclosures: {

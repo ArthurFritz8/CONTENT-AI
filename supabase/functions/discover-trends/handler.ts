@@ -4,6 +4,7 @@
 // revisão humana e ao mesmo cap diário que qualquer outra ideia da fila.
 
 import { requireServiceRole } from "../_shared/auth.ts";
+import { growthStrategySchema, growthBriefing, type GrowthStrategy } from "../../../packages/core/src/publish/growth-strategy.ts";
 import {
   AppError,
   jsonResponse,
@@ -74,8 +75,8 @@ function errorCode(err: unknown): string {
   return err instanceof AppError ? err.code : "UNKNOWN_ERROR";
 }
 
-function candidateBriefing(candidate: Candidate): string {
-  const shortStructure =
+function candidateBriefing(candidate: Candidate, growth: GrowthStrategy | null): string {
+  const shortStructure = growth ? growthBriefing(growth) :
     "Estrutura obrigatória para YouTube Short vertical de até 60 segundos: hook visual e verbal forte nos primeiros 2 segundos; " +
     "apresentar o problema real; demonstrar o produto em uso; explicar benefícios verificáveis sem promessas absolutas; " +
     "encerrar com CTA curto.";
@@ -84,7 +85,7 @@ function candidateBriefing(candidate: Candidate): string {
       `Sinal primário de demanda: ${candidate.sourceUrl}. ${shortStructure} ` +
       "Antes de aprovar, localizar manualmente o mesmo item na Amazon.com.br, validar ASIN, disponibilidade no Brasil, " +
       "elegibilidade no Programa de Associados e o link especial gerado pelo SiteStripe. Até essa validação, usar CTA editorial " +
-      "(comentar/salvar); depois dela, direcionar para o link do perfil e informar que pode haver comissão. " +
+      "(comentar/salvar); depois dela, somente no YouTube, direcionar para o link do perfil e informar que pode haver comissão. " +
       "Não copiar preço, desconto, avaliação, estoque, imagem ou alegação comercial do agregador.";
   }
   return `Candidato não confirmado (${candidate.provider}): "${candidate.title}". Fonte: ${candidate.sourceUrl}. ` +
@@ -140,6 +141,8 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     }
 
     const niche = await getSystemConfig<NicheConfig>(db, "niche", {});
+    const growthRaw = await getSystemConfig<unknown>(db, "growth_strategy", null);
+    const growth = growthRaw === null ? null : growthStrategySchema.parse(growthRaw);
     const sources = await getSystemConfig<TrendSourcesConfig>(
       db,
       "trend_sources",
@@ -276,7 +279,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     let created = 0;
     for (const candidate of candidates) {
       if (created >= budget) break;
-      const briefing = candidateBriefing(candidate);
+      const briefing = candidateBriefing(candidate, growth);
       const { error: insertError } = await db.from("idea_queue").insert({
         briefing,
         niche: nicheName,

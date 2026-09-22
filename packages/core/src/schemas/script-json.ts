@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { platformCtasSchema } from "../publish/growth-strategy.ts";
 
 // Constraints citados também no prompt do Gemini — fonte única (ADR-005).
 export const SCENE_COUNT = { min: 3, max: 8 } as const;
@@ -60,6 +61,7 @@ export const scriptJsonSchema = z
     prompt_version: z.string().regex(semverRegex, "prompt_version deve ser semver (x.y.z)"),
     // Rótulo do estilo editorial escolhido pelo roteirista (ADR-033) — varia por vídeo, usado em analytics.
     editorial_style: z.string().min(1).max(80),
+    platform_ctas: platformCtasSchema.optional(),
     metadata: z.object({
       youtube: z.object({
         title: z.string().min(1).max(YOUTUBE_TITLE_MAX),

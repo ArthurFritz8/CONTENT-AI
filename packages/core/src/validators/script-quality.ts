@@ -95,7 +95,7 @@ export function createScriptQualityChecker(rawConfig: unknown) {
       const targets: Array<[string, string]> = [
         ["scenes.cta.narration_text", scenes.at(-1)?.narration_text ?? ""],
         ["metadata.youtube.description", script.metadata.youtube.description],
-        ["metadata.tiktok.description", script.metadata.tiktok.description],
+        ...(!script.platform_ctas ? [["metadata.tiktok.description", script.metadata.tiktok.description] as [string, string]] : []),
       ];
       for (const [path, text] of targets) {
         if (!disclosure || !normalize(text).includes(disclosure)) {
@@ -104,7 +104,23 @@ export function createScriptQualityChecker(rawConfig: unknown) {
       }
     }
 
+    if (script.platform_ctas) {
+      const variants = script.platform_ctas;
+      if (variants.youtube.commercial !== isCommercial || variants.youtube.narration_text !== scenes.at(-1)?.narration_text) {
+        error("PLATFORM_CTA_MISMATCH", "platform_ctas.youtube", "CTA YouTube deve corresponder à narração e ao link validado");
+      }
+      const organicTexts = [
+        ...scenes.filter(s => s.role !== "cta").map(s => s.narration_text),
+        ...scenes.map(s => s.visual.description),
+        script.metadata.tiktok.title, script.metadata.tiktok.description, ...script.metadata.tiktok.hashtags,
+        variants.tiktok.narration_text,
+      ];
+      if (organicTexts.some(text => /https?:\/\//i.test(text) || variants.organic_blocked_phrases.some(phrase => fold(text).includes(fold(phrase))))) {
+        error("ORGANIC_COMMERCIAL_LEAK", "platform_ctas.tiktok", "Remova URLs e frases comerciais do corpo compartilhado, visuais e versão TikTok");
+      }
+    }
     const publicTexts: Array<[string, string]> = [
+      ...(script.platform_ctas ? [["platform_ctas.tiktok.narration_text", script.platform_ctas.tiktok.narration_text] as [string, string]] : []),
       ...scenes.map(s => [`scenes.${s.order}.narration_text`, s.narration_text] as [string, string]),
       ["metadata.youtube.title", script.metadata.youtube.title],
       ["metadata.youtube.description", script.metadata.youtube.description],

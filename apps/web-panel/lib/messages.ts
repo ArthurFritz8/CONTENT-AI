@@ -1,6 +1,9 @@
 export type Language = "pt-BR" | "en" | "es";
 export const messages: Record<Language, Record<string, string>> = {
   "pt-BR": {
+    candidateHint: "Candidato: revise e valide a pauta antes da produção.",
+    validateIdea: "Salvar e validar pauta",
+    tiktok: "TikTok orgânico",
     eventTransition: 'Etapa atualizada', eventCheckpoint: 'Progresso salvo', eventQaPassed: 'Qualidade aprovada', eventQaFailed: 'Revisar qualidade', eventVoiceFallback: 'Alternativa de voz acionada', eventVoiceSelected: 'Voz selecionada', eventImages: 'Imagens prontas', eventVoice: 'Narração pronta', eventSubtitles: 'Legendas prontas', eventAi: 'Geração com IA', eventBudget: 'Limite de uso atingido', eventHeartbeat: 'Estado da operação enviado',
     language: "Idioma",
     theme: "Aparência",
@@ -231,6 +234,9 @@ export const messages: Record<Language, Record<string, string>> = {
     cancelAction: "Pauta retirada",
   },
   en: {
+    candidateHint: "Candidate: review and validate this idea before production.",
+    validateIdea: "Save and validate idea",
+    tiktok: "Organic TikTok",
     eventTransition: 'Stage updated', eventCheckpoint: 'Progress saved', eventQaPassed: 'Quality checks passed', eventQaFailed: 'Quality review needed', eventVoiceFallback: 'Voice fallback activated', eventVoiceSelected: 'Voice selected', eventImages: 'Images ready', eventVoice: 'Narration ready', eventSubtitles: 'Subtitles ready', eventAi: 'AI generation', eventBudget: 'Usage limit reached', eventHeartbeat: 'Operation status sent',
     language: "Language",
     theme: "Appearance",
@@ -458,6 +464,9 @@ export const messages: Record<Language, Record<string, string>> = {
     cancelAction: "Idea removed",
   },
   es: {
+    candidateHint: "Candidato: revisa y valida la idea antes de producir.",
+    validateIdea: "Guardar y validar idea",
+    tiktok: "TikTok orgánico",
     eventTransition: 'Etapa actualizada', eventCheckpoint: 'Progreso guardado', eventQaPassed: 'Calidad aprobada', eventQaFailed: 'Revisar calidad', eventVoiceFallback: 'Voz alternativa activada', eventVoiceSelected: 'Voz seleccionada', eventImages: 'Imágenes listas', eventVoice: 'Narración lista', eventSubtitles: 'Subtítulos listos', eventAi: 'Generación con IA', eventBudget: 'Límite de uso alcanzado', eventHeartbeat: 'Estado de operación enviado',
     language: "Idioma",
     theme: "Apariencia",
