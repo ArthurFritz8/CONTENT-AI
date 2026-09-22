@@ -77,5 +77,5 @@ test("ficha comercial exibe o link registrado para conferência humana", () => {
   snapshot.episode.script_json.scenes.at(-1)!.narration_text += " Este vídeo contém link de afiliado.";
   snapshot.episode.script_json.narration.full_text = snapshot.episode.script_json.scenes.map(scene => scene.narration_text).join(" ");
   const packet = buildReviewPacket(snapshot, id);
-  assert.ok(packet.document.includes("Link de afiliado registrado: https://shop.example/p/123?aff=fritz"));
+  assert.ok(packet.document.includes("Link de afiliado YouTube: https://shop.example/p/123?aff=fritz"));
 });

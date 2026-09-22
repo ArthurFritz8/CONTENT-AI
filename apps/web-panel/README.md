@@ -7,14 +7,14 @@ Aplicação operacional Next.js dentro do monorepositório. A interface usa dado
 - Login por e-mail/senha Supabase, acesso administrativo por UUID autorizado e cookie HttpOnly.
 - Português brasileiro padrão, inglês e espanhol; tema claro, escuro ou do sistema, persistidos por navegador.
 - Contagens completas, fila pendente, atividade e indicação de produção pausada/ativa.
-- Criar, editar, priorizar e retirar pautas; links HTTPS de produtos/afiliados; auditoria e idempotência de gravações.
+- Criar, editar, priorizar e retirar pautas; links HTTPS afiliados separados para YouTube e TikTok; auditoria e idempotência de gravações.
 - Busca, filtro por etapa, paginação e exportação CSV da página atual (com proteção contra fórmulas).
 - Detalhes da geração: players vertical/horizontal, roteiro por cena, fontes, mídias/licenças, falhas e revisões.
 - Envios registrados, incluindo privados, com link para YouTube quando disponível.
 - Pausa/ativação do scheduler, teto diário e foco editorial. Ativação exige confirmação dentro da interface.
 - Atualização a cada 30 segundos nas telas de consulta visíveis. Formulários não são atualizados enquanto se edita.
 
-O conteúdo das pautas/roteiros mantém o idioma original. A aprovação continua no Telegram. TikTok Shop permanece manual; este painel não cria links comissionados nem representa aprovação da API. Analytics, edição de roteiro após geração, publicação pública e gestão de outros operadores não estão implementados aqui. Termos/privacidade descrevem o uso interno atual e precisam ser revistos antes da oferta a terceiros.
+O conteúdo das pautas/roteiros mantém o idioma original. A aprovação continua no Telegram. O painel apenas armazena links que o operador já validou; ele não cria comissão nem representa aprovação de Amazon, Shopee, Hotmart ou TikTok Shop. Analytics, edição de roteiro após geração, publicação pública e gestão de outros operadores não estão implementados aqui. Termos/privacidade descrevem o uso interno atual e precisam ser revistos antes da oferta a terceiros.
 
 ## Desenvolvimento
 

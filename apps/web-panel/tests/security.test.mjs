@@ -47,13 +47,24 @@ test("server strips unauthorized fields and validates queue input", () => {
     payload: {
       briefing: "Um produto para organizar a mesa de trabalho.",
       priority: 50,
-      product_url: "https://example.com/product",
+      affiliate_links: {
+        youtube: "https://amazon.example/product?tag=creator",
+        tiktok: "https://shop.tiktok.example/product?affiliate=creator",
+      },
       status: "published",
       approval_user: "attacker",
     },
   };
   const r = mutation(input);
   assert.equal(r.payload.status, undefined);
+  assert.equal(
+    r.payload.affiliate_links.youtube,
+    "https://amazon.example/product?tag=creator",
+  );
+  assert.equal(
+    r.payload.affiliate_links.tiktok,
+    "https://shop.tiktok.example/product?affiliate=creator",
+  );
   assert.throws(() =>
     mutation({ ...input, payload: { ...input.payload, priority: -1 } }),
   );
@@ -62,7 +73,18 @@ test("server strips unauthorized fields and validates queue input", () => {
       ...input,
       payload: {
         ...input.payload,
-        product_url: "https://secret:password@example.com/",
+        affiliate_links: {
+          youtube: "https://secret:password@example.com/",
+        },
+      },
+    }),
+  );
+  assert.throws(() =>
+    mutation({
+      ...input,
+      payload: {
+        ...input.payload,
+        affiliate_links: { instagram: "https://example.com/product" },
       },
     }),
   );

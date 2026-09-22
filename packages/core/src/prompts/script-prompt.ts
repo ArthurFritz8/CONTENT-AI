@@ -15,6 +15,7 @@ export interface ScriptPromptInput {
   briefing: string;
   researchData: ResearchData;
   isCommercial: boolean;
+  commercialPlatforms?: Array<"youtube" | "tiktok">;
   // ADR-030: quando definido, o personagem fixo pode ser usado em cenas específicas
   spokesmodel?: { characterDescription: string; maxScenesPerEpisode: number };
 }
@@ -37,6 +38,9 @@ export function buildScriptPrompt(input: ScriptPromptInput): string {
   const claims = input.researchData
     .map((c, i) => `${i + 1}. ${c.claim} (fonte: ${c.source_url}, confiança: ${c.confidence})`)
     .join("\n");
+  const commercialPlatforms = input.commercialPlatforms?.length
+    ? input.commercialPlatforms.join(", ")
+    : "nenhuma plataforma com link validado";
 
   return `Você é um roteirista de vídeos curtos de produtos para um canal de recomendações honestas de gadgets e soluções úteis. O objetivo é ajudar a pessoa a decidir se o produto resolve o problema dela; a conversão vem da demonstração e da confiança, não de promessas exageradas.
 
@@ -66,7 +70,7 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO ORIENTADA AO PRODUTO:
 - visual.search_query: consulta curta em inglês para banco de imagens (fallback).
 - highlight_words: 1 a 2 palavras-chave POR CENA, copiadas exatamente como aparecem em narration_text, para destaque visual na legenda.
 - narration_text: tom conversacional, português do Brasil, frases curtas para narração, com o tom do estilo escolhido.
-${input.isCommercial ? '- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado. Se você comprar pelo link, podemos receber uma comissão."). Copie esse disclosure literalmente na narração do CTA e nas descrições YouTube e TikTok. O sistema acrescentará o link exato do produto às descrições; não invente nem altere URLs.' : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
+${input.isCommercial ? `- disclosures.commercial_content=true e commercial_disclosure_text preenchido (ex: "Este vídeo contém link de afiliado. Se você comprar pelo link, podemos receber uma comissão."). Copie esse disclosure literalmente na narração do CTA e nas descrições YouTube e TikTok. Plataformas com link validado: ${commercialPlatforms}. O sistema acrescentará em cada descrição somente o link pertencente àquela plataforma; não invente, copie ou altere URLs.` : "- disclosures.commercial_content=false e commercial_disclosure_text=null."}
 ${input.spokesmodel ? `- Personagem fixo disponível (opcional, ADR-030): "${input.spokesmodel.characterDescription}". Você pode marcar scenes[].presenter=true em no máximo ${input.spokesmodel.maxScenesPerEpisode} cena(s) deste roteiro, apenas quando isso agregar de verdade e combinar com o estilo escolhido (ex.: storytelling_pessoal e unboxing_primeira_impressao costumam se beneficiar mais de um presenter do que comparacao_lado_a_lado) — varie: nem todo vídeo precisa usar, e nunca use em mais cenas do que o limite. Nas demais cenas, presenter=false (padrão).` : "- Não há personagem fixo disponível agora: todas as scenes[].presenter devem ser false."}
 
 Retorne APENAS o JSON no formato especificado.`;

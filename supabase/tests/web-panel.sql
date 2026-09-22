@@ -7,10 +7,13 @@ declare command_id uuid:=gen_random_uuid(); actor_id uuid:=gen_random_uuid(); id
   cfg public.system_config; queue_count int;
 begin
   update public.system_config set value='{"enabled":true,"max_pending":100,"max_additions_per_day":100}' where key='telegram_queue';
-  payload:='{"briefing":"Produto real para organizar a mesa de trabalho.","priority":30,"product_url":"https://example.com/affiliate"}';
+  payload:='{"briefing":"Produto real para organizar a mesa de trabalho.","priority":30,"affiliate_links":{"youtube":"https://amazon.example/item?tag=creator","tiktok":"https://shop.tiktok.example/item?affiliate=creator"}}';
   result:=public.web_panel_mutation(command_id,actor_id,'add',payload);
   idea_id:=(result->>'idea_id')::uuid;
   perform pg_temp.expect(result->>'code'='created','create queue item');
+  perform pg_temp.expect((select affiliate_links->>'youtube'='https://amazon.example/item?tag=creator'
+    and affiliate_links->>'tiktok'='https://shop.tiktok.example/item?affiliate=creator'
+    and product_url is null from public.idea_queue where id=idea_id),'platform links stored without generic link');
   perform pg_temp.expect(public.web_panel_mutation(command_id,actor_id,'add',payload)=result,'same request is idempotent');
   begin
     perform public.web_panel_mutation(command_id,gen_random_uuid(),'add',payload);raise exception 'Impersonated replay accepted';
@@ -47,6 +50,9 @@ begin
   perform pg_temp.expect(result->>'code'='disabled','disabled queue respected');
   begin
     perform public.web_panel_mutation(gen_random_uuid(),actor_id,'add',payload||'{"product_url":"https://user:password@example.com/a"}');raise exception 'URL credentials accepted';
+  exception when check_violation then null; end;
+  begin
+    perform public.web_panel_mutation(gen_random_uuid(),actor_id,'add',payload||'{"affiliate_links":{"instagram":"https://example.com/a"}}');raise exception 'Unknown affiliate platform accepted';
   exception when check_violation then null; end;
 end $$;
 select pg_temp.expect(not has_function_privilege('anon','public.web_panel_mutation(uuid,uuid,text,jsonb)','execute'),'anon mutation denied');

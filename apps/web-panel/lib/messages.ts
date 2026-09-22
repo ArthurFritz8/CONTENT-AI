@@ -88,6 +88,13 @@ export const messages: Record<Language, Record<string, string>> = {
     affiliateLink: "Link do produto / afiliado",
     linkHint:
       "Cole o link HTTPS com seu identificador de afiliado. O painel não cria comissões ou vínculos automaticamente.",
+    youtubeAffiliateLink: "Link afiliado do YouTube",
+    tiktokAffiliateLink: "Link afiliado do TikTok",
+    youtubeLinkHint:
+      "Use o link da Amazon, Shopee ou Hotmart validado para o YouTube. Ele não será usado no TikTok.",
+    tiktokLinkHint:
+      "Use somente o link oficial do TikTok Shop afiliado. Ele não será usado no YouTube.",
+    legacyAffiliateLink: "Link antigo — tratado como YouTube",
     briefingHint:
       "Descreva o produto, o problema que ele resolve e o objetivo do vídeo.",
     priorityHint: "Números menores entram primeiro (1 a 1.000).",
@@ -308,6 +315,13 @@ export const messages: Record<Language, Record<string, string>> = {
     affiliateLink: "Product / affiliate link",
     linkHint:
       "Paste the HTTPS link with your affiliate identifier. This panel does not automatically create commissions or affiliations.",
+    youtubeAffiliateLink: "YouTube affiliate link",
+    tiktokAffiliateLink: "TikTok affiliate link",
+    youtubeLinkHint:
+      "Use the validated Amazon, Shopee, or Hotmart link for YouTube. It will not be used on TikTok.",
+    tiktokLinkHint:
+      "Use only the official TikTok Shop affiliate link. It will not be used on YouTube.",
+    legacyAffiliateLink: "Legacy link — treated as YouTube",
     briefingHint:
       "Describe the product, the problem it solves and the purpose of the video.",
     priorityHint: "Lower numbers go first (1 to 1,000).",
@@ -529,6 +543,13 @@ export const messages: Record<Language, Record<string, string>> = {
     affiliateLink: "Enlace del producto / afiliado",
     linkHint:
       "Pega el enlace HTTPS con tu identificador de afiliado. El panel no crea comisiones ni afiliaciones automáticamente.",
+    youtubeAffiliateLink: "Enlace afiliado de YouTube",
+    tiktokAffiliateLink: "Enlace afiliado de TikTok",
+    youtubeLinkHint:
+      "Usa el enlace validado de Amazon, Shopee o Hotmart para YouTube. No se utilizará en TikTok.",
+    tiktokLinkHint:
+      "Usa solamente el enlace oficial de afiliado de TikTok Shop. No se utilizará en YouTube.",
+    legacyAffiliateLink: "Enlace anterior — tratado como YouTube",
     briefingHint:
       "Describe el producto, el problema que resuelve y el objetivo del vídeo.",
     priorityHint: "Los números menores van primero (1 a 1.000).",

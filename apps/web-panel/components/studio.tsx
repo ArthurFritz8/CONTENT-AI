@@ -248,6 +248,32 @@ function ProductLink({ value }: { value: unknown }) {
     <span className="muted small">{t("noAffiliate")}</span>
   );
 }
+function AffiliateLinks({ links, legacy }: { links: unknown; legacy?: unknown }) {
+  const { t } = usePreferences();
+  const value = links && typeof links === "object" ? links as Row : {};
+  const entries = [
+    ["YouTube", value.youtube],
+    ["TikTok", value.tiktok],
+  ].filter(([, link]) => safeLink(link));
+  if (!entries.length && safeLink(legacy)) {
+    return (
+      <div>
+        <small>{t("legacyAffiliateLink")}</small>
+        <ProductLink value={legacy} />
+      </div>
+    );
+  }
+  return entries.length ? (
+    <div className="platform-links">
+      {entries.map(([platform, link]) => (
+        <div key={String(platform)}>
+          <small>{platform}</small>
+          <ProductLink value={link} />
+        </div>
+      ))}
+    </div>
+  ) : <ProductLink value={null} />;
+}
 
 export default function Studio({
   section,
@@ -371,13 +397,17 @@ export default function Studio({
   }
   function newIdea() {
     setMutationError("");
-    setEditing({ briefing: "", product_url: "", priority: 100 });
+    setEditing({
+      briefing: "",
+      affiliate_links: { youtube: "", tiktok: "" },
+      priority: 100,
+    });
   }
   function exportRows() {
     const rows = data?.items || [];
     const keys =
       section === "queue"
-        ? ["id", "briefing", "product_url", "priority", "created_at"]
+        ? ["id", "briefing", "affiliate_links", "priority", "created_at"]
         : section === "publishes"
           ? [
               "id",
@@ -390,7 +420,9 @@ export default function Studio({
             ]
           : ["id", "title", "status", "render_progress", "created_at"];
     const escape = (value: any) => {
-      let s = String(value ?? "");
+      let s = typeof value === "object" && value !== null
+        ? JSON.stringify(value)
+        : String(value ?? "");
       if (/^[\s]*[=+\-@]/.test(s)) s = "'" + s;
       return '"' + s.replaceAll('"', '""') + '"';
     };
@@ -706,7 +738,10 @@ export default function Studio({
                                   <small>#{r.id.slice(0, 8)}</small>
                                 </td>
                                 <td>
-                                  <ProductLink value={r.product_url} />
+                                  <AffiliateLinks
+                                    links={r.affiliate_links}
+                                    legacy={r.product_url}
+                                  />
                                 </td>
                                 <td>
                                   <span className="priority">{r.priority}</span>
@@ -720,7 +755,18 @@ export default function Studio({
                                       className="button small secondary"
                                       onClick={() => {
                                         setMutationError("");
-                                        setEditing(r);
+                                        setEditing({
+                                          ...r,
+                                          affiliate_links: {
+                                            ...(r.affiliate_links || {}),
+                                            youtube:
+                                              r.affiliate_links?.youtube ||
+                                              r.product_url ||
+                                              "",
+                                            tiktok:
+                                              r.affiliate_links?.tiktok || "",
+                                          },
+                                        });
                                       }}
                                     >
                                       {t("edit")}
@@ -882,17 +928,42 @@ export default function Studio({
               </small>
             </label>
             <label>
-              {t("affiliateLink")}
+              {t("youtubeAffiliateLink")}
               <input
                 type="url"
                 placeholder="https://…"
                 maxLength={2048}
-                value={editing.product_url || ""}
+                value={editing.affiliate_links?.youtube || ""}
                 onChange={(e) =>
-                  setEditing({ ...editing, product_url: e.target.value })
+                  setEditing({
+                    ...editing,
+                    affiliate_links: {
+                      ...(editing.affiliate_links || {}),
+                      youtube: e.target.value,
+                    },
+                  })
                 }
               />
-              <small>{t("linkHint")}</small>
+              <small>{t("youtubeLinkHint")}</small>
+            </label>
+            <label>
+              {t("tiktokAffiliateLink")}
+              <input
+                type="url"
+                placeholder="https://…"
+                maxLength={2048}
+                value={editing.affiliate_links?.tiktok || ""}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    affiliate_links: {
+                      ...(editing.affiliate_links || {}),
+                      tiktok: e.target.value,
+                    },
+                  })
+                }
+              />
+              <small>{t("tiktokLinkHint")}</small>
             </label>
             <label>
               {t("priority")}
@@ -1193,6 +1264,7 @@ function PublishRows({
                     #{r.episode_id.slice(0, 8)}
                   </Link>
                 </small>
+                {r.affiliate_url && <ProductLink value={r.affiliate_url} />}
               </td>
               <td>
                 <Status value={r.status} publish />

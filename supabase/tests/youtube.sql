@@ -3,13 +3,14 @@ begin;
 create function pg_temp.expect(value boolean,label text) returns void language plpgsql as $$
 begin if value is distinct from true then raise exception 'YouTube assertion: %',label; end if; end $$;
 do $$
-declare ep uuid; req public.review_requests; pub public.publishes; again public.publishes;
+declare ep uuid; blocked_ep uuid; req public.review_requests; blocked_req public.review_requests; pub public.publishes; again public.publishes;
   owner_id uuid:=gen_random_uuid(); other_owner uuid:=gen_random_uuid(); session text:='https://www.googleapis.com/upload/youtube/v3/videos?upload_id=fixture';
 begin
   update public.system_config set value=value||'{"enabled":false}' where key='youtube';
   insert into public.episodes default values returning id into ep;
+  update public.episodes set product_compliance='{"commercial_content":true,"affiliate_links":{"youtube":"https://amazon.example/item?tag=creator"}}' where id=ep;
   update public.episodes set status='research' where id=ep;
-  update public.episodes set status='script',script_json='{"disclosures":{"contains_synthetic_media":true,"commercial_content":false}}' where id=ep;
+  update public.episodes set status='script',script_json='{"disclosures":{"contains_synthetic_media":true,"commercial_content":true,"commercial_disclosure_text":"Este vídeo contém link de afiliado."}}' where id=ep;
   update public.episodes set status='assets' where id=ep;
   update public.episodes set status='rendered',render_url='https://example.test/video.mp4' where id=ep;
   update public.episodes set status='review' where id=ep;
@@ -24,6 +25,23 @@ begin
   exception when check_violation then null; end;
   update public.system_config set value=value||'{"enabled":true}' where key='youtube';
   pub:=public.claim_youtube_upload(ep,owner_id);
+  perform pg_temp.expect(pub.affiliate_url='https://amazon.example/item?tag=creator'
+    and pub.commercial_disclosure,'YouTube publish snapshots only YouTube affiliate link');
+
+  insert into public.episodes(product_compliance) values('{"commercial_content":true,"affiliate_links":{"tiktok":"https://shop.tiktok.example/item?affiliate=creator"}}') returning id into blocked_ep;
+  update public.episodes set status='research' where id=blocked_ep;
+  update public.episodes set status='script',script_json='{"disclosures":{"contains_synthetic_media":true,"commercial_content":true,"commercial_disclosure_text":"Este vídeo contém link de afiliado."}}' where id=blocked_ep;
+  update public.episodes set status='assets' where id=blocked_ep;
+  update public.episodes set status='rendered',render_url='https://example.test/tiktok-only.mp4' where id=blocked_ep;
+  update public.episodes set status='review' where id=blocked_ep;
+  blocked_req:=public.prepare_review('-123','456',blocked_ep,false);
+  update public.review_requests set delivery_status='sent',message_id=98 where id=blocked_req.id;
+  perform public.decide_review(blocked_req.id,7999,'approve','-123','456',98);
+  begin
+    perform public.claim_youtube_upload(blocked_ep,gen_random_uuid()); raise exception 'TikTok affiliate link leaked into YouTube publish';
+  exception when check_violation then null; end;
+  perform pg_temp.expect(not exists(select 1 from public.publishes where episode_id=blocked_ep and platform='youtube'),
+    'YouTube publish not created for TikTok-only commercial episode');
   update public.system_config set value=value||'{"configuration_repaired":true}' where key='youtube';
   pub:=public.claim_youtube_upload(ep,owner_id);
   perform pg_temp.expect(pub.upload_config->'configuration_repaired'='true'::jsonb,'pre-session configuration repair');

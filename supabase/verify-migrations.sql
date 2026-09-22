@@ -11,6 +11,12 @@ begin
     or has_function_privilege('anon','public.claim_youtube_upload(uuid,uuid)','execute') then
     raise exception 'Private upload ledger missing or unsafe (ADR-019)';
   end if;
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='idea_queue' and column_name='affiliate_links')
+    or not exists(select 1 from information_schema.columns where table_schema='public' and table_name='publishes' and column_name='affiliate_url')
+    or not exists(select 1 from public.system_config where key='affiliate_monetization')
+    or has_function_privilege('anon','public.affiliate_link_for_platform(jsonb,text)','execute') then
+    raise exception 'Platform affiliate links missing or unsafe (ADR-036)';
+  end if;
   if not exists(select 1 from pg_trigger where tgname='episodes_zz_review_gate' and not tgisinternal) then
     raise exception 'Version-bound review gate missing (ADR-018)';
   end if;

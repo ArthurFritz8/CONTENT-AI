@@ -18,7 +18,11 @@ import { researchMatchesEvidence } from "../../../packages/core/src/validators/r
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import type { ScriptQualityReport } from "../../../packages/core/src/validators/script-quality.ts";
 import { loadScriptQualityChecker, recordScriptQuality } from "../_shared/script-quality.ts";
-import { applyAffiliateMetadata } from "../../../packages/core/src/publish/affiliate-metadata.ts";
+import {
+  affiliateLinksFromCompliance,
+  applyAffiliateMetadata,
+  type AffiliateLinks,
+} from "../../../packages/core/src/publish/affiliate-metadata.ts";
 import {
   buildRepairPrompt,
   buildScriptPrompt,
@@ -163,7 +167,7 @@ function normalizeSystemFields(
   episodeId: string,
   promptVersion: string,
   isCommercial: boolean,
-  affiliateLink: string | null,
+  affiliateLinks: AffiliateLinks,
   spokesmodel: SpokesmodelConfig,
 ): Record<string, unknown> {
   const withoutAssets = Array.isArray(raw.scenes)
@@ -180,14 +184,17 @@ function normalizeSystemFields(
     commercial_content: isCommercial,
     ...(isCommercial ? {} : { commercial_disclosure_text: null }),
   };
-  const withAffiliate = applyAffiliateMetadata({ ...raw, disclosures }, affiliateLink, isCommercial);
+  const withAffiliate = applyAffiliateMetadata(
+    { ...raw, disclosures },
+    affiliateLinks,
+    isCommercial,
+  ) as Record<string, unknown>;
   return {
-    ...(withAffiliate as Record<string, unknown>),
+    ...withAffiliate,
     episode_id: episodeId,
     prompt_version: promptVersion,
     music: null,
     scenes,
-    disclosures,
   };
 }
 
@@ -242,12 +249,13 @@ export async function handleScript(req: Request): Promise<Response> {
       throw new AppError("Pesquisa sem evidência válida ou alterada após grounding", 422, "RESEARCH_EVIDENCE_INVALID");
     }
     const briefingText = (episode.briefing as { text?: string } | null)?.text ?? "";
-    const isCommercial = Boolean(
-      (episode.product_compliance as { commercial_content?: boolean } | null)?.commercial_content,
+    const affiliateLinks = affiliateLinksFromCompliance(
+      episode.product_compliance,
     );
-    const affiliateLink = isCommercial
-      ? (episode.product_compliance as { affiliate_link?: string } | null)?.affiliate_link ?? null
-      : null;
+    const isCommercial = Object.keys(affiliateLinks).length > 0 || Boolean(
+      (episode.product_compliance as { commercial_content?: boolean } | null)
+        ?.commercial_content,
+    );
 
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
     const spokesmodel = await getSystemConfig<SpokesmodelConfig>(db, "spokesmodel", {});
@@ -266,6 +274,9 @@ export async function handleScript(req: Request): Promise<Response> {
       briefing: briefingText,
       researchData: research.data,
       isCommercial,
+      commercialPlatforms: Object.keys(affiliateLinks) as Array<
+        keyof AffiliateLinks
+      >,
       spokesmodel: spokesmodel.enabled && spokesmodel.character_description
         ? { characterDescription: spokesmodel.character_description, maxScenesPerEpisode: Math.max(0, spokesmodel.max_scenes_per_episode ?? 1) }
         : undefined,
@@ -314,7 +325,14 @@ export async function handleScript(req: Request): Promise<Response> {
       try {
         const raw = extractJson(result.text);
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Roteiro deve ser um objeto JSON");
-        normalized = normalizeSystemFields(raw as Record<string, unknown>, episode.id, promptVersion, isCommercial, affiliateLink, spokesmodel);
+        normalized = normalizeSystemFields(
+          raw as Record<string, unknown>,
+          episode.id,
+          promptVersion,
+          isCommercial,
+          affiliateLinks,
+          spokesmodel,
+        );
       } catch (err) {
         lastErrors = [err instanceof Error ? err.message : "JSON inválido"];
         lastInvalidJson = result.text.slice(0, 8000);

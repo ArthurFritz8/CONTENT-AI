@@ -35,3 +35,13 @@ test("inclui o catálogo completo de estilos editoriais e pede variedade (ADR-03
   }
   ok(prompt.toLowerCase().includes("varie"));
 });
+
+test("informa ao modelo quais plataformas têm link sem expor URLs", () => {
+  const prompt = buildScriptPrompt({
+    ...baseInput,
+    isCommercial: true,
+    commercialPlatforms: ["youtube"],
+  });
+  ok(prompt.includes("Plataformas com link validado: youtube"));
+  ok(prompt.includes("somente o link pertencente àquela plataforma"));
+});

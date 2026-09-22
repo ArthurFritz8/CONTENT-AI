@@ -95,6 +95,21 @@ insert into system_config (key, value) values
     "require_manual_asin_validation": true,
     "require_disclosure": true
   }'::jsonb),
+  ('affiliate_monetization', '{
+    "legacy_product_url_platform": "youtube",
+    "require_platform_link_for_commercial_publish": true,
+    "platforms": {
+      "youtube": {
+        "enabled": true,
+        "providers": ["amazon", "shopee", "hotmart"]
+      },
+      "tiktok": {
+        "enabled": false,
+        "provider": "tiktok_shop",
+        "minimum_followers": 1000
+      }
+    }
+  }'::jsonb),
   ('pipeline', '{
     "enabled": false,
     "max_episodes_per_day": 1,

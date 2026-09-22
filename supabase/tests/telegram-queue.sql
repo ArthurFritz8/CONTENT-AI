@@ -43,7 +43,8 @@ begin
   select c.episode_id into created_episode from public.consume_next_idea() c where c.idea_id=target_idea_id;
   perform pg_temp.expect(created_episode is not null,'existing consumer creates the episode');
   perform pg_temp.expect((select product_compliance->>'affiliate_link'='https://example.com/affiliate'
-    and product_compliance->'commercial_content'='true'::jsonb from public.episodes where id=created_episode),'affiliate disclosure preserved into episode');
+    and product_compliance#>>'{affiliate_links,youtube}'='https://example.com/affiliate'
+    and product_compliance->'commercial_content'='true'::jsonb from public.episodes where id=created_episode),'legacy affiliate preserved as YouTube link');
   result:=public.telegram_queue_command(20008,'-123','456','cancel',null,target_idea_id);
   perform pg_temp.expect(result->>'code'='already_started','cannot cancel an episode through queue');
   perform pg_temp.expect((select status='idea' from public.episodes where id=created_episode),'episode preserved');

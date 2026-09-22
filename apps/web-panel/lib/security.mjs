@@ -146,7 +146,19 @@ export function mutation(input) {
         throw new PanelError("Prioridade deve ser de 1 a 1.000.");
       result.briefing = p.briefing.trim();
       result.priority = p.priority;
-      result.product_url = httpsUrl(p.product_url);
+      const rawLinks = p.affiliate_links ?? {};
+      if (
+        !rawLinks ||
+        typeof rawLinks !== "object" ||
+        Array.isArray(rawLinks) ||
+        Object.keys(rawLinks).some((key) => !["youtube", "tiktok"].includes(key))
+      )
+        throw new PanelError("Links de afiliado inválidos.");
+      result.affiliate_links = {};
+      for (const platform of ["youtube", "tiktok"]) {
+        const link = httpsUrl(rawLinks[platform]);
+        if (link) result.affiliate_links[platform] = link;
+      }
     }
   } else if (action === "pipeline") {
     if (

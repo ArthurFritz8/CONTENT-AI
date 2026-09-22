@@ -3,16 +3,28 @@ import { scriptJsonSchema, isRenderReady } from "../schemas/script-json.ts";
 import { researchDataSchema } from "../schemas/research.ts";
 import { researchEvidenceSchema, researchMatchesEvidence } from "../validators/research-evidence.ts";
 import { createScriptQualityChecker } from "../validators/script-quality.ts";
+import { affiliateLinksFromCompliance } from "../publish/affiliate-metadata.ts";
 
 const webUrl = z.string().url().refine(value => {
   const url = new URL(value);
   return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password;
 }, "URL web sem credenciais necessária");
+const affiliateWebUrl = z.string().max(2048).url().refine(value => {
+  const url = new URL(value);
+  return url.protocol === "https:" && !url.username && !url.password;
+}, "Link de afiliado HTTPS sem credenciais necessário");
 const snapshotSchema = z.object({
   episode: z.object({
     id: z.string().uuid(), script_json: scriptJsonSchema, render_url: webUrl,
     research_data: researchDataSchema, research_evidence: z.unknown(),
-    product_compliance: z.object({ commercial_content: z.boolean().optional(), affiliate_link: webUrl.optional() }).passthrough().nullable(),
+    product_compliance: z.object({
+      commercial_content: z.boolean().optional(),
+      affiliate_link: affiliateWebUrl.optional(),
+      affiliate_links: z.object({
+        youtube: affiliateWebUrl.optional(),
+        tiktok: affiliateWebUrl.optional(),
+      }).strict().optional(),
+    }).passthrough().nullable(),
     metadata: z.object({ render_outputs: z.object({ landscape: webUrl, portrait: webUrl }).passthrough() }),
   }),
   assets: z.array(z.object({
@@ -58,6 +70,9 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
   z.string().uuid().parse(requestId);
   const { episode, assets, report } = validateReviewSnapshot(snapshot);
   const script = episode.script_json;
+  const affiliateLinks = affiliateLinksFromCompliance(
+    episode.product_compliance,
+  );
   const scenes = [...script.scenes].sort((a, b) => a.order - b.order);
   const evidence = researchEvidenceSchema.parse(episode.research_evidence);
   const caption = [
@@ -103,10 +118,11 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
     "TRANSPARÊNCIA", `Conteúdo sintético: ${script.disclosures.contains_synthetic_media ? "sim" : "não"}`,
     `Conteúdo comercial: ${script.disclosures.commercial_content ? "sim" : "não"}`,
     `Disclosure: ${script.disclosures.commercial_disclosure_text ?? "não aplicável"}`, "",
-    ...(episode.product_compliance?.affiliate_link ? [
-      `Link de afiliado registrado: ${episode.product_compliance.affiliate_link}`,
-      "Confira se o link abre o produto correto e se a campanha/loja ainda está ativa.", "",
-    ] : []),
+    ...Object.entries(affiliateLinks).flatMap(([platform, link]) => [
+      `Link de afiliado ${platform === "youtube" ? "YouTube" : "TikTok"}: ${link}`,
+      "Confira se o link abre o produto correto e se a campanha/loja ainda está ativa.",
+      "",
+    ]),
     "ALERTAS", ...report.findings.map(f => f.message), "",
     "DECISÃO", "Aprovar versão: mantém review e registra consentimento para esta versão; não faz upload.",
     "Refazer render: gera os vídeos novamente com o mesmo roteiro/assets; exige nova revisão.",

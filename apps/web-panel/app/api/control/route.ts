@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const episodeSelect =
   "id,status,briefing,render_progress,qa_score,created_at,updated_at,approval_date";
 const publishSelect =
-  "id,episode_id,platform,external_id,status,privacy,variant,published_at,created_at";
+  "id,episode_id,platform,external_id,status,privacy,variant,affiliate_url,commercial_disclosure,published_at,created_at";
 function title(e: any) {
   return {
     ...e,
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
       const p = pagination(params),
         filters: Record<string, string> = {
           select:
-            "id,briefing,niche,product_url,priority,status,episode_id,created_at,revision",
+            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision",
           status: "eq.pending",
           order: "priority.asc,created_at.asc,id.asc",
           limit: String(p.limit),
