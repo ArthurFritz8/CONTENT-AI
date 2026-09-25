@@ -66,9 +66,11 @@ export async function handleTelegram(req: Request): Promise<Response> {
       if (error) throw new AppError("Não foi possível registrar decisão", 500, "DB_ERROR");
       let answer = resultText[String(data)] ?? "Decisão não confirmada.";
       if (data === "approved") {
-        const { data: review } = await db.from("review_requests").select("youtube_public_consent")
+        const { data: review } = await db.from("review_requests").select("youtube_public_consent,buffer_tiktok_consent")
           .eq("id", requestId.data).maybeSingle();
-        if (review?.youtube_public_consent) answer = "Versão aprovada. O Short público será enviado automaticamente ao YouTube.";
+        const destinations = [review?.youtube_public_consent ? "YouTube" : null,
+          review?.buffer_tiktok_consent ? "fila automática do TikTok via Buffer" : null].filter(Boolean);
+        if (destinations.length) answer = `Versão aprovada. Envio autorizado: ${destinations.join(" e ")}.`;
       }
       // Decision is already durable; a failed UI acknowledgement must not repeat it.
       try { await telegramCall("answerCallbackQuery", { callback_query_id: callback.id,

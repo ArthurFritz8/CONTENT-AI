@@ -27,4 +27,4 @@ Segundo o [YouTube videos.insert](https://developers.google.com/youtube/v3/docs/
 - Não prometer TikTok público antes da auditoria nem contornar as diretrizes com scraping, emulador ou credenciais TikTok Shop.
 - Testes verificam plano vertical orgânico, preservação do caminho privado, privacidade da confirmação e RPC com consentimento. A migração SQL precisa passar no job PostgreSQL da CI antes da ativação em produção.
 
-Substitui apenas a decisão de publicação pública manual do ADR-037 para **YouTube orgânico após ativação**. As demais travas editoriais e a revisão humana continuam.
+Substitui apenas a decisão de publicação pública manual do ADR-037 para **YouTube orgânico após ativação**. O [ADR-039](ADR-039-buffer-tiktok-organico.md) acrescenta um caminho distinto para TikTok orgânico via Buffer, sem alterar a conclusão sobre a inelegibilidade do app administrativo privado para Direct Post próprio. As demais travas editoriais e a revisão humana continuam.
