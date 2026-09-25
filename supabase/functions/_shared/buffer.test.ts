@@ -22,10 +22,10 @@ Deno.test("Buffer schedules a single organic AI-labelled TikTok video and reads 
       ? {
         createPost: {
           __typename: "PostActionSuccess",
-          post: { id: "post-1", status: "scheduled", channelId: "channel-1" },
+          post: { id: "post-1", status: "scheduled", channelId: "channel-1", schedulingType: "automatic" },
         },
       }
-      : { post: { id: "post-1", status: "sent", channelId: "channel-1" } };
+      : { post: { id: "post-1", status: "sent", channelId: "channel-1", schedulingType: "automatic" } };
     return new Response(JSON.stringify({ data }), {
       headers: { "Content-Type": "application/json" },
     });
@@ -95,4 +95,20 @@ Deno.test("Buffer rejects a non-TikTok channel and never retries ambiguous creat
     globalThis.fetch = previous;
   }
   assertEquals(calls, 2);
+});
+
+Deno.test("Buffer never treats a notification post as automatic publication", async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    data: { createPost: { __typename: "PostActionSuccess", post: {
+      id: "post-2", status: "scheduled", channelId: "channel-1", schedulingType: "notification",
+    } } },
+  }), { headers: { "Content-Type": "application/json" } })) as typeof fetch;
+  try {
+    await assertRejects(() => createBufferTikTokPost("key", "channel-1", {
+      caption: "Orgânico", videoUrl: "https://example.test/video.mp4", isAiGenerated: true,
+    }));
+  } finally {
+    globalThis.fetch = previous;
+  }
 });

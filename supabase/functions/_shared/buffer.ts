@@ -82,7 +82,7 @@ export async function createBufferTikTokPost(
       createPost?: {
         __typename: string;
         message?: string;
-        post?: { id: string; status: string; channelId: string };
+        post?: { id: string; status: string; channelId: string; schedulingType: string };
       };
     }
   >(
@@ -90,7 +90,7 @@ export async function createBufferTikTokPost(
     `mutation QueueTikTok($input: CreatePostInput!) {
       createPost(input: $input) {
         __typename
-        ... on PostActionSuccess { post { id status channelId } }
+        ... on PostActionSuccess { post { id status channelId schedulingType } }
         ... on MutationError { message }
       }
     }`,
@@ -117,10 +117,11 @@ export async function createBufferTikTokPost(
     id: z.string().min(1).max(128),
     status: postStatus,
     channelId: z.string(),
+    schedulingType: z.string(),
   }).parse(data.createPost.post);
   if (
     saved.channelId !== channelId || saved.status === "draft" ||
-    saved.status === "needs_approval"
+    saved.status === "needs_approval" || saved.schedulingType !== "automatic"
   ) {
     throw new AppError(
       "Buffer não confirmou agendamento automático; conferir fila",
@@ -137,10 +138,10 @@ export async function getBufferPostStatus(
   channelId: string,
 ) {
   const data = await queryBuffer<
-    { post?: { id: string; status: string; channelId: string } }
+    { post?: { id: string; status: string; channelId: string; schedulingType: string } }
   >(
     key,
-    "query Post($input: PostInput!) { post(input: $input) { id status channelId } }",
+    "query Post($input: PostInput!) { post(input: $input) { id status channelId schedulingType } }",
     { input: { id: postId } },
   );
   if (!data.post) {
@@ -154,8 +155,9 @@ export async function getBufferPostStatus(
     id: z.string(),
     channelId: z.string(),
     status: postStatus,
+    schedulingType: z.string(),
   }).parse(data.post);
-  if (saved.id !== postId || saved.channelId !== channelId) {
+  if (saved.id !== postId || saved.channelId !== channelId || saved.schedulingType !== "automatic") {
     throw new AppError(
       "Post do Buffer pertence a outro canal",
       409,
