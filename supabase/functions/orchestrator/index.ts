@@ -7,6 +7,7 @@ import { sendReview } from "../_shared/review-delivery.ts";
 import { AppError, jsonResponse, toErrorResponse } from "../_shared/error-handler.ts";
 import { createServiceClient, getSystemConfig } from "../_shared/supabase-client.ts";
 import { JobLogger } from "../_shared/logger.ts";
+import { dispatchApprovedShort } from "../_shared/publication-dispatch.ts";
 
 interface PipelineConfig {
   enabled?: boolean;
@@ -28,6 +29,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const db = createServiceClient();
     logger = new JobLogger(db, "orchestrator");
+    const publication = await dispatchApprovedShort(db);
+    if (publication) return jsonResponse(publication);
     const cfg = await getSystemConfig<PipelineConfig>(db, "pipeline", {});
     if (!cfg.enabled) return jsonResponse({ paused: true, reason: "pipeline_disabled" });
     const review = await sendReview(db);

@@ -45,15 +45,16 @@ export class YoutubeClient {
     if (!res.ok) throw new YoutubeError(`Início do upload recusado (${res.status})`, res.status);
     return sessionUrl(res.headers.get("Location") ?? "");
   }
-  async status(url: string, bytes: number): Promise<UploadProgress> {
+  async status(url: string, bytes: number, privacy: "private" | "public" = "private"): Promise<UploadProgress> {
     return await uploadProgress(await this.call(sessionUrl(url), { method: "PUT",
       redirect: "manual",
-      headers: { "Content-Length": "0", "Content-Range": `bytes */${bytes}` } }), bytes);
+      headers: { "Content-Length": "0", "Content-Range": `bytes */${bytes}` } }), bytes, privacy);
   }
-  async chunk(url: string, bytes: Uint8Array<ArrayBuffer>, offset: number, total: number): Promise<UploadProgress> {
+  async chunk(url: string, bytes: Uint8Array<ArrayBuffer>, offset: number, total: number,
+    privacy: "private" | "public" = "private"): Promise<UploadProgress> {
     return await uploadProgress(await this.call(sessionUrl(url), { method: "PUT", redirect: "manual", body: bytes,
       headers: { "Content-Type": "video/mp4", "Content-Length": String(bytes.byteLength),
-        "Content-Range": `bytes ${offset}-${offset + bytes.byteLength - 1}/${total}` } }), total);
+        "Content-Range": `bytes ${offset}-${offset + bytes.byteLength - 1}/${total}` } }), total, privacy);
   }
 }
 export type UploadProgress = { offset: number; retryAfterMs: number; videoId?: never } | { videoId: string; offset?: never };
@@ -61,7 +62,7 @@ function retryDelay(res: Response): number {
   const retry = res.headers.get("Retry-After");
   return retry ? (/^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now())) || 0 : 0;
 }
-async function uploadProgress(res: Response, total: number): Promise<UploadProgress> {
+async function uploadProgress(res: Response, total: number, privacy: "private" | "public"): Promise<UploadProgress> {
   if (res.status === 308) {
     const range = res.headers.get("Range");
     const match = range?.match(/^bytes=0-([0-9]+)$/);
@@ -72,7 +73,7 @@ async function uploadProgress(res: Response, total: number): Promise<UploadProgr
   }
   if (res.status === 200 || res.status === 201) {
     const result = await res.json() as { id?: string; status?: { privacyStatus?: string } };
-    if (!result.id || !/^[\w-]{11}$/.test(result.id) || result.status?.privacyStatus !== "private") throw new YoutubeError("Confirmação sem ID/privacidade privada; reconcilie a sessão");
+    if (!result.id || !/^[\w-]{11}$/.test(result.id) || result.status?.privacyStatus !== privacy) throw new YoutubeError("Confirmação sem ID/privacidade esperada; reconcilie a sessão");
     return { videoId: result.id };
   }
   if (res.status === 404 || res.status === 410) throw new YoutubeError("Sessão expirada; reconcilie no YouTube Studio antes de qualquer novo upload", res.status);
@@ -80,14 +81,15 @@ async function uploadProgress(res: Response, total: number): Promise<UploadProgr
 }
 
 export async function resumeUpload(client: YoutubeClient, url: string, media: Uint8Array<ArrayBuffer>,
-  guard: () => Promise<void>, sleep: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))) {
+  guard: () => Promise<void>, sleep: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  privacy: "private" | "public" = "private") {
   let failures = 0;
   let offset: number | undefined;
   while (true) {
     await guard();
     try {
-      const result = offset === undefined ? await client.status(url, media.length)
-        : await client.chunk(url, media.slice(offset, offset + 8 * 1024 * 1024), offset, media.length);
+      const result = offset === undefined ? await client.status(url, media.length, privacy)
+        : await client.chunk(url, media.slice(offset, offset + 8 * 1024 * 1024), offset, media.length, privacy);
       if (result.videoId !== undefined) return result.videoId;
       if (offset !== undefined && result.offset <= offset) throw new YoutubeError("Upload não avançou");
       offset = result.offset;

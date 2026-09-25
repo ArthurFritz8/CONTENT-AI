@@ -2,7 +2,10 @@ import { test } from "node:test";
 import { deepEqual, equal, ok, rejects } from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { makeReviewSnapshot } from "../../../packages/core/src/testing/review-fixture.ts";
-import { publishYoutubePrivate, type PublishRow, type PublishStore } from "./publish-youtube.ts";
+import { growthFixture } from "../../../packages/core/src/testing/growth-fixture.ts";
+import { applyGrowthStrategy, growthStrategySchema } from "../../../packages/core/src/publish/growth-strategy.ts";
+import { scriptJsonSchema } from "../../../packages/core/src/schemas/script-json.ts";
+import { publishYoutube, publishYoutubePrivate, type PublishRow, type PublishStore } from "./publish-youtube.ts";
 import { sessionUrl, type HttpFetch } from "./youtube-client.ts";
 
 const media = new TextEncoder().encode("fixture-video-bytes");
@@ -11,10 +14,20 @@ const session = "https://www.googleapis.com/upload/youtube/v3/videos?upload_id=f
 const channelId = `UC${"a".repeat(22)}`;
 const videoId = "private1234";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-function fixture() {
+function fixture(privacy: "private" | "public" = "private") {
   const snapshot = makeReviewSnapshot();
   const origin = "https://project.supabase.co";
   snapshot.episode.metadata.render_outputs.landscape = `${origin}/storage/v1/object/public/assets/episodes/${snapshot.episode.id}/render/final/${hash}/episode_landscape.mp4`;
+  if (privacy === "public") {
+    const portrait = `${origin}/storage/v1/object/public/assets/episodes/${snapshot.episode.id}/render/final/${hash}/episode_portrait.mp4`;
+    snapshot.episode.metadata.render_outputs.portrait = portrait;
+    snapshot.episode.render_url = portrait;
+    snapshot.episode.script_json = scriptJsonSchema.parse(applyGrowthStrategy(snapshot.episode.script_json,
+      growthStrategySchema.parse(growthFixture), undefined, snapshot.episode.id));
+    Object.assign(snapshot.episode.metadata.render_outputs, { platforms: { tiktok: { portrait,
+      commercial: false, quality: { version: "1.0.0", decode_verified: true, duration_seconds: 70,
+        size_bytes: media.length, width: 1080, height: 1920, warnings: [] } } } });
+  }
   const row: PublishRow = { id: snapshot.episode.id, status: "processing", external_id: null, review_snapshot: snapshot,
     upload_config: { max_video_bytes: 52428800, made_for_kids: false, category_ids: { Education: "27" } },
     session_url: null, media_sha256: null, media_bytes: null, channel_id: null };
@@ -29,7 +42,7 @@ function fixture() {
     finish: async (_id, _owner, id) => { calls.push("finish"); row.status = "published"; row.external_id = id; },
   };
   let put: (init: RequestInit) => Response | Promise<Response> = init => new Headers(init.headers).get("Content-Range")?.startsWith("bytes */")
-    ? new Response(null, { status: 308 }) : json({ id: videoId, status: { privacyStatus: "private" } }, 201);
+    ? new Response(null, { status: 308 }) : json({ id: videoId, status: { privacyStatus: privacy } }, 201);
   const http: HttpFetch = async (input, init = {}) => {
     const url = String(input);
     calls.push(`${init.method ?? "GET"} ${url.split("?")[0]}`);
@@ -39,7 +52,7 @@ function fixture() {
     if (url.includes("/channels?")) return json({ items: [{ id: channelId }] });
     if (init.method === "POST") {
       const body = JSON.parse(String(init.body));
-      equal(body.status.privacyStatus, "private"); equal(body.status.containsSyntheticMedia, true);
+      equal(body.status.privacyStatus, privacy); equal(body.status.containsSyntheticMedia, true);
       equal(body.snippet.title, snapshot.episode.script_json.metadata.youtube.title);
       ok(url.includes("notifySubscribers=false"));
       return new Response(null, { headers: { Location: session } });
@@ -58,6 +71,18 @@ test("upload private once; repeated run makes zero HTTP requests", async () => {
   deepEqual(await publishYoutubePrivate(f.args), { videoId, alreadyUploaded: true });
   equal(f.calls.length, count);
   equal(f.calls.filter(c => c === "finish").length, 1);
+});
+test("public Short uploads portrait with public privacy and keeps durable idempotency", async () => {
+  const f = fixture("public");
+  const target = { variant: "portrait" as const, privacy: "public" as const };
+  deepEqual(await publishYoutube({ ...f.args, target }), { videoId, alreadyUploaded: false });
+  const count = f.calls.length;
+  deepEqual(await publishYoutube({ ...f.args, target }), { videoId, alreadyUploaded: true });
+  equal(f.calls.length, count);
+  const g = fixture("public");
+  g.setPut(() => json({ id: videoId, status: { privacyStatus: "private" } }));
+  await rejects(publishYoutube({ ...g.args, target }), /privacidade esperada/);
+  equal(g.row.external_id, null);
 });
 test("lost final response is reconciled by status query without another POST or chunk", async () => {
   const f = fixture(); let chunks = 0; let probes = 0;
@@ -128,6 +153,6 @@ test("Retry-After is honored and public confirmations never complete the ledger"
   await publishYoutubePrivate(f.args);
   deepEqual(delays, [5000]);
   const g = fixture(); g.setPut(() => json({ id: videoId, status: { privacyStatus: "public" } }));
-  await rejects(publishYoutubePrivate(g.args), /privacidade privada/);
+  await rejects(publishYoutubePrivate(g.args), /privacidade esperada/);
   equal(g.row.external_id, null);
 });

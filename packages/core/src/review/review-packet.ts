@@ -72,7 +72,7 @@ export function validateReviewSnapshot(snapshot: unknown) {
   return { episode, assets, report };
 }
 
-export function buildReviewPacket(snapshot: unknown, requestId: string) {
+export function buildReviewPacket(snapshot: unknown, requestId: string, autoPublishYoutube = false) {
   z.string().uuid().parse(requestId);
   const { episode, assets, report } = validateReviewSnapshot(snapshot);
   const script = episode.script_json;
@@ -89,7 +89,8 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
     "Voz/conteúdo sintético: sim", "",
     "Assista às duas versões e confira o roteiro, descrições, fontes e licenças no anexo.",
     "QA automático passou. Veracidade, direitos e qualidade audiovisual exigem sua revisão.",
-    "Aprovar registra esta versão para futura publicação. Refazer render mantém roteiro e assets.",
+    autoPublishYoutube ? "Aprovar autoriza o envio automático do Short vertical público ao YouTube. Leia os termos do YouTube antes de confirmar."
+      : "Aprovar registra esta versão para futura publicação. Refazer render mantém roteiro e assets.",
     `Episódio: ${episode.id}`,
   ].join("\n");
   const lines = [
@@ -136,7 +137,9 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
       "",
     ]),
     "ALERTAS", ...report.findings.map(f => f.message), "",
-    "DECISÃO", "Aprovar versão: mantém review e registra consentimento para esta versão; não faz upload.",
+    "DECISÃO", autoPublishYoutube
+      ? "Aprovar versão: autoriza upload automático do Short vertical orgânico público ao YouTube após a aprovação. TikTok exige autorização separada."
+      : "Aprovar versão: mantém review e registra consentimento para esta versão; não faz upload.",
     "Refazer render: gera os vídeos novamente com o mesmo roteiro/assets; exige nova revisão.",
     "Reprovar: interrompe o episódio para correção editorial; não publica.",
   ];
@@ -147,7 +150,7 @@ export function buildReviewPacket(snapshot: unknown, requestId: string) {
       [{ text: "▶ Assistir vertical", url: episode.metadata.render_outputs.portrait },
         { text: "▶ Assistir horizontal", url: episode.metadata.render_outputs.landscape }],
       ...(script.platform_ctas ? [[{ text: "▶ TikTok orgânico", url: episode.metadata.render_outputs.platforms!.tiktok.portrait }]] : []),
-      [{ text: "Aprovar versão", callback_data: `rv:a:${requestId}` }],
+      [{ text: autoPublishYoutube ? "Aprovar + YouTube público" : "Aprovar versão", callback_data: `rv:a:${requestId}` }],
       [{ text: "Refazer render", callback_data: `rv:r:${requestId}` }, { text: "Reprovar", callback_data: `rv:x:${requestId}` }],
     ] },
   };

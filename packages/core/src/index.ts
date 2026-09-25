@@ -11,5 +11,6 @@ export * from "./planners/asset-plan.ts";
 export * from "./subtitles/subtitle-timing.ts";
 export * from "./subtitles/ass-builder.ts";
 export * from "./publish/youtube-plan.ts";
+export * from "./publish/tiktok-plan.ts";
 export * from "./publish/affiliate-metadata.ts";
 export * from "./publish/growth-strategy.ts";

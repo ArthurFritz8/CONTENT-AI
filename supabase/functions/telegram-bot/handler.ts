@@ -64,9 +64,15 @@ export async function handleTelegram(req: Request): Promise<Response> {
       const { data, error } = await db.rpc("decide_review", { p_request_id: requestId.data, p_update_id: update.update_id,
         p_action: actions[match[1]!], p_chat_id: config.chatId, p_user_id: config.userId, p_message_id: msg.message_id });
       if (error) throw new AppError("Não foi possível registrar decisão", 500, "DB_ERROR");
+      let answer = resultText[String(data)] ?? "Decisão não confirmada.";
+      if (data === "approved") {
+        const { data: review } = await db.from("review_requests").select("youtube_public_consent")
+          .eq("id", requestId.data).maybeSingle();
+        if (review?.youtube_public_consent) answer = "Versão aprovada. O Short público será enviado automaticamente ao YouTube.";
+      }
       // Decision is already durable; a failed UI acknowledgement must not repeat it.
       try { await telegramCall("answerCallbackQuery", { callback_query_id: callback.id,
-        text: resultText[String(data)] ?? "Decisão não confirmada.", show_alert: true }); } catch { /* Telegram will expire the spinner */ }
+        text: answer, show_alert: true }); } catch { /* Telegram will expire the spinner */ }
       return jsonResponse({ result: data });
     }
     const text = msg.text?.trim() ?? "";
@@ -90,7 +96,7 @@ export async function handleTelegram(req: Request): Promise<Response> {
       if (sent?.review_sent) return jsonResponse(sent);
     }
     await telegramCall("sendMessage", { chat_id: config.chatId,
-      text: commandHint ?? "CONTENT AI — Seu estúdio de conteúdo\n\n/ideia descrição — envie uma pauta com produto, problema e abordagem (20–2.000 caracteres).\n/fila — consulte ideias pendentes e episódios recentes.\n/cancelar ID_DA_IDEIA — retire uma pauta antes de começar.\n\nSe houver afiliação, acrescente uma linha: Afiliado: https://...\n\nVocê recebe título, vídeos e roteiro completo para revisão. Aprovar registra a versão; não publica. Refazer render mantém roteiro/assets. Reprovar interrompe o episódio.\n\n/revisar UUID_DO_EPISÓDIO — solicita uma nova ficha em review e invalida botões anteriores.\n\nSe uma confirmação não chegar, consulte /fila antes de reenviar a ideia. Para fichas, confira review e telegram.enabled." });
+      text: commandHint ?? "CONTENT AI — Seu estúdio de conteúdo\n\n/ideia descrição — envie uma pauta com produto, problema e abordagem (20–2.000 caracteres).\n/fila — consulte ideias pendentes e episódios recentes.\n/cancelar ID_DA_IDEIA — retire uma pauta antes de começar.\n\nSe houver afiliação, acrescente uma linha: Afiliado: https://...\n\nVocê recebe título, vídeos e roteiro completo para revisão. Confira a ficha: ela informa se a aprovação também autoriza YouTube público. Refazer render mantém roteiro/assets. Reprovar interrompe o episódio.\n\n/revisar UUID_DO_EPISÓDIO — solicita uma nova ficha em review e invalida botões anteriores.\n\nSe uma confirmação não chegar, consulte /fila antes de reenviar a ideia. Para fichas, confira review e telegram.enabled." });
     return jsonResponse({ ok: true });
   } catch (err) { return toErrorResponse(err); }
 }

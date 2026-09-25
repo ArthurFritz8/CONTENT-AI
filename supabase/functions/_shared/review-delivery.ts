@@ -14,9 +14,17 @@ export async function sendReview(db: SupabaseClient, episodeId?: string, force =
   if (error) throw new AppError("Não foi possível reservar revisão", 500, "DB_ERROR");
   const request = Array.isArray(data) ? data[0] : data;
   if (!request?.id) return null;
+  const youtube = await getSystemConfig<{ enabled?: boolean; public_shorts_enabled?: boolean; api_audit_approved?: boolean;
+    automatic_after?: string | null }>(db, "youtube", {});
+  const activation = youtube.automatic_after ? Date.parse(youtube.automatic_after) : NaN;
+  const autoPublishYoutube = youtube.enabled === true && youtube.public_shorts_enabled === true
+    && youtube.api_audit_approved === true && Number.isFinite(activation) && activation <= Date.now();
   let postStarted = false;
   try {
-    const packet = buildReviewPacket(request.snapshot, request.id);
+    const consent = await db.from("review_requests").update({ youtube_public_consent: autoPublishYoutube })
+      .eq("id", request.id).eq("delivery_status", "sending");
+    if (consent.error) throw new AppError("Não foi possível registrar consentimento de publicação", 500, "DB_ERROR");
+    const packet = buildReviewPacket(request.snapshot, request.id, autoPublishYoutube);
     const body = new FormData();
     body.set("chat_id", config.chatId);
     body.set("caption", packet.caption);
