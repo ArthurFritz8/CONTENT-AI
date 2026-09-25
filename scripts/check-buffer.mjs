@@ -29,3 +29,13 @@ for (const organization of organizations) {
 }
 console.log(JSON.stringify({ tiktok_channels: channels }, null, 2));
 if (channels.length !== 1) process.exitCode = 2;
+const configuredChannelId = process.env.BUFFER_TIKTOK_CHANNEL_ID;
+if (configuredChannelId) {
+  const data = await query(
+    "query Channel($input: ChannelInput!) { channel(input: $input) { id service } }",
+    { input: { id: configuredChannelId } },
+  );
+  const valid = data.channel?.id === configuredChannelId && data.channel.service === "tiktok";
+  console.log(JSON.stringify({ configured_channel_valid: valid }));
+  if (!valid) process.exitCode = 2;
+}
