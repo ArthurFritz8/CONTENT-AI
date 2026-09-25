@@ -1,0 +1,218 @@
+{
+  "episode_id": "86ef4c29-1763-4593-ac27-e9c59782ff07",
+  "prompt_version": "1.0.0",
+  "editorial_style": "comparacao_lado_a_lado",
+  "platform_ctas": {
+    "youtube": {
+      "narration_text": "Salve esta ideia e conte como você usaria esse gadget.",
+      "commercial": false
+    },
+    "tiktok": {
+      "narration_text": "Salve esta ideia e conte como você usaria esse gadget.",
+      "commercial": false
+    },
+    "organic_blocked_phrases": [
+      "link no perfil",
+      "link na bio",
+      "link do produto",
+      "compre",
+      "comprar",
+      "cupom",
+      "afiliado",
+      "comissão",
+      "aproveite a oferta"
+    ]
+  },
+  "metadata": {
+    "youtube": {
+      "title": "MacBook Neo: 4 cores, 1,23 kg e limites que importam",
+      "description": "Análise editorial do MacBook Neo a partir da ficha técnica oficial. Cenas de uso são ilustrativas; não houve teste físico do aparelho.",
+      "tags": [
+        "MacBook Neo",
+        "notebook",
+        "gadgets",
+        "tecnologia"
+      ],
+      "category": "28"
+    },
+    "tiktok": {
+      "title": "MacBook Neo: quatro cores e os limites da ficha",
+      "description": "Quatro cores, portabilidade e conexões do MacBook Neo. Análise editorial com imagens ilustrativas e dados da Apple.",
+      "hashtags": [
+        "#MacBookNeo",
+        "#Tecnologia",
+        "#Gadgets"
+      ]
+    }
+  },
+  "narration": {
+    "full_text": "Quatro cores num notebook de treze polegadas: prateado, blush, amarelo-cítrico e índigo. O MacBook Neo chama atenção. Mas será que combina com a sua rotina? Para quem leva o notebook entre casa, aula e trabalho, o dilema é ter uma tela confortável sem carregar peso demais. É nesse uso diário que ele precisa fazer sentido. Segundo a Apple, são treze polegadas de tela, 1,27 centímetros de espessura e 1,23 quilos de peso. O quadro compara as medidas; não é filmagem do aparelho. Imagine abrir um documento, consultar o navegador e acompanhar uma videoaula na mesma mesa. O Neo traz o chip A18 Pro para tarefas cotidianas. A foto apenas ilustra esse cenário. Há duas opções de armazenamento: duzentos e cinquenta e seis ou quinhentos e doze gigabytes. Ambas têm oito gigabytes de memória. O espaço disponível muda, mas a memória informada é a mesma. E atenção às conexões: são duas portas USB-C, mas uma opera em USB dois. Para periféricos ou transferências de arquivos, vale conferir essa diferença. Isto é uma leitura da ficha, não um teste prático. Salve esta ideia e conte como você usaria esse gadget.",
+    "language": "pt-BR",
+    "estimated_duration_seconds": 80
+  },
+  "gap_seconds": 0.5,
+  "music": null,
+  "scenes": [
+    {
+      "id": "neo-1",
+      "order": 0,
+      "role": "hook",
+      "duration_seconds": 10,
+      "narration_text": "Quatro cores num notebook de treze polegadas: prateado, blush, amarelo-cítrico e índigo. O MacBook Neo chama atenção. Mas será que combina com a sua rotina?",
+      "transition": "cut",
+      "ken_burns": "in",
+      "visual": {
+        "description": "Cartão editorial próprio com quatro cores esquemáticas e dados do MacBook Neo; sem imagem ou marca Apple.",
+        "search_query": "color swatches laptop infographic"
+      },
+      "highlight_words": [
+        "Quatro cores"
+      ],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    },
+    {
+      "id": "neo-2",
+      "order": 1,
+      "role": "content",
+      "duration_seconds": 11,
+      "narration_text": "Para quem leva o notebook entre casa, aula e trabalho, o dilema é ter uma tela confortável sem carregar peso demais. É nesse uso diário que ele precisa fazer sentido.",
+      "transition": "cut",
+      "ken_burns": "out",
+      "visual": {
+        "description": "Foto Pexels de mesa de estudo com notebook genérico; inserir aviso de imagem ilustrativa.",
+        "search_query": "laptop on white wooden desk"
+      },
+      "highlight_words": [
+        "tela confortável"
+      ],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    },
+    {
+      "id": "neo-3",
+      "order": 2,
+      "role": "content",
+      "duration_seconds": 13,
+      "narration_text": "Segundo a Apple, são treze polegadas de tela, 1,27 centímetros de espessura e 1,23 quilos de peso. O quadro compara as medidas; não é filmagem do aparelho.",
+      "transition": "cut",
+      "ken_burns": "in",
+      "visual": {
+        "description": "Infográfico próprio com 13 polegadas, 1,23 kg e 1,27 cm; sem representação do produto real.",
+        "search_query": "laptop measurements infographic"
+      },
+      "highlight_words": [
+        "treze polegadas"
+      ],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    },
+    {
+      "id": "neo-4",
+      "order": 3,
+      "role": "content",
+      "duration_seconds": 13,
+      "narration_text": "Imagine abrir um documento, consultar o navegador e acompanhar uma videoaula na mesma mesa. O Neo traz o chip A18 Pro para tarefas cotidianas. A foto apenas ilustra esse cenário.",
+      "transition": "cut",
+      "ken_burns": "out",
+      "visual": {
+        "description": "Foto Pexels de notebook genérico e celular numa mesa; inserir aviso de imagem ilustrativa.",
+        "search_query": "laptop and smartphone on white table"
+      },
+      "highlight_words": [
+        "A18 Pro"
+      ],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    },
+    {
+      "id": "neo-5",
+      "order": 4,
+      "role": "content",
+      "duration_seconds": 13,
+      "narration_text": "Há duas opções de armazenamento: duzentos e cinquenta e seis ou quinhentos e doze gigabytes. Ambas têm oito gigabytes de memória. O espaço disponível muda, mas a memória informada é a mesma.",
+      "transition": "cut",
+      "ken_burns": "in",
+      "visual": {
+        "description": "Cartão editorial próprio comparando SSD 256 GB e 512 GB; 8 GB de memória em ambas.",
+        "search_query": "storage comparison infographic"
+      },
+      "highlight_words": [
+        "oito gigabytes"
+      ],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    },
+    {
+      "id": "neo-6",
+      "order": 5,
+      "role": "content",
+      "duration_seconds": 13,
+      "narration_text": "E atenção às conexões: são duas portas USB-C, mas uma opera em USB dois. Para periféricos ou transferências de arquivos, vale conferir essa diferença. Isto é uma leitura da ficha, não um teste prático.",
+      "transition": "cut",
+      "ken_burns": "out",
+      "visual": {
+        "description": "Infográfico próprio com duas portas USB-C: USB 3 até 10 Gb/s e USB 2 até 480 Mb/s.",
+        "search_query": "USB ports infographic"
+      },
+      "highlight_words": [
+        "USB-C"
+      ],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    },
+    {
+      "id": "neo-7",
+      "order": 6,
+      "role": "cta",
+      "duration_seconds": 7,
+      "narration_text": "Salve esta ideia e conte como você usaria esse gadget.",
+      "transition": "cut",
+      "ken_burns": "in",
+      "visual": {
+        "description": "Cartão editorial próprio para votação orgânica das quatro cores; sem logo Apple.",
+        "search_query": "four color poll infographic"
+      },
+      "highlight_words": [],
+      "presenter": false,
+      "asset_landscape": null,
+      "asset_portrait": null,
+      "subtitle_position": "bottom_center"
+    }
+  ],
+  "sources": [
+    {
+      "claim": "O MacBook Neo está disponível nas cores prateado, blush, amarelo-cítrico e índigo.",
+      "source_url": "https://www.apple.com/br/macbook-neo/specs"
+    },
+    {
+      "claim": "O MacBook Neo tem tela de 13 polegadas, espessura de 1,27 cm e peso de 1,23 kg.",
+      "source_url": "https://www.apple.com/br/macbook-neo/specs"
+    },
+    {
+      "claim": "O MacBook Neo usa chip A18 Pro, oferece 8 GB de memória unificada e SSD de 256 GB ou 512 GB.",
+      "source_url": "https://www.apple.com/br/macbook-neo/specs"
+    },
+    {
+      "claim": "O MacBook Neo possui uma porta USB 3 (USB-C) de até 10 Gb/s e uma porta USB 2 (USB-C) de até 480 Mb/s.",
+      "source_url": "https://www.apple.com/br/macbook-neo/specs"
+    }
+  ],
+  "disclosures": {
+    "contains_synthetic_media": true,
+    "commercial_content": false,
+    "commercial_disclosure_text": null
+  }
+}

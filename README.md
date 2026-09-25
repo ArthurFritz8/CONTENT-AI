@@ -1,6 +1,6 @@
 # CONTENT AI
 
-Pipeline **zero-budget** de criação e publicação automática de vídeos (YouTube + Shorts; TikTok manual até auditoria da Content Posting API).
+Pipeline **zero-budget** de criação de vídeos com revisão humana e conectores de publicação para YouTube e TikTok. O TikTok orgânico pode ser agendado automaticamente via Buffer após a configuração descrita em [publicação orgânica](docs/publicacao-organica.md); a integração permanece desligada por padrão.
 
 **Estado verificado em 22/09/2026:** primeiro piloto gerado, revisado no Telegram e enviado ao YouTube como privado. O objetivo editorial é produto-primeiro: demonstrar utilidade, limitações e público adequado antes do CTA. O operador atua como afiliado, sem loja ou estoque. Cada destino preserva seu próprio link: YouTube usa Amazon/Shopee/Hotmart validado; TikTok usará o link oficial do TikTok Shop quando a conta de criador atingir a elegibilidade. Supabase, Tavily, Gemini, Pexels e fallback de voz no Actions integram o fluxo; o pipeline permanece pausado. [QA editorial](docs/ADR/ADR-016-qualidade-editorial-antes-dos-assets.md), [evidências de pesquisa](docs/ADR/ADR-023-pesquisa-gratuita-tavily.md), [afiliação por plataforma](docs/ADR/ADR-036-monetizacao-afiliado-link-por-plataforma.md) e [auditoria atual](docs/auditoria-2026-09-14.md) registram o estado. Analytics, monitoramento/retencão e publicação pública/Shorts ainda faltam.
 
@@ -27,7 +27,7 @@ idea → research → script → assets → rendered → review → published �
 | Imagem | Produto autorizado / Pexels | Free; Nano Banana API desabilitado (ADR-015) |
 | TTS | Gemini TTS → edge-tts → Piper (cadeia de fallback) | Free (ver ADR-003) |
 | Render | FFmpeg — GitHub Actions primário, PC local só dev (ADR-004) | Runner padrão gratuito neste repo público; privado depende do plano GitHub |
-| Publicação | YouTube Data API v3 (cotas do projeto no Google Cloud Console) | Free |
+| Publicação | YouTube Data API v3; Buffer API para TikTok orgânico após aprovação | Free tiers, sujeitos a cotas |
 | Aprovação | Telegram Bot | Free |
 | Painel | Next.js no repositório principal; autenticação Supabase, fila editável, vídeos, fontes e operação | Render Free; implantação conforme ADR-029 |
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { buildReviewPacket } from "../../../packages/core/src/review/review-packet.ts";
+import { bufferTikTokPlan } from "../../../packages/core/src/publish/buffer-tiktok-plan.ts";
 import { getSystemConfig } from "./supabase-client.ts";
 import { AppError } from "./error-handler.ts";
 import { telegramCall, telegramConfig } from "./telegram.ts";
@@ -14,9 +15,27 @@ export async function sendReview(db: SupabaseClient, episodeId?: string, force =
   if (error) throw new AppError("Não foi possível reservar revisão", 500, "DB_ERROR");
   const request = Array.isArray(data) ? data[0] : data;
   if (!request?.id) return null;
+  const youtube = await getSystemConfig<{ enabled?: boolean; public_shorts_enabled?: boolean; api_audit_approved?: boolean;
+    automatic_after?: string | null }>(db, "youtube", {});
+  const activation = youtube.automatic_after ? Date.parse(youtube.automatic_after) : NaN;
+  const autoPublishYoutube = youtube.enabled === true && youtube.public_shorts_enabled === true
+    && youtube.api_audit_approved === true && Number.isFinite(activation) && activation <= Date.now();
+  const buffer = await getSystemConfig<{ enabled?: boolean; automatic_after?: string | null }>(db, "buffer_tiktok", {});
+  const bufferActivation = buffer.automatic_after ? Date.parse(buffer.automatic_after) : NaN;
+  let autoPublishTikTok = buffer.enabled === true && Number.isFinite(bufferActivation)
+    && bufferActivation <= Date.now() && Boolean(Deno.env.get("BUFFER_API_KEY"))
+    && Boolean(Deno.env.get("BUFFER_TIKTOK_CHANNEL_ID"));
+  if (autoPublishTikTok) {
+    try { bufferTikTokPlan(request.snapshot, Deno.env.get("SUPABASE_URL") ?? ""); }
+    catch { autoPublishTikTok = false; }
+  }
   let postStarted = false;
   try {
-    const packet = buildReviewPacket(request.snapshot, request.id);
+    const consent = await db.from("review_requests").update({ youtube_public_consent: autoPublishYoutube,
+      buffer_tiktok_consent: autoPublishTikTok })
+      .eq("id", request.id).eq("delivery_status", "sending");
+    if (consent.error) throw new AppError("Não foi possível registrar consentimento de publicação", 500, "DB_ERROR");
+    const packet = buildReviewPacket(request.snapshot, request.id, autoPublishYoutube, autoPublishTikTok);
     const body = new FormData();
     body.set("chat_id", config.chatId);
     body.set("caption", packet.caption);

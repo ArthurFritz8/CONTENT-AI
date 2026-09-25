@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { youtubePrivatePlan } from "@content-ai/core";
+import { youtubePlan } from "@content-ai/core";
 import { safeFetch, YoutubeClient, resumeUpload, type HttpFetch, type YoutubeAuth } from "./youtube-client.ts";
 
 export interface PublishRow {
@@ -38,7 +38,8 @@ export async function downloadApprovedMedia(url: string, hash: string, maxBytes:
   return media;
 }
 
-export async function publishYoutubePrivate(args: { episodeId: string; supabaseUrl: string; auth: YoutubeAuth; store: PublishStore;
+export async function publishYoutube(args: { episodeId: string; supabaseUrl: string; auth: YoutubeAuth; store: PublishStore;
+  target: { variant: "landscape" | "portrait"; privacy: "private" | "public" };
   http?: HttpFetch; sleep?: (ms: number) => Promise<void> }) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.episodeId)) throw new Error("UUID inválido");
   if (!/^UC[\w-]{22}$/.test(args.auth.channelId)) throw new Error("YOUTUBE_CHANNEL_ID inválido");
@@ -48,7 +49,7 @@ export async function publishYoutubePrivate(args: { episodeId: string; supabaseU
     if (!row.external_id || !/^[\w-]{11}$/.test(row.external_id)) throw new Error("Registro concluído sem ID válido");
     return { videoId: row.external_id, alreadyUploaded: true };
   }
-  const plan = youtubePrivatePlan(row.review_snapshot, row.upload_config, args.supabaseUrl);
+  const plan = youtubePlan(row.review_snapshot, row.upload_config, args.supabaseUrl, args.target);
   const http = args.http ?? fetch;
   const media = await downloadApprovedMedia(plan.url, plan.hash, plan.maxBytes, http);
   const client = new YoutubeClient(args.auth, http);
@@ -66,7 +67,11 @@ export async function publishYoutubePrivate(args: { episodeId: string; supabaseU
     // Never send media before the durable checkpoint is confirmed by PostgreSQL.
     await args.store.checkpoint(row.id, owner, session, plan.hash, media.length, args.auth.channelId);
   }
-  const videoId = await resumeUpload(client, session, media, guard, args.sleep);
+  const videoId = await resumeUpload(client, session, media, guard, args.sleep, args.target.privacy);
   await args.store.finish(row.id, owner, videoId);
   return { videoId, alreadyUploaded: false };
+}
+
+export function publishYoutubePrivate(args: Omit<Parameters<typeof publishYoutube>[0], "target">) {
+  return publishYoutube({ ...args, target: { variant: "landscape", privacy: "private" } });
 }

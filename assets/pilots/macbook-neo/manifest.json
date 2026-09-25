@@ -1,0 +1,146 @@
+[
+  {
+    "scene_order": 0,
+    "orientation": "portrait",
+    "file": "scene-01-portrait.png",
+    "sha256": "6f7761c69fc3571c6916b1f8d437b73f493276d99fdd3b648ad9cc284cfe8ff1",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 0,
+    "orientation": "landscape",
+    "file": "scene-01-landscape.png",
+    "sha256": "d6cc147a39a1b16ee79477f8b219da50bd382199a219651c704bb0e848db838c",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 1,
+    "orientation": "portrait",
+    "file": "scene-02-portrait.png",
+    "sha256": "640da23fdcece09071054bcc62df50be5ef7e982a5ef389855a81f6feeead6ee",
+    "license": "pexels",
+    "source": "pexels",
+    "source_url": "https://www.pexels.com/photo/laptop-on-white-wooden-desk-8062404/",
+    "author": "Nataliya Vaitkevich",
+    "pexels_photo_id": 8062404
+  },
+  {
+    "scene_order": 1,
+    "orientation": "landscape",
+    "file": "scene-02-landscape.png",
+    "sha256": "ab6935e209e1cfeef6883e3f9d18ebf3332d56d160079530d2b11256c38bae1e",
+    "license": "pexels",
+    "source": "pexels",
+    "source_url": "https://www.pexels.com/photo/laptop-on-white-wooden-desk-8062404/",
+    "author": "Nataliya Vaitkevich",
+    "pexels_photo_id": 8062404
+  },
+  {
+    "scene_order": 2,
+    "orientation": "portrait",
+    "file": "scene-03-portrait.png",
+    "sha256": "03896f29f39a479520a853c45ec3ad6b66defe650b73a68e817dc7016b6e7015",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 2,
+    "orientation": "landscape",
+    "file": "scene-03-landscape.png",
+    "sha256": "a122c142d8bd7cc01e95cf3853edeacc031daefcd17c392b14b3648908fde647",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 3,
+    "orientation": "portrait",
+    "file": "scene-04-portrait.png",
+    "sha256": "384f356b22f52019e8d08216d36eee8b093d6535bb36f1e0a7acfe80b3209c03",
+    "license": "pexels",
+    "source": "pexels",
+    "source_url": "https://www.pexels.com/photo/laptop-and-smartphone-on-a-white-table-8004008/",
+    "author": "Darina Belonogova",
+    "pexels_photo_id": 8004008
+  },
+  {
+    "scene_order": 3,
+    "orientation": "landscape",
+    "file": "scene-04-landscape.png",
+    "sha256": "6d217eb082b8dad40f0861f0610311d18965672861b0015ec0ded944a5071005",
+    "license": "pexels",
+    "source": "pexels",
+    "source_url": "https://www.pexels.com/photo/laptop-and-smartphone-on-a-white-table-8004008/",
+    "author": "Darina Belonogova",
+    "pexels_photo_id": 8004008
+  },
+  {
+    "scene_order": 4,
+    "orientation": "portrait",
+    "file": "scene-05-portrait.png",
+    "sha256": "8fc93d934d58c120dcf17f0d850d8603cb5821e9ef5f9aeb3462666105539927",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 4,
+    "orientation": "landscape",
+    "file": "scene-05-landscape.png",
+    "sha256": "daaf53cc849345de93e5761cc7652663c1f82455902a10a330bf9255024ba782",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 5,
+    "orientation": "portrait",
+    "file": "scene-06-portrait.png",
+    "sha256": "be16a27f690493d3938b50facde6edbd159a9752cfb681efab7b8c85cc6bc27d",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 5,
+    "orientation": "landscape",
+    "file": "scene-06-landscape.png",
+    "sha256": "c34d0b19d4b09d8544fef081013e407fea792485d71e21ea84bfc3efd82381ca",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 6,
+    "orientation": "portrait",
+    "file": "scene-07-portrait.png",
+    "sha256": "f9f780e7a3add1bb984dcc13129f10db0e9f2c40300105a9ba8158ae810c9078",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  },
+  {
+    "scene_order": 6,
+    "orientation": "landscape",
+    "file": "scene-07-landscape.png",
+    "sha256": "f7d92984482bc7d5c731818f7e9e7b13bc7bce01f5acfe2c650532468f272b1a",
+    "license": "own",
+    "source": "system",
+    "source_url": "https://www.apple.com/br/macbook-neo/specs/",
+    "editorial_note": "Original infographic; source URL verifies facts, not image rights."
+  }
+]
