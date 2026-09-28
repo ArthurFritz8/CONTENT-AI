@@ -134,7 +134,7 @@ export async function getGeminiBudgetRemaining(
 export async function assertGeminiBudget(
   db: SupabaseClient,
   logger: JobLogger,
-  episodeId: string,
+  episodeId: string | undefined,
   callType: GeminiCallType,
   model: string,
 ): Promise<void> {
@@ -162,7 +162,7 @@ export async function assertGeminiBudget(
 
 export async function recordGeminiCall(
   logger: JobLogger,
-  episodeId: string,
+  episodeId: string | undefined,
   callType: GeminiCallType,
   model: string,
   usage: GeminiUsage,

@@ -75,6 +75,17 @@ function errorCode(err: unknown): string {
   return err instanceof AppError ? err.code : "UNKNOWN_ERROR";
 }
 
+/** Lists and trend roundups are discovery leads, not a single video subject. */
+export function concreteEditorialHeadline(title: string): boolean {
+  return !/(?:\b(?:top|best|melhores|principais)\b|\b\d+\s+(?:gadgets?|produtos?|novidades?|invenções?|ideias?)\b|tend[eê]ncias?|o que esperar|que marcar[aã]o|mais vendidos|guia de compras|roundup|so far)/i
+    .test(title);
+}
+
+export function visualProductSignal(title: string): boolean {
+  return !/(?:alkaline batter(?:y|ies)|pilhas? alcalinas?|printer paper|papel sulfite|ink cartridge|cartucho de tinta|refil de tinta)/i
+    .test(title);
+}
+
 function candidateBriefing(candidate: Candidate, growth: GrowthStrategy | null): string {
   const shortStructure = growth ? growthBriefing(growth) :
     "Estrutura obrigatória para YouTube Short vertical de até 60 segundos: hook visual e verbal forte nos primeiros 2 segundos; " +
@@ -119,11 +130,13 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     }
 
     const maxPending = Math.min(20, Math.max(1, cfg.max_pending ?? 5));
+    const freshSince = new Date(Date.now() - 72 * 60 * 60_000).toISOString();
     const { count, error: countError } = await db
       .from("idea_queue")
       .select("id", { count: "exact", head: true })
       .eq("source", "trend_discovery")
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .gte("created_at", freshSince);
     if (countError) {
       throw new AppError(
         `Erro ao contar sugestões pendentes: ${countError.message}`,
@@ -132,6 +145,13 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
       );
     }
     const alreadyPending = count ?? 0;
+    const { count: totalPending, error: totalError } = await db.from("idea_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("source", "trend_discovery").eq("status", "pending");
+    if (totalError) throw new AppError("Erro ao contar fila total", 500, "DB_ERROR");
+    if ((totalPending ?? 0) >= 20) return jsonResponse({
+      created: 0, reason: "absolute_pending_cap_reached", pending: totalPending,
+    });
     if (alreadyPending >= maxPending) {
       return jsonResponse({
         created: 0,
@@ -168,7 +188,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
             beforeRequest: () =>
               reserveTrendSourceCall(db, logger, "trends_mcp"),
           });
-          candidates = found.map((item) => ({
+          candidates = found.filter((item) => visualProductSignal(item.title)).map((item) => ({
             title: item.title,
             sourceUrl: item.url ?? TRENDS_MCP_SOURCE_URL,
             dedupeKey: titleDedupeKey("trends_mcp", item.title),
@@ -196,7 +216,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
             beforeRequest: () =>
               reserveTrendSourceCall(db, logger, "socialcrawl"),
           });
-          candidates = found.map((item) => ({
+          candidates = found.filter((item) => visualProductSignal(item.title)).map((item) => ({
             title: item.title,
             sourceUrl: item.productUrl ??
               "https://www.socialcrawl.dev/docs/tiktokshop",
@@ -235,7 +255,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
               maxResults: 5,
               beforeRequest: () => reserveTavilyCall(db, logger),
             });
-            candidates = search.sources.map((item) => ({
+            candidates = search.sources.filter((item) => concreteEditorialHeadline(item.title)).map((item) => ({
               title: item.title,
               sourceUrl: item.url,
               dedupeKey: dedupeKeyFrom(item.url),
@@ -243,7 +263,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
             }));
           } else {
             const hits = await hackerNewsSearch({ query, maxResults: 5 });
-            candidates = hits.map((item) => ({
+            candidates = hits.filter((item) => concreteEditorialHeadline(item.title)).map((item) => ({
               title: item.title,
               sourceUrl: item.url,
               dedupeKey: dedupeKeyFrom(item.url),
@@ -275,7 +295,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     }
 
     const nicheName = niche.name ?? "gadgets_produtos_inovadores";
-    const budget = maxPending - alreadyPending;
+    const budget = Math.min(maxPending - alreadyPending, 20 - (totalPending ?? 0));
     let created = 0;
     for (const candidate of candidates) {
       if (created >= budget) break;

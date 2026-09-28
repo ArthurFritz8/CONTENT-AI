@@ -112,6 +112,18 @@ test("settings cannot turn off human review or enable autopublish", () => {
     }),
   );
 });
+
+test("candidate actions accept only a row, revision and bounded recommendation index", () => {
+  const choose = mutation({ requestId: id, action: "choose_product", payload: {
+    id, revision: 2, index: 1, product_name: "Inventado", approval_user: "attacker",
+  } });
+  assert.deepEqual(choose.payload, { id, revision: 2, index: 1 });
+  const generate = mutation({ requestId: id, action: "generate_video", payload: {
+    id, revision: 3, auto_publish: true,
+  } });
+  assert.deepEqual(generate.payload, { id, revision: 3 });
+  assert.throws(() => mutation({ requestId: id, action: "choose_product", payload: { id, revision: 0, index: 99 } }));
+});
 test("PostgREST filter fragments and unbounded pagination rejected", () => {
   for (const q of [
     "search=hello,world",

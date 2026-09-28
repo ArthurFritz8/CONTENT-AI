@@ -103,15 +103,57 @@ export async function GET(request: Request) {
       const p = pagination(params),
         filters: Record<string, string> = {
           select:
-            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision,source,validated_at",
+            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision,source,validated_at,recommendations,recommendation_checked_at,selected_product,selected_hook,selected_evidence_url",
           status: "eq.pending",
           order: "priority.asc,created_at.asc,id.asc",
           limit: String(p.limit),
           offset: String(p.offset),
         };
       if (p.search) filters.briefing = `ilike.*${p.search}*`;
-      const r = await db("idea_queue", filters);
-      result = { items: r.data, total: r.total, page: p.page };
+      const [r, recent] = await Promise.all([
+        db("idea_queue", filters),
+        db("idea_queue", {
+          select: "id,briefing,episode_id,consumed_at,selected_product",
+          status: "eq.consumed", order: "consumed_at.desc", limit: "8",
+        }),
+      ]);
+      const ids = recent.data.map((row: any) => row.episode_id).filter(Boolean);
+      const [episodes, reviews, events] = ids.length ? await Promise.all([
+        db("episodes", {
+          select: "id,status,render_progress,updated_at",
+          id: `in.(${ids.join(",")})`,
+        }),
+        db("review_requests", {
+          select: "episode_id,delivery_status,decision,created_at",
+          episode_id: `in.(${ids.join(",")})`,
+          order: "created_at.desc", limit: "30",
+        }),
+        db("job_events", {
+          select: "episode_id,event_type,created_at,error_message",
+          episode_id: `in.(${ids.join(",")})`,
+          order: "created_at.desc", limit: "100",
+        }),
+      ]) : [{ data: [] }, { data: [] }, { data: [] }];
+      const episodeById = new Map(episodes.data.map((row: any) => [row.id, row]));
+      const reviewByEpisode = new Map<string, any>();
+      for (const review of reviews.data) {
+        if (!reviewByEpisode.has(review.episode_id)) reviewByEpisode.set(review.episode_id, review);
+      }
+      const eventByEpisode = new Map<string, any>();
+      for (const event of events.data) {
+        if (!eventByEpisode.has(event.episode_id)) eventByEpisode.set(event.episode_id, {
+          ...event, error_message: safeErrorText(event.error_message),
+        });
+      }
+      result = {
+        items: r.data, total: r.total, page: p.page,
+        recent: recent.data.map((row: any) => ({
+          ...row,
+          episode: episodeById.get(row.episode_id) || null,
+          review: reviewByEpisode.get(row.episode_id) || null,
+          event: eventByEpisode.get(row.episode_id) || null,
+        })),
+      };
     } else if (resource === "episode") {
       const id = uuid(params.get("id"));
       const [ep, events, publishes, assets, reviews] = await Promise.all([
@@ -220,7 +262,8 @@ export async function POST(request: Request) {
     const user = await requireUser(),
       input = mutation(await body(request));
     const r = await db(
-      "rpc/web_panel_mutation",
+      ["choose_product", "generate_video"].includes(input.action)
+        ? "rpc/web_panel_candidate_action" : "rpc/web_panel_mutation",
       {},
       {
         method: "POST",
@@ -240,9 +283,14 @@ export async function POST(request: Request) {
       disabled: "A entrada de pautas está desativada.",
       not_found: "Registro não encontrado.",
       already_started: "A geração desta pauta já começou. Atualize a fila.",
+      not_candidate: "Esta ação é exclusiva das sugestões de tendências.",
+      pipeline_paused: "Ative a Produção automática em Configurações antes de gerar.",
+      product_required: "Escolha um produto concreto antes de gerar o vídeo.",
+      production_busy: "Já existe um vídeo em produção. Acompanhe-o em Gerações.",
+      daily_cap_reached: "O limite diário de episódios foi atingido. Tente no próximo dia UTC.",
     };
     if (errors[r.data.code]) throw new PanelError(errors[r.data.code], 409);
-    if (!["created", "updated", "cancelled", "saved"].includes(r.data.code))
+    if (!["created", "updated", "cancelled", "saved", "product_chosen", "started"].includes(r.data.code))
       throw new PanelError("A operação não foi confirmada.", 502);
     return Response.json(r.data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
