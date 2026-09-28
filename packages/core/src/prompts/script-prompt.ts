@@ -13,6 +13,7 @@ export const SCRIPT_PROMPT_NAME = "script_prompt";
 
 export interface ScriptPromptInput {
   briefing: string;
+  productName?: string;
   researchData: ResearchData;
   isCommercial: boolean;
   platformGrowth?: boolean;
@@ -47,6 +48,8 @@ export function buildScriptPrompt(input: ScriptPromptInput): string {
 
 BRIEFING:
 ${input.briefing}
+
+${input.productName ? `PRODUTO CENTRAL OBRIGATÓRIO: ${input.productName}. Faça um vídeo sobre este único produto. O gancho, a demonstração, a limitação e o CTA devem se referir a ele. Concorrentes podem aparecer só como contexto factual; não transforme a pauta em lista de gadgets nem troque para outro modelo. Nomeie o produto de modo reconhecível na narração e nos metadados.` : ""}
 
 ${input.platformGrowth ? "VERSÕES POR PLATAFORMA: o corpo do vídeo (hook/content), as imagens e a descrição TikTok devem ser estritamente editoriais: sem venda, link, comissão ou convite de compra. Demonstre somente o que as evidências e imagens autorizadas permitem; nunca finja experiência pessoal ou teste. O sistema substituirá o encerramento por dois CTAs: TikTok engajamento; YouTube link no perfil e disclosure somente após validação do link. Não coloque textos comerciais no visual compartilhado. Formato curto: mire a soma mínima de duração do contrato; não prometa lista de vários produtos quando a pesquisa só cobre um." : ""}
 

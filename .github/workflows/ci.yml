@@ -35,7 +35,7 @@ jobs:
       - name: Testes unitários (_shared)
         run: |
           deno check --config supabase/functions/deno.json supabase/functions/*/index.ts
-          deno test --allow-env --config supabase/functions/deno.json supabase/functions/_shared/
+          deno test --node-modules-dir=auto --allow-env --config supabase/functions/deno.json supabase/functions/_shared/
 
   test-core:
     runs-on: ubuntu-latest

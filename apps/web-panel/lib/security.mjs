@@ -126,7 +126,17 @@ export function mutation(input) {
   if (!p || typeof p !== "object" || Array.isArray(p))
     throw new PanelError("Dados inválidos.");
   const result = {};
-  if (["add", "edit", "cancel"].includes(action)) {
+  if (["choose_product", "generate_video"].includes(action)) {
+    result.id = uuid(p.id);
+    if (!Number.isInteger(p.revision) || p.revision < 0)
+      throw new PanelError("Versão da pauta inválida.");
+    result.revision = p.revision;
+    if (action === "choose_product") {
+      if (!Number.isInteger(p.index) || p.index < 0 || p.index > 2)
+        throw new PanelError("Escolha uma recomendação válida.");
+      result.index = p.index;
+    }
+  } else if (["add", "edit", "cancel"].includes(action)) {
     if (action !== "add") {
       result.id = uuid(p.id);
       result.revision = p.revision;

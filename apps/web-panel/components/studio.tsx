@@ -291,6 +291,7 @@ export default function Studio({
     [status, setStatus] = useState(""),
     [refresh, setRefresh] = useState(0),
     [editing, setEditing] = useState<Row | null>(null),
+    [inspecting, setInspecting] = useState<Row | null>(null),
     [removing, setRemoving] = useState<Row | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
@@ -313,7 +314,7 @@ export default function Studio({
     resource,
     params.toString(),
     refresh,
-    !editing && !removing && section !== "settings",
+    !editing && !inspecting && !removing && section !== "settings",
   );
   const date = (value: string, short = false) =>
     value
@@ -391,6 +392,47 @@ export default function Studio({
     },
     [t],
   );
+  async function recommend(idea: Row) {
+    setBusy(true);
+    setMutationError("");
+    try {
+      const response = await fetch("/api/recommend", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaId: idea.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || t("connectionError"));
+      setInspecting({ ...idea, recommendations: result.recommendations, revision: result.revision,
+        recommendation_checked_at: new Date().toISOString() });
+      setRefresh((n) => n + 1);
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : t("connectionError"));
+    } finally { setBusy(false); }
+  }
+  async function candidateAction(action: "choose_product" | "generate_video", payload: Row) {
+    setBusy(true);
+    setMutationError("");
+    const serialized = JSON.stringify({ action, payload });
+    if (requestRef.current?.payload !== serialized)
+      requestRef.current = { payload: serialized, id: crypto.randomUUID() };
+    try {
+      const response = await fetch("/api/control", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, payload, requestId: requestRef.current.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (response.status === 409) requestRef.current = null;
+        throw new Error(result.error || t("connectionError"));
+      }
+      requestRef.current = null;
+      setInspecting(null);
+      setMessage(t(action === "generate_video" ? "generationStarted" : "productChosen"));
+      setRefresh((n) => n + 1);
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : t("connectionError"));
+    } finally { setBusy(false); }
+  }
   async function logout() {
     await fetch("/api/session", { method: "DELETE" });
     location.assign("/login");
@@ -718,6 +760,7 @@ export default function Studio({
                       }}
                       onExport={exportRows}
                     />
+                    {mutationError && !editing && !inspecting && <div className="error" role="alert">{t(mutationError)}</div>}
                     {data.items.length ? (
                       <div className="table-wrap">
                         <table>
@@ -736,7 +779,9 @@ export default function Studio({
                                 <td className="wide-cell">
                                   <strong>{r.briefing}</strong>
                                   <small>#{r.id.slice(0, 8)}</small>
-                                  {r.source === "trend_discovery" && !r.validated_at && <small>{t("candidateHint")}</small>}
+                                  {r.source === "trend_discovery" && <small>{r.selected_product
+                                    ? `${t("selectedProduct")}: ${r.selected_product}`
+                                    : t("candidateNeedsProduct")}</small>}
                                 </td>
                                 <td>
                                   <AffiliateLinks
@@ -752,6 +797,17 @@ export default function Studio({
                                 </td>
                                 <td>
                                   <div className="row-actions">
+                                    {r.source === "trend_discovery" && (
+                                      <button className="button small secondary" onClick={() => {
+                                        setMutationError(""); setInspecting(r);
+                                      }}>{t("candidateDetails")}</button>
+                                    )}
+                                    {r.source === "trend_discovery" && r.selected_product && (
+                                      <button className="button small primary" disabled={busy}
+                                        onClick={() => void candidateAction("generate_video", {
+                                          id: r.id, revision: r.revision,
+                                        })}>{t("generateVideo")}</button>
+                                    )}
                                     <button
                                       className="button small secondary"
                                       onClick={() => {
@@ -803,6 +859,31 @@ export default function Studio({
                       total={data.total}
                       onPage={setPage}
                     />
+                    {!!data.recent?.length && <div className="queue-progress">
+                      <h2>{t("recentGenerations")}</h2>
+                      {data.recent.map((item: Row) => {
+                        const episode = item.episode;
+                        const review = item.review;
+                        return <article className="queue-progress-item" key={item.id}>
+                          <div>
+                            <strong>{item.selected_product || item.briefing}</strong>
+                            <small>#{item.id.slice(0, 8)}</small>
+                            {episode && <p>{review?.decision === "approved" ? t("telegramApproved")
+                              : review?.delivery_status === "sent" ? t("telegramSent")
+                              : review && ["failed", "uncertain"].includes(review.delivery_status)
+                                ? t("telegramDeliveryProblem") : t("telegramPending")}</p>}
+                            {item.event && <small>{eventLabel(item.event.event_type, t)} · {date(item.event.created_at)}</small>}
+                          </div>
+                          {episode && <div className="queue-progress-state">
+                            <Status value={episode.status} />
+                            <small>{episode.status === "assets" ? `${episode.render_progress}%` : date(episode.updated_at)}</small>
+                            <Link className="button small secondary" href={`/studio/episodes/${episode.id}`}>
+                              {t("open")} <ArrowUpRight size={14} />
+                            </Link>
+                          </div>}
+                        </article>;
+                      })}
+                    </div>}
                   </section>
                 )}
                 {section === "episodes" && !episodeId && (
@@ -894,6 +975,48 @@ export default function Studio({
           )}
         </main>
       </div>
+      {inspecting && <Modal title={t("candidateDetails")} onClose={() => {
+        if (!busy) setInspecting(null);
+      }}>
+        <div className="candidate-inspection">
+          <p className="muted">{inspecting.briefing}</p>
+          {inspecting.selected_product && <div className="info-note">
+            <strong>{t("selectedProduct")}: {inspecting.selected_product}</strong>
+            <p>{inspecting.selected_hook}</p>
+            {safeLink(inspecting.selected_evidence_url) && <a href={safeLink(inspecting.selected_evidence_url)!}
+              target="_blank" rel="noopener noreferrer">{new URL(inspecting.selected_evidence_url).hostname} <ExternalLink size={13} /></a>}
+          </div>}
+          <p className="muted">{t("recommendationCaution")}</p>
+          {!!inspecting.recommendations?.length && <div className="recommendation-list">
+            {inspecting.recommendations.map((rec: Row, index: number) => <article key={`${rec.product_name}-${index}`}>
+              <div className="recommendation-heading"><span>{index + 1}</span><h3>{rec.product_name}</h3></div>
+              <p><strong>{t("visualHook")}:</strong> {rec.hook}</p>
+              <p><strong>{t("problemSolved")}:</strong> {rec.problem}</p>
+              <p><strong>{t("whyNow")}:</strong> {rec.why_now}</p>
+              <p><strong>{t("limitation")}:</strong> {rec.limitation}</p>
+              {safeLink(rec.source_url) && <a href={safeLink(rec.source_url)!} target="_blank" rel="noopener noreferrer">
+                {new URL(rec.source_url).hostname} <ExternalLink size={13} />
+              </a>}
+              <button className="button small secondary" disabled={busy}
+                onClick={() => void candidateAction("choose_product", {
+                  id: inspecting.id, revision: inspecting.revision, index,
+                })}>{t("chooseProduct")}</button>
+            </article>)}
+          </div>}
+          {inspecting.recommendation_checked_at && !inspecting.recommendations?.length &&
+            <p className="info-note">{t("noRecommendations")}</p>}
+          {mutationError && <div className="error" role="alert">{t(mutationError)}</div>}
+          <div className="modal-footer">
+            <button className="button secondary" disabled={busy} onClick={() => void recommend(inspecting)}>
+              {busy ? t("findingProducts") : t("findProducts")}
+            </button>
+            {inspecting.selected_product && <button className="button primary" disabled={busy}
+              onClick={() => void candidateAction("generate_video", {
+                id: inspecting.id, revision: inspecting.revision,
+              })}>{t("generateVideo")}</button>}
+          </div>
+        </div>
+      </Modal>}
       {editing && (
         <Modal
           title={t(editing.id ? "edit" : "newIdea")}
@@ -995,7 +1118,7 @@ export default function Studio({
                 {t("cancel")}
               </button>
               <button className="button primary" disabled={busy}>
-                {busy ? t("saving") : t(editing.id ? (editing.source === "trend_discovery" && !editing.validated_at ? "validateIdea" : "save") : "createIdea")}
+                {busy ? t("saving") : t(editing.id ? "save" : "createIdea")}
               </button>
             </div>
           </form>

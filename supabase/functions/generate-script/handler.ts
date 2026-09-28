@@ -249,7 +249,8 @@ export async function handleScript(req: Request): Promise<Response> {
         "Pesquisa sem evidência válida ou alterada após grounding", "research");
       throw new AppError("Pesquisa sem evidência válida ou alterada após grounding", 422, "RESEARCH_EVIDENCE_INVALID");
     }
-    const briefingText = (episode.briefing as { text?: string } | null)?.text ?? "";
+    const briefingData = episode.briefing as { text?: string; product_name?: string } | null;
+    const briefingText = briefingData?.text ?? "";
     const affiliateLinks = affiliateLinksFromCompliance(
       episode.product_compliance,
     );
@@ -275,6 +276,7 @@ export async function handleScript(req: Request): Promise<Response> {
 
     const basePrompt = buildScriptPrompt({
       briefing: growth ? `${briefingText}\n${growthBriefing(growth)}` : briefingText,
+      productName: briefingData?.product_name,
       platformGrowth: Boolean(growth),
       researchData: research.data,
       isCommercial,
