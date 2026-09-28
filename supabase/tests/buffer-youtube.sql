@@ -14,7 +14,8 @@ begin
   update public.episodes set status='assets' where id=ep;
   update public.episodes set status='rendered',render_url='https://example.test/portrait.mp4',
     metadata=jsonb_build_object('render_outputs',jsonb_build_object('portrait','https://example.test/portrait.mp4',
-      'platforms',jsonb_build_object('youtube',jsonb_build_object('portrait','https://example.test/portrait.mp4')))) where id=ep;
+      'platforms',jsonb_build_object('youtube',jsonb_build_object('portrait','https://example.test/portrait.mp4'),
+        'tiktok',jsonb_build_object('portrait','https://example.test/tiktok.mp4','commercial',false)))) where id=ep;
   update public.episodes set status='review' where id=ep;
   req:=public.prepare_review('-123','456',ep,false);
   update public.review_requests set delivery_status='sent',message_id=99,
