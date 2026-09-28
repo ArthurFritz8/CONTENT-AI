@@ -9,6 +9,7 @@ import { createServiceClient, getSystemConfig } from "../_shared/supabase-client
 import { JobLogger } from "../_shared/logger.ts";
 import { dispatchApprovedShort } from "../_shared/publication-dispatch.ts";
 import { dispatchApprovedBufferTikTok } from "../_shared/buffer-tiktok-dispatch.ts";
+import { dispatchApprovedBufferYoutube } from "../_shared/buffer-youtube-dispatch.ts";
 
 interface PipelineConfig {
   enabled?: boolean;
@@ -34,6 +35,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (publication) return jsonResponse(publication);
     const tiktokPublication = await dispatchApprovedBufferTikTok(db);
     if (tiktokPublication) return jsonResponse(tiktokPublication);
+    const bufferYoutubePublication = await dispatchApprovedBufferYoutube(db);
+    if (bufferYoutubePublication) return jsonResponse(bufferYoutubePublication);
     const cfg = await getSystemConfig<PipelineConfig>(db, "pipeline", {});
     if (!cfg.enabled) return jsonResponse({ paused: true, reason: "pipeline_disabled" });
     const review = await sendReview(db);

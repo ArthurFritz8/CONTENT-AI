@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { buildReviewPacket } from "../../../packages/core/src/review/review-packet.ts";
 import { bufferTikTokPlan } from "../../../packages/core/src/publish/buffer-tiktok-plan.ts";
+import { bufferYoutubePlan } from "../../../packages/core/src/publish/buffer-youtube-plan.ts";
 import { getSystemConfig } from "./supabase-client.ts";
 import { AppError } from "./error-handler.ts";
 import { telegramCall, telegramConfig } from "./telegram.ts";
@@ -20,6 +21,15 @@ export async function sendReview(db: SupabaseClient, episodeId?: string, force =
   const activation = youtube.automatic_after ? Date.parse(youtube.automatic_after) : NaN;
   const autoPublishYoutube = youtube.enabled === true && youtube.public_shorts_enabled === true
     && youtube.api_audit_approved === true && Number.isFinite(activation) && activation <= Date.now();
+  const bufferYoutube = await getSystemConfig<{ enabled?: boolean; automatic_after?: string | null }>(db, "buffer_youtube", {});
+  const bufferYoutubeActivation = bufferYoutube.automatic_after ? Date.parse(bufferYoutube.automatic_after) : NaN;
+  let autoPublishBufferYoutube = !autoPublishYoutube && bufferYoutube.enabled === true
+    && Number.isFinite(bufferYoutubeActivation) && bufferYoutubeActivation <= Date.now()
+    && Boolean(Deno.env.get("BUFFER_API_KEY")) && Boolean(Deno.env.get("BUFFER_YOUTUBE_CHANNEL_ID"));
+  if (autoPublishBufferYoutube) {
+    try { bufferYoutubePlan(request.snapshot, youtube, Deno.env.get("SUPABASE_URL") ?? ""); }
+    catch { autoPublishBufferYoutube = false; }
+  }
   const buffer = await getSystemConfig<{ enabled?: boolean; automatic_after?: string | null }>(db, "buffer_tiktok", {});
   const bufferActivation = buffer.automatic_after ? Date.parse(buffer.automatic_after) : NaN;
   let autoPublishTikTok = buffer.enabled === true && Number.isFinite(bufferActivation)
@@ -32,10 +42,11 @@ export async function sendReview(db: SupabaseClient, episodeId?: string, force =
   let postStarted = false;
   try {
     const consent = await db.from("review_requests").update({ youtube_public_consent: autoPublishYoutube,
-      buffer_tiktok_consent: autoPublishTikTok })
+      buffer_tiktok_consent: autoPublishTikTok, buffer_youtube_consent: autoPublishBufferYoutube })
       .eq("id", request.id).eq("delivery_status", "sending");
     if (consent.error) throw new AppError("Não foi possível registrar consentimento de publicação", 500, "DB_ERROR");
-    const packet = buildReviewPacket(request.snapshot, request.id, autoPublishYoutube, autoPublishTikTok);
+    const packet = buildReviewPacket(request.snapshot, request.id, autoPublishYoutube, autoPublishTikTok,
+      autoPublishBufferYoutube);
     const body = new FormData();
     body.set("chat_id", config.chatId);
     body.set("caption", packet.caption);

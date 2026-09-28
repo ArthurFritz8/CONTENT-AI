@@ -79,3 +79,12 @@ test("ficha comercial exibe o link registrado para conferência humana", () => {
   const packet = buildReviewPacket(snapshot, id);
   assert.ok(packet.document.includes("Link de afiliado YouTube: https://shop.example/p/123?aff=fritz"));
 });
+
+test("ficha com dois canais oferece aprovação separada ou conjunta", () => {
+  const packet = buildReviewPacket(makeReviewSnapshot(), id, false, true, true);
+  const buttons = packet.reply_markup.inline_keyboard.flat();
+  for (const action of ["t", "y", "b"]) {
+    ok(buttons.some(button => "callback_data" in button && button.callback_data === `rv:${action}:${id}`));
+  }
+  ok(packet.caption.includes("YouTube via Buffer"));
+});

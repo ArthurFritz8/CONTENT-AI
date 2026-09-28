@@ -14,6 +14,8 @@ interface YoutubeConfig {
 
 /** Only approvals after activation are eligible; a paused generation pipeline can still publish them. */
 export async function dispatchApprovedShort(db: SupabaseClient): Promise<Record<string, unknown> | null> {
+  const bufferYoutube = await getSystemConfig<{ enabled?: boolean }>(db, "buffer_youtube", {});
+  if (bufferYoutube.enabled) return null;
   const cfg = await getSystemConfig<YoutubeConfig>(db, "youtube", {});
   const activation = cfg.automatic_after ? Date.parse(cfg.automatic_after) : NaN;
   if (!cfg.enabled || !cfg.public_shorts_enabled || !cfg.api_audit_approved || !Number.isFinite(activation)) return null;

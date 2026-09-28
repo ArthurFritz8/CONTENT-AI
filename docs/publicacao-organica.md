@@ -1,6 +1,6 @@
 # Ativação da publicação orgânica
 
-O botão de aprovação do Telegram só autoriza upload público do Short se a ficha disser **“Aprovar + YouTube público”**. Fichas antigas continuam editoriais; peça uma nova com `/revisar UUID_DO_EPISODIO` após ativar o serviço. Cada upload é registrado em `publishes` com `variant=portrait` e `privacy=public`.
+O botão do Telegram só autoriza upload público do Short se a ficha oferecer **“Aprovar + YouTube público”**, **“Aprovar só YouTube”** ou **“Aprovar ambos”**. Fichas antigas não ganham esse consentimento; peça uma nova com `/revisar UUID_DO_EPISODIO` após ativar o serviço. Cada upload é registrado em `publishes` com `variant=portrait` e `privacy=public`.
 
 ## YouTube
 
@@ -22,3 +22,12 @@ A [Content Posting API](https://developers.tiktok.com/docs/en/content-posting-ap
 5. Acompanhe `publishes`: `processing` significa agendado ou enviando; somente `published` após o Buffer informar `sent`. Uma resposta incerta da API deixa a reserva para conciliação manual, impedindo duplicata. Confira também o post no perfil TikTok: o estado `sent` do Buffer indica entrega ao serviço, mas não garante sozinho visibilidade final. [Status do Buffer](https://support.buffer.com/en-us/articles/troubleshooting-video-uploads-in-buffer-LK0CldlFNB).
 
 O vídeo TikTok é vertical, orgânico, sem link comercial e marcado como gerado com IA no Buffer. O modo automático não adiciona música, efeitos ou tags de produto do TikTok Shop. Se a conta/arquivo não aceitar auto-publicação, o Buffer pode exigir modo de notificação; esse modo **não conta como publicação automática**. Este conector usa a conta do operador no Buffer, não um app TikTok for Developers privado.
+
+## YouTube Shorts pelo Buffer
+
+O [ADR-040](ADR/ADR-040-buffer-youtube-shorts.md) permite usar o mesmo plano Free e a mesma chave pessoal do Buffer para Shorts públicos, sem depender da auditoria do projeto OAuth próprio. O [Buffer publica Shorts automaticamente](https://support.buffer.com/en-us/articles/using-youtube-shorts-with-buffer-Jl8iR6jIck), desde que o canal Google do proprietário esteja conectado e o vídeo seja elegível. A integração direta descrita acima continua desligada enquanto este caminho estiver ativo.
+
+1. Em [Channels do Buffer](https://account.buffer.com/channels), conecte o canal YouTube com a conta Google **proprietária**. Configure o canal para **Automatic**, sem notificação por padrão. O Free admite três canais conectados e dez posts pendentes por canal; confirme os limites vigentes.
+2. Rode `node --env-file=.env.cloud scripts/check-buffer.mjs` e grave o ID do canal YouTube em `BUFFER_YOUTUBE_CHANNEL_ID` no `.env.cloud` ignorado. Envie o mesmo secret ao Supabase, implante `orchestrator` e `telegram-bot` e aplique `20260925020000_buffer_youtube_shorts.sql`.
+3. Após validar a conexão, defina `system_config.buffer_youtube` como `{ "enabled": true, "automatic_after": "<instante UTC de ativação>", "provider": "buffer" }`. Peça **nova** revisão no Telegram. Quando TikTok e YouTube estiverem aptos, a ficha terá botões separados **só TikTok**, **só YouTube** e **ambos**. Nenhuma aprovação antiga autoriza o novo destino.
+4. Acompanhe o post no Buffer, o ledger `publishes` e o canal YouTube. O Short deve ter 9:16 exato, até três minutos e metadados não comerciais. `scheduled` ainda não é publicado; `sent` deve ser conferido no YouTube.

@@ -25,17 +25,17 @@ for (const organization of organizations) {
     "query Channels($input: ChannelsInput!) { channels(input: $input) { id name service } }",
     { input: { organizationId: organization.id } },
   );
-  channels.push(...(data.channels ?? []).filter(channel => channel.service === "tiktok"));
+  channels.push(...(data.channels ?? []).filter(channel => ["tiktok", "youtube"].includes(channel.service)));
 }
-console.log(JSON.stringify({ tiktok_channels: channels }, null, 2));
-if (channels.length !== 1) process.exitCode = 2;
-const configuredChannelId = process.env.BUFFER_TIKTOK_CHANNEL_ID;
-if (configuredChannelId) {
+console.log(JSON.stringify({ publishing_channels: channels }, null, 2));
+for (const [variable, service] of [["BUFFER_TIKTOK_CHANNEL_ID", "tiktok"], ["BUFFER_YOUTUBE_CHANNEL_ID", "youtube"]]) {
+  const configuredChannelId = process.env[variable];
+  if (!configuredChannelId) continue;
   const data = await query(
     "query Channel($input: ChannelInput!) { channel(input: $input) { id service } }",
     { input: { id: configuredChannelId } },
   );
-  const valid = data.channel?.id === configuredChannelId && data.channel.service === "tiktok";
-  console.log(JSON.stringify({ configured_channel_valid: valid }));
+  const valid = data.channel?.id === configuredChannelId && data.channel.service === service;
+  console.log(JSON.stringify({ service, configured_channel_valid: valid }));
   if (!valid) process.exitCode = 2;
 }

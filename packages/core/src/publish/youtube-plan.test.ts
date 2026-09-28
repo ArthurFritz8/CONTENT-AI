@@ -30,6 +30,14 @@ test("private plan refuses unknown categories, byte limits and altered storage p
   throws(() => youtubePrivatePlan(snapshot, cfg, "https://project.supabase.co"), /contrato YouTube/);
 });
 
+test("plan accepts a category ID only when configured as an allowed value", () => {
+  const snapshot = fixture();
+  snapshot.episode.script_json.metadata.youtube.category = "27";
+  equal(youtubePrivatePlan(snapshot, cfg, "https://project.supabase.co").body.snippet.categoryId, "27");
+  snapshot.episode.script_json.metadata.youtube.category = "99";
+  throws(() => youtubePrivatePlan(snapshot, cfg, "https://project.supabase.co"), /Categoria editorial/);
+});
+
 test("public Short uses approved organic portrait and refuses commercial or unbound media", () => {
   const snapshot = fixture();
   const portrait = `https://project.supabase.co/storage/v1/object/public/assets/episodes/${snapshot.episode.id}/render/final/${"b".repeat(64)}/episode_portrait.mp4`;
