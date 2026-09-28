@@ -57,18 +57,19 @@ export async function handleTelegram(req: Request): Promise<Response> {
     }
     const db = createServiceClient();
     if (callback) {
-      const match = /^rv:([arx]):([0-9a-f-]{36})$/.exec(callback.data);
+      const match = /^rv:([atybrx]):([0-9a-f-]{36})$/.exec(callback.data);
       const requestId = z.string().uuid().safeParse(match?.[2]);
       if (!match || !requestId.success) throw new AppError("Botão inválido", 400, "INVALID_CALLBACK");
-      const actions: Record<string, string> = { a: "approve", r: "rerender", x: "reject" };
+      const actions: Record<string, string> = { a: "approve", t: "approve_tiktok", y: "approve_youtube",
+        b: "approve_both", r: "rerender", x: "reject" };
       const { data, error } = await db.rpc("decide_review", { p_request_id: requestId.data, p_update_id: update.update_id,
         p_action: actions[match[1]!], p_chat_id: config.chatId, p_user_id: config.userId, p_message_id: msg.message_id });
       if (error) throw new AppError("Não foi possível registrar decisão", 500, "DB_ERROR");
       let answer = resultText[String(data)] ?? "Decisão não confirmada.";
       if (data === "approved") {
-        const { data: review } = await db.from("review_requests").select("youtube_public_consent,buffer_tiktok_consent")
+        const { data: review } = await db.from("review_requests").select("youtube_public_consent,buffer_tiktok_consent,buffer_youtube_consent")
           .eq("id", requestId.data).maybeSingle();
-        const destinations = [review?.youtube_public_consent ? "YouTube" : null,
+        const destinations = [review?.youtube_public_consent || review?.buffer_youtube_consent ? "YouTube" : null,
           review?.buffer_tiktok_consent ? "fila automática do TikTok via Buffer" : null].filter(Boolean);
         if (destinations.length) answer = `Versão aprovada. Envio autorizado: ${destinations.join(" e ")}.`;
       }

@@ -54,22 +54,27 @@ async function queryBuffer<T>(
   return payload.data as T;
 }
 
-export async function assertBufferTikTokChannel(
+export async function assertBufferChannel(
   key: string,
   channelId: string,
+  service: "tiktok" | "youtube",
 ): Promise<void> {
   const data = await queryBuffer<{ channel?: { id: string; service: string } }>(
     key,
     "query Channel($input: ChannelInput!) { channel(input: $input) { id service } }",
     { input: { id: channelId } },
   );
-  if (data.channel?.id !== channelId || data.channel.service !== "tiktok") {
+  if (data.channel?.id !== channelId || data.channel.service !== service) {
     throw new AppError(
-      "O canal Buffer configurado não é TikTok",
+      `O canal Buffer configurado não é ${service}`,
       409,
       "BUFFER_CHANNEL_MISMATCH",
     );
   }
+}
+
+export async function assertBufferTikTokChannel(key: string, channelId: string): Promise<void> {
+  return assertBufferChannel(key, channelId, "tiktok");
 }
 
 export async function createBufferTikTokPost(
@@ -128,6 +133,43 @@ export async function createBufferTikTokPost(
       502,
       "BUFFER_UNCERTAIN",
     );
+  }
+  return { id: saved.id, status: saved.status };
+}
+
+export async function createBufferYoutubeShort(
+  key: string,
+  channelId: string,
+  post: { title: string; description: string; videoUrl: string; categoryId: string; madeForKids: boolean },
+): Promise<{ id: string; status: string }> {
+  const data = await queryBuffer<{
+    createPost?: { __typename: string; message?: string; post?: {
+      id: string; status: string; channelId: string; schedulingType: string;
+    } };
+  }>(key, `mutation QueueYoutubeShort($input: CreatePostInput!) {
+    createPost(input: $input) {
+      __typename
+      ... on PostActionSuccess { post { id status channelId schedulingType } }
+      ... on MutationError { message }
+    }
+  }`, { input: {
+    text: post.description,
+    channelId,
+    schedulingType: "automatic",
+    mode: "addToQueue",
+    aiAssisted: true,
+    metadata: { youtube: { title: post.title, categoryId: post.categoryId,
+      madeForKids: post.madeForKids, privacy: "public", isAiGenerated: true } },
+    assets: [{ video: { url: post.videoUrl } }],
+  } });
+  if (data.createPost?.__typename !== "PostActionSuccess") {
+    throw new AppError(data.createPost?.message ?? "Buffer não aceitou o Short", 409, "BUFFER_REJECTED");
+  }
+  const saved = z.object({ id: z.string().min(1).max(128), status: postStatus,
+    channelId: z.string(), schedulingType: z.string() }).parse(data.createPost.post);
+  if (saved.channelId !== channelId || saved.schedulingType !== "automatic" ||
+    saved.status === "draft" || saved.status === "needs_approval") {
+    throw new AppError("Buffer não confirmou Short automático; conferir fila", 502, "BUFFER_UNCERTAIN");
   }
   return { id: saved.id, status: saved.status };
 }

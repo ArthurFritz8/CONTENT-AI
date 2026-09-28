@@ -11,7 +11,8 @@ export function youtubePlan(snapshot: unknown, config: unknown, storageOrigin: s
   const { episode } = validateReviewSnapshot(snapshot);
   const script = episode.script_json;
   const metadata = script.metadata.youtube;
-  const categoryId = cfg.category_ids[metadata.category];
+  const categoryId = cfg.category_ids[metadata.category]
+    ?? (Object.values(cfg.category_ids).includes(metadata.category) ? metadata.category : undefined);
   if (!categoryId) throw new Error("Categoria editorial sem mapeamento YouTube");
   // Fail instead of silently changing the approved title/description.
   if (/[<>]/u.test(metadata.title + metadata.description)

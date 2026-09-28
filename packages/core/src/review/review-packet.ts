@@ -73,7 +73,7 @@ export function validateReviewSnapshot(snapshot: unknown) {
 }
 
 export function buildReviewPacket(snapshot: unknown, requestId: string, autoPublishYoutube = false,
-  autoPublishTikTok = false) {
+  autoPublishTikTok = false, autoPublishBufferYoutube = false) {
   z.string().uuid().parse(requestId);
   const { episode, assets, report } = validateReviewSnapshot(snapshot);
   const script = episode.script_json;
@@ -82,6 +82,9 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
   );
   const scenes = [...script.scenes].sort((a, b) => a.order - b.order);
   const evidence = researchEvidenceSchema.parse(episode.research_evidence);
+  const youtubeLabel = autoPublishBufferYoutube ? "Short público no YouTube via Buffer"
+    : autoPublishYoutube ? "Short público no YouTube" : "";
+  const hasYoutube = Boolean(youtubeLabel);
   const caption = [
     "REVISÃO EDITORIAL",
     clip(script.metadata.youtube.title, 100), "",
@@ -90,9 +93,11 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
     "Voz/conteúdo sintético: sim", "",
     "Assista às duas versões e confira o roteiro, descrições, fontes e licenças no anexo.",
     "QA automático passou. Veracidade, direitos e qualidade audiovisual exigem sua revisão.",
-    autoPublishYoutube || autoPublishTikTok
+    hasYoutube && autoPublishTikTok
+      ? "Escolha abaixo se autoriza TikTok via Buffer, YouTube via Buffer ou ambos. Confira os vídeos antes de confirmar."
+      : hasYoutube || autoPublishTikTok
       ? `Aprovar autoriza: ${[
-        autoPublishYoutube ? "Short público no YouTube" : "",
+        youtubeLabel,
         autoPublishTikTok ? "agendamento automático do vídeo orgânico no TikTok via Buffer" : "",
       ].filter(Boolean).join(" e ")}. Confira os vídeos antes de confirmar.`
       : "Aprovar registra esta versão para futura publicação. Refazer render mantém roteiro e assets.",
@@ -142,8 +147,10 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
       "",
     ]),
     "ALERTAS", ...report.findings.map(f => f.message), "",
-    "DECISÃO", autoPublishYoutube || autoPublishTikTok
-      ? `Aprovar versão: ${[autoPublishYoutube ? "autoriza Short público no YouTube" : "",
+    "DECISÃO", hasYoutube && autoPublishTikTok
+      ? "Escolha um destino: só TikTok, só YouTube ou ambos. Cada botão autoriza somente os destinos indicados."
+      : hasYoutube || autoPublishTikTok
+      ? `Aprovar versão: ${[hasYoutube ? `autoriza ${youtubeLabel}` : "",
         autoPublishTikTok ? "autoriza envio do TikTok orgânico à fila automática do Buffer" : ""].filter(Boolean).join("; ")}.`
       : "Aprovar versão: mantém review e registra consentimento para esta versão; não faz upload.",
     "Refazer render: gera os vídeos novamente com o mesmo roteiro/assets; exige nova revisão.",
@@ -156,9 +163,12 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
       [{ text: "▶ Assistir vertical", url: episode.metadata.render_outputs.portrait },
         { text: "▶ Assistir horizontal", url: episode.metadata.render_outputs.landscape }],
       ...(script.platform_ctas ? [[{ text: "▶ TikTok orgânico", url: episode.metadata.render_outputs.platforms!.tiktok.portrait }]] : []),
-      [{ text: autoPublishYoutube && autoPublishTikTok ? "Aprovar + YouTube + TikTok"
-        : autoPublishYoutube ? "Aprovar + YouTube público"
-        : autoPublishTikTok ? "Aprovar + TikTok automático" : "Aprovar versão", callback_data: `rv:a:${requestId}` }],
+      ...(hasYoutube && autoPublishTikTok ? [
+        [{ text: "Aprovar só TikTok", callback_data: `rv:t:${requestId}` },
+          { text: "Aprovar só YouTube", callback_data: `rv:y:${requestId}` }],
+        [{ text: "Aprovar ambos", callback_data: `rv:b:${requestId}` }],
+      ] : [[{ text: hasYoutube ? "Aprovar + YouTube público"
+        : autoPublishTikTok ? "Aprovar + TikTok automático" : "Aprovar versão", callback_data: `rv:a:${requestId}` }]]),
       [{ text: "Refazer render", callback_data: `rv:r:${requestId}` }, { text: "Reprovar", callback_data: `rv:x:${requestId}` }],
     ] },
   };

@@ -1,7 +1,9 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import {
   assertBufferTikTokChannel,
+  assertBufferChannel,
   createBufferTikTokPost,
+  createBufferYoutubeShort,
   getBufferPostStatus,
 } from "./buffer.ts";
 
@@ -111,4 +113,31 @@ Deno.test("Buffer never treats a notification post as automatic publication", as
   } finally {
     globalThis.fetch = previous;
   }
+});
+
+Deno.test("Buffer queues an automatic public YouTube Short with explicit metadata", async () => {
+  const previous = globalThis.fetch;
+  const calls: Array<{ variables: { input: Record<string, unknown> } }> = [];
+  globalThis.fetch = (async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    calls.push(body);
+    const data = calls.length === 1
+      ? { channel: { id: "youtube-1", service: "youtube" } }
+      : { createPost: { __typename: "PostActionSuccess", post: {
+        id: "short-1", status: "scheduled", channelId: "youtube-1", schedulingType: "automatic",
+      } } };
+    return new Response(JSON.stringify({ data }), { headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    await assertBufferChannel("key", "youtube-1", "youtube");
+    assertEquals(await createBufferYoutubeShort("key", "youtube-1", {
+      title: "Título", description: "Descrição orgânica", videoUrl: "https://example.test/short.mp4",
+      categoryId: "27", madeForKids: false,
+    }), { id: "short-1", status: "scheduled" });
+    const input = calls[1]!.variables.input;
+    assertEquals(input.schedulingType, "automatic");
+    assertEquals((input.metadata as { youtube: { privacy: string; title: string; categoryId: string;
+      madeForKids: boolean; isAiGenerated: boolean } }).youtube,
+      { title: "Título", categoryId: "27", madeForKids: false, privacy: "public", isAiGenerated: true });
+  } finally { globalThis.fetch = previous; }
 });
