@@ -2,10 +2,21 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { assessMedia, assertMatchingDurations, type MediaProbe } from "./media-quality.ts";
+import {
+  assessMedia,
+  assertMatchingDurations,
+  type MediaProbe,
+} from "./media-quality.ts";
 import {
   buildAssSubtitles,
   canonicalStringify,
@@ -39,6 +50,7 @@ import {
 } from "./render-utils.ts";
 
 interface EpisodeRow {
+  workspace_id?: string;
   id: string;
   status: string;
   script_json: unknown;
@@ -103,7 +115,7 @@ class SupabaseRestClient {
 
   async fetchEpisode(episodeId: string): Promise<EpisodeRow> {
     const rows = await this.rest<EpisodeRow[]>(
-      `episodes?id=eq.${encodeURIComponent(episodeId)}&select=id,status,script_json,render_url,metadata`,
+      `episodes?id=eq.${encodeURIComponent(episodeId)}&select=id,status,script_json,render_url,metadata,workspace_id`,
     );
     const episode = rows[0];
     if (!episode) throw new Error(`Episódio ${episodeId} não encontrado`);
@@ -123,16 +135,26 @@ class SupabaseRestClient {
     return rows[0]?.value ?? fallback;
   }
 
-  async patchEpisode(episodeId: string, body: Record<string, unknown>): Promise<void> {
-    await this.rest<void>(`episodes?id=eq.${encodeURIComponent(episodeId)}&status=eq.assets`, {
-      method: "PATCH",
-      body,
-      headers: { Prefer: "return=minimal" },
-    });
+  async patchEpisode(
+    episodeId: string,
+    body: Record<string, unknown>,
+  ): Promise<void> {
+    await this.rest<void>(
+      `episodes?id=eq.${encodeURIComponent(episodeId)}&status=eq.assets`,
+      {
+        method: "PATCH",
+        body,
+        headers: { Prefer: "return=minimal" },
+      },
+    );
   }
 
   async event(body: Record<string, unknown>): Promise<void> {
-    await this.rest<void>("job_events", { method: "POST", body, headers: { Prefer: "return=minimal" } });
+    await this.rest<void>("job_events", {
+      method: "POST",
+      body,
+      headers: { Prefer: "return=minimal" },
+    });
   }
 
   storagePublicUrl(bucket: string, path: string): string {
@@ -140,49 +162,70 @@ class SupabaseRestClient {
   }
 
   async storageExists(bucket: string, path: string): Promise<boolean> {
-    const res = await fetch(this.storagePublicUrl(bucket, path), { method: "HEAD" });
+    const url = this.storagePublicUrl(bucket, path);
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: storageDownloadHeaders(url),
+      redirect: "error",
+    });
     if (res.status === 404) return false;
     return res.ok;
   }
 
-  async uploadObject(bucket: string, path: string, localPath: string, contentType: string): Promise<string> {
+  async uploadObject(
+    bucket: string,
+    path: string,
+    localPath: string,
+    contentType: string,
+  ): Promise<string> {
     const encodedPath = path.split("/").map(encodeURIComponent).join("/");
     const body = await readFile(localPath);
     for (let attempt = 1; attempt <= 3; attempt++) {
-      const res = await fetch(`${this.url}/storage/v1/object/${bucket}/${encodedPath}`, {
-        method: "POST",
-        headers: {
-          apikey: this.key,
-          Authorization: `Bearer ${this.key}`,
-          "Content-Type": contentType,
-          "x-upsert": "true",
+      const res = await fetch(
+        `${this.url}/storage/v1/object/${bucket}/${encodedPath}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: this.key,
+            Authorization: `Bearer ${this.key}`,
+            "Content-Type": contentType,
+            "x-upsert": "true",
+          },
+          body,
         },
-        body,
-      });
+      );
       if (res.ok) return this.storagePublicUrl(bucket, path);
       const detail = await res.text();
       if (!isTransientStorageStatus(res.status) || attempt === 3) {
         throw new Error(`Upload Storage falhou (${res.status}): ${detail}`);
       }
-      await new Promise((resolve) => setTimeout(resolve, 1_000 * 2 ** (attempt - 1)));
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1_000 * 2 ** (attempt - 1)),
+      );
     }
     throw new Error("Upload Storage falhou após tentativas");
   }
 
-  private async rest<T>(path: string, opts?: {
-    method?: string;
-    body?: Record<string, unknown>;
-    headers?: HeadersInit;
-  }): Promise<T> {
+  private async rest<T>(
+    path: string,
+    opts?: {
+      method?: string;
+      body?: Record<string, unknown>;
+      headers?: HeadersInit;
+    },
+  ): Promise<T> {
     const res = await fetch(`${this.url}/rest/v1/${path}`, {
       method: opts?.method ?? "GET",
       headers: this.jsonHeaders(opts?.headers),
       body: opts?.body ? JSON.stringify(opts.body) : undefined,
     });
-    if (!res.ok) throw new Error(`Supabase REST falhou (${res.status}): ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(
+        `Supabase REST falhou (${res.status}): ${await res.text()}`,
+      );
     if (res.status === 204) return undefined as T;
     const text = await res.text();
-    return text ? JSON.parse(text) as T : undefined as T;
+    return text ? (JSON.parse(text) as T) : (undefined as T);
   }
 }
 
@@ -191,7 +234,11 @@ function parseEpisodeId(argv: string[]): string {
   const fromFlag = flagIndex >= 0 ? argv[flagIndex + 1] : undefined;
   const episodeId = fromFlag ?? process.env.EPISODE_ID;
   if (!episodeId) throw new Error("Informe --episode-id ou EPISODE_ID");
-  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(episodeId)) {
+  if (
+    !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+      episodeId,
+    )
+  ) {
     throw new Error("episode_id não é UUID válido");
   }
   return episodeId;
@@ -203,41 +250,75 @@ function requireEnv(name: string): string {
   return value;
 }
 
-async function run(command: string, args: string[], opts?: { capture?: boolean }): Promise<string> {
+async function run(
+  command: string,
+  args: string[],
+  opts?: { capture?: boolean },
+): Promise<string> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: opts?.capture ? ["ignore", "pipe", "pipe"] : "inherit" });
+    const child = spawn(command, args, {
+      stdio: opts?.capture ? ["ignore", "pipe", "pipe"] : "inherit",
+    });
     let stdout = "";
     let stderr = "";
-    child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
-    child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) resolve(stdout);
-      else reject(new Error(`${command} saiu com código ${code}: ${stderr || stdout}`));
+      else
+        reject(
+          new Error(`${command} saiu com código ${code}: ${stderr || stdout}`),
+        );
     });
   });
 }
 
 async function ffprobeDuration(filePath: string): Promise<number> {
-  const output = await run("ffprobe", [
-    "-v",
-    "error",
-    "-show_entries",
-    "format=duration",
-    "-of",
-    "default=noprint_wrappers=1:nokey=1",
-    filePath,
-  ], { capture: true });
+  const output = await run(
+    "ffprobe",
+    [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      filePath,
+    ],
+    { capture: true },
+  );
   const duration = Number(output.trim());
-  if (!Number.isFinite(duration) || duration <= 0) throw new Error(`Duração inválida em ${filePath}`);
+  if (!Number.isFinite(duration) || duration <= 0)
+    throw new Error(`Duração inválida em ${filePath}`);
   return duration;
 }
 
-async function downloadUrl(url: string, destPath: string, optional = false): Promise<boolean> {
-  const res = await fetch(url);
+function storageDownloadHeaders(raw: string): HeadersInit {
+  const url = new URL(raw),
+    base = new URL(requireEnv("SUPABASE_URL"));
+  return url.origin === base.origin &&
+    url.pathname.startsWith("/storage/v1/object/authenticated/studio-private/")
+    ? { Authorization: `Bearer ${requireEnv("SUPABASE_SERVICE_ROLE_KEY")}` }
+    : {};
+}
+async function downloadUrl(
+  url: string,
+  destPath: string,
+  optional = false,
+): Promise<boolean> {
+  const res = await fetch(url, {
+    headers: storageDownloadHeaders(url),
+    redirect: "error",
+  });
   if (!res.ok) {
     const detail = await res.text();
-    if (optional && isMissingOptionalStorageObject(res.status, detail)) return false;
+    if (optional && isMissingOptionalStorageObject(res.status, detail))
+      return false;
     throw new Error(`Download falhou (${res.status}) ${url}: ${detail}`);
   }
   await mkdir(dirname(destPath), { recursive: true });
@@ -245,35 +326,54 @@ async function downloadUrl(url: string, destPath: string, optional = false): Pro
   return true;
 }
 
-async function downloadOptionalWordBoundaries(url: string, destPath: string): Promise<TtsWordBoundary[] | null> {
-  if (!await downloadUrl(url, destPath, true)) return null;
+async function downloadOptionalWordBoundaries(
+  url: string,
+  destPath: string,
+): Promise<TtsWordBoundary[] | null> {
+  if (!(await downloadUrl(url, destPath, true))) return null;
   const raw = JSON.parse(await readFile(destPath, "utf8"));
   if (!Array.isArray(raw)) return null;
-  return raw.filter((item): item is TtsWordBoundary =>
-    item && typeof item.word === "string" &&
-    typeof item.offset_seconds === "number" &&
-    typeof item.duration_seconds === "number"
+  return raw.filter(
+    (item): item is TtsWordBoundary =>
+      item &&
+      typeof item.word === "string" &&
+      typeof item.offset_seconds === "number" &&
+      typeof item.duration_seconds === "number",
   );
 }
 
 function sceneAssetUrl(scene: Scene, orientation: Orientation): string {
-  const asset = orientation === "landscape" ? scene.asset_landscape : scene.asset_portrait;
+  const asset =
+    orientation === "landscape" ? scene.asset_landscape : scene.asset_portrait;
   if (!asset) throw new Error(`Cena ${scene.order} sem asset_${orientation}`);
   return asset.url;
 }
 
-async function prepareSceneFiles(ctx: RenderContext, scene: Scene): Promise<SceneLocalFiles> {
-  const sceneDir = join(ctx.workDir, `scene_${String(scene.order).padStart(3, "0")}`);
+async function prepareSceneFiles(
+  ctx: RenderContext,
+  scene: Scene,
+): Promise<SceneLocalFiles> {
+  const sceneDir = join(
+    ctx.workDir,
+    `scene_${String(scene.order).padStart(3, "0")}`,
+  );
   await mkdir(sceneDir, { recursive: true });
 
   const audioAssets = ctx.assets.filter((a) => a.type === "audio");
-  const audioUrl = selectAudioUrlForScene(audioAssets, scene.order) ??
-    ctx.client.storagePublicUrl(ctx.bucket, conventionalSceneAudioPath(ctx.episode.id, scene.order));
+  const audioUrl =
+    selectAudioUrlForScene(audioAssets, scene.order) ??
+    ctx.client.storagePublicUrl(
+      ctx.bucket,
+      conventionalSceneAudioPath(ctx.episode.id, scene.order),
+    );
   const audioPath = join(sceneDir, `scene_${scene.order}.mp3`);
   await downloadUrl(audioUrl, audioPath);
   const audioDuration = await ffprobeDuration(audioPath);
 
-  const boundariesPath = conventionalWordBoundariesPath(ctx.episode.id, scene.order);
+  const boundariesPath = conventionalWordBoundariesPath(
+    ctx.episode.id,
+    scene.order,
+  );
   const wordBoundaries = await downloadOptionalWordBoundaries(
     ctx.client.storagePublicUrl(ctx.bucket, boundariesPath),
     join(sceneDir, basename(boundariesPath)),
@@ -289,30 +389,54 @@ async function prepareSceneFiles(ctx: RenderContext, scene: Scene): Promise<Scen
   const subtitleByOrientation = {} as Record<Orientation, string>;
 
   for (const orientation of Object.keys(ORIENTATIONS) as Orientation[]) {
-    const imagePath = join(sceneDir, `${orientation}_${basename(new URL(sceneAssetUrl(scene, orientation)).pathname) || "image"}`);
+    const imagePath = join(
+      sceneDir,
+      `${orientation}_${basename(new URL(sceneAssetUrl(scene, orientation)).pathname) || "image"}`,
+    );
     await downloadUrl(sceneAssetUrl(scene, orientation), imagePath);
     imageByOrientation[orientation] = imagePath;
 
     const subtitlePath = join(sceneDir, `${orientation}.ass`);
-    const subtitleUrl = selectAssetUrlForScene(ctx.assets, scene.order, "subtitle", orientation);
+    const subtitleUrl = selectAssetUrlForScene(
+      ctx.assets,
+      scene.order,
+      "subtitle",
+      orientation,
+    );
     if (subtitleUrl) {
       await downloadUrl(subtitleUrl, subtitlePath);
     } else {
-      const subtitlePosition = orientation === "landscape" ? "bottom_left" : scene.subtitle_position;
-      const style = orientation === "landscape" ? SUBTITLE_STYLE_LANDSCAPE : SUBTITLE_STYLE_PORTRAIT;
-      await writeFile(subtitlePath, buildAssSubtitles([
-        {
-          words,
-          scene_start_seconds: 0,
-          highlight_words: scene.highlight_words,
-          subtitle_position: subtitlePosition,
-        },
-      ], style));
+      const subtitlePosition =
+        orientation === "landscape" ? "bottom_left" : scene.subtitle_position;
+      const style =
+        orientation === "landscape"
+          ? SUBTITLE_STYLE_LANDSCAPE
+          : SUBTITLE_STYLE_PORTRAIT;
+      await writeFile(
+        subtitlePath,
+        buildAssSubtitles(
+          [
+            {
+              words,
+              scene_start_seconds: 0,
+              highlight_words: scene.highlight_words,
+              subtitle_position: subtitlePosition,
+            },
+          ],
+          style,
+        ),
+      );
     }
     subtitleByOrientation[orientation] = subtitlePath;
   }
 
-  return { audioPath, audioDuration, wordBoundaries, imageByOrientation, subtitleByOrientation };
+  return {
+    audioPath,
+    audioDuration,
+    wordBoundaries,
+    imageByOrientation,
+    subtitleByOrientation,
+  };
 }
 
 async function renderSceneOrientation(args: {
@@ -329,13 +453,15 @@ async function renderSceneOrientation(args: {
   const totalDuration = args.audioDuration + args.gapSeconds;
   const frames = Math.ceil(totalDuration * FPS);
   const subtitlePath = escapeFfmpegFilterPath(args.subtitlePath);
-  const video = `[0:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=increase,` +
+  const video =
+    `[0:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=increase,` +
     `crop=${size.width}:${size.height},` +
     `zoompan=z='min(zoom+0.0015,1.12)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':` +
     `d=${frames}:s=${size.width}x${size.height}:fps=${FPS},` +
     `trim=duration=${totalDuration.toFixed(3)},setpts=PTS-STARTPTS,` +
     `subtitles='${subtitlePath}'[v]`;
-  const audio = `[1:a]apad=pad_dur=${args.gapSeconds.toFixed(3)},` +
+  const audio =
+    `[1:a]apad=pad_dur=${args.gapSeconds.toFixed(3)},` +
     `atrim=0:${totalDuration.toFixed(3)},asetpts=PTS-STARTPTS[a]`;
 
   await run("ffmpeg", [
@@ -374,16 +500,26 @@ async function renderSceneOrientation(args: {
   ]);
 }
 
-async function ensureSceneCheckpoints(ctx: RenderContext): Promise<Record<Orientation, string[]>> {
+async function ensureSceneCheckpoints(
+  ctx: RenderContext,
+): Promise<Record<Orientation, string[]>> {
   const scenes = [...ctx.script.scenes].sort((a, b) => a.order - b.order);
-  const localByOrientation: Record<Orientation, string[]> = { landscape: [], portrait: [] };
+  const localByOrientation: Record<Orientation, string[]> = {
+    landscape: [],
+    portrait: [],
+  };
   let completed = 0;
 
   for (const scene of scenes) {
     const paths = Object.fromEntries(
       (Object.keys(ORIENTATIONS) as Orientation[]).map((orientation) => [
         orientation,
-        sceneIntermediatePath(ctx.episode.id, scene.order, orientation, ctx.revision),
+        sceneIntermediatePath(
+          ctx.episode.id,
+          scene.order,
+          orientation,
+          ctx.revision,
+        ),
       ]),
     ) as Record<Orientation, string>;
     const localPaths = Object.fromEntries(
@@ -396,7 +532,10 @@ async function ensureSceneCheckpoints(ctx: RenderContext): Promise<Record<Orient
     const missing: Orientation[] = [];
     for (const orientation of Object.keys(ORIENTATIONS) as Orientation[]) {
       if (await ctx.client.storageExists(ctx.bucket, paths[orientation])) {
-        await downloadUrl(ctx.client.storagePublicUrl(ctx.bucket, paths[orientation]), localPaths[orientation]);
+        await downloadUrl(
+          ctx.client.storagePublicUrl(ctx.bucket, paths[orientation]),
+          localPaths[orientation],
+        );
       } else {
         missing.push(orientation);
       }
@@ -415,7 +554,12 @@ async function ensureSceneCheckpoints(ctx: RenderContext): Promise<Record<Orient
           gapSeconds: ctx.script.gap_seconds,
           renderConfig: ctx.renderConfig,
         });
-        await ctx.client.uploadObject(ctx.bucket, paths[orientation], localPaths[orientation], "video/mp4");
+        await ctx.client.uploadObject(
+          ctx.bucket,
+          paths[orientation],
+          localPaths[orientation],
+          "video/mp4",
+        );
       }
     }
 
@@ -425,11 +569,18 @@ async function ensureSceneCheckpoints(ctx: RenderContext): Promise<Record<Orient
 
     completed += 1;
     const progress = sceneProgress(completed, scenes.length);
-    await ctx.client.patchEpisode(ctx.episode.id, { render_progress: progress });
+    await ctx.client.patchEpisode(ctx.episode.id, {
+      render_progress: progress,
+    });
     await ctx.client.event({
       episode_id: ctx.episode.id,
       event_type: "render_checkpoint_saved",
-      metadata: { scene: scene.order, total: scenes.length, skipped: missing.length === 0, progress },
+      metadata: {
+        scene: scene.order,
+        total: scenes.length,
+        skipped: missing.length === 0,
+        progress,
+      },
     });
   }
 
@@ -445,10 +596,24 @@ async function concatOrientation(
   const concatOutput = join(ctx.workDir, `episode_${orientation}_concat.mp4`);
   const finalOutput = join(ctx.workDir, `episode_${orientation}.mp4`);
   await writeFile(concatListPath, buildConcatList(sceneFiles));
-  await run("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", concatListPath, "-c", "copy", concatOutput]);
+  await run("ffmpeg", [
+    "-y",
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    concatListPath,
+    "-c",
+    "copy",
+    concatOutput,
+  ]);
 
   if (ctx.script.music?.url) {
-    const musicPath = join(ctx.workDir, `music_${basename(new URL(ctx.script.music.url).pathname) || "bg.mp3"}`);
+    const musicPath = join(
+      ctx.workDir,
+      `music_${basename(new URL(ctx.script.music.url).pathname) || "bg.mp3"}`,
+    );
     await downloadUrl(ctx.script.music.url, musicPath);
     await run("ffmpeg", [
       "-y",
@@ -481,41 +646,107 @@ async function concatOrientation(
   }
 
   let expectedDuration = 0;
-  for (const path of sceneFiles) expectedDuration += await ffprobeDuration(path);
-  const probe = JSON.parse(await run("ffprobe", ["-v", "error", "-show_streams", "-show_format", "-of", "json", finalOutput], { capture: true })) as MediaProbe;
-  const report = assessMedia(probe, orientation, expectedDuration, ctx.script.scenes.reduce((sum, scene) => sum + scene.duration_seconds, 0));
+  for (const path of sceneFiles)
+    expectedDuration += await ffprobeDuration(path);
+  const probe = JSON.parse(
+    await run(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-show_streams",
+        "-show_format",
+        "-of",
+        "json",
+        finalOutput,
+      ],
+      { capture: true },
+    ),
+  ) as MediaProbe;
+  const report = assessMedia(
+    probe,
+    orientation,
+    expectedDuration,
+    ctx.script.scenes.reduce((sum, scene) => sum + scene.duration_seconds, 0),
+  );
   // Decode every frame and audio packet: valid MP4 headers alone do not prove integrity.
-  await run("ffmpeg", ["-v", "error", "-xerror", "-i", finalOutput, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"], { capture: true });
+  await run(
+    "ffmpeg",
+    [
+      "-v",
+      "error",
+      "-xerror",
+      "-i",
+      finalOutput,
+      "-map",
+      "0:v:0",
+      "-map",
+      "0:a:0",
+      "-f",
+      "null",
+      "-",
+    ],
+    { capture: true },
+  );
   return { path: finalOutput, report: { ...report, decode_verified: true } };
 }
 
-async function uploadFinal(ctx: RenderContext, orientation: Orientation, path: string): Promise<string> {
+async function uploadFinal(
+  ctx: RenderContext,
+  orientation: Orientation,
+  path: string,
+): Promise<string> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path)) hash.update(chunk);
-  return await ctx.client.uploadObject(ctx.bucket, finalRenderPath(ctx.episode.id, orientation, hash.digest("hex")), path, "video/mp4");
+  return await ctx.client.uploadObject(
+    ctx.bucket,
+    finalRenderPath(ctx.episode.id, orientation, hash.digest("hex")),
+    path,
+    "video/mp4",
+  );
 }
 
 async function renderEpisode(episodeId: string): Promise<void> {
-  const client = new SupabaseRestClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"));
+  const client = new SupabaseRestClient(
+    requireEnv("SUPABASE_URL"),
+    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  );
   const episode = await client.fetchEpisode(episodeId);
   if (episode.status !== "assets") {
-    throw new Error(`Episódio em '${episode.status}' — render exige status 'assets'`);
+    throw new Error(
+      `Episódio em '${episode.status}' — render exige status 'assets'`,
+    );
   }
 
   const script = scriptJsonSchema.parse(episode.script_json);
-  if (!isRenderReady(script)) throw new Error("script_json não está render-ready");
+  if (!isRenderReady(script))
+    throw new Error("script_json não está render-ready");
 
   const [assets, renderCfg, assetsCfg] = await Promise.all([
     client.fetchAssets(episodeId),
     client.getSystemConfig<RenderConfig>("render", {}),
     client.getSystemConfig<AssetsConfig>("assets", {}),
   ]);
-  const bucket = assetsCfg.storage_bucket ?? renderCfg.storage_bucket ?? "assets";
-  const workDir = await mkdtemp(join(tmpdir(), `content-ai-render-${episodeId}-`));
-  const cleanup_tmp = renderCfg.cleanup_tmp ?? process.env.KEEP_RENDER_TMP !== "1";
+  const bucket =
+    episode.workspace_id &&
+    episode.workspace_id !== "00000000-0000-4000-8000-000000000001"
+      ? "studio-private"
+      : (assetsCfg.storage_bucket ?? renderCfg.storage_bucket ?? "assets");
+  const workDir = await mkdtemp(
+    join(tmpdir(), `content-ai-render-${episodeId}-`),
+  );
+  const cleanup_tmp =
+    renderCfg.cleanup_tmp ?? process.env.KEEP_RENDER_TMP !== "1";
 
   const ctx: RenderContext = {
-    revision: await sha256Hex(canonicalStringify({ script, assets, renderCfg, generation: episode.metadata?.render_generation })),
+    revision: await sha256Hex(
+      canonicalStringify({
+        script,
+        assets,
+        renderCfg,
+        generation: episode.metadata?.render_generation,
+      }),
+    ),
     episode,
     script,
     assets,
@@ -546,28 +777,57 @@ async function renderEpisode(episodeId: string): Promise<void> {
     const portrait = results[1]!;
     if (landscape.status === "rejected") throw landscape.reason;
     if (portrait.status === "rejected") throw portrait.reason;
-    assertMatchingDurations(landscape.value.report.duration_seconds, portrait.value.report.duration_seconds);
-    const landscapeUrl = await uploadFinal(ctx, "landscape", landscape.value.path);
+    assertMatchingDurations(
+      landscape.value.report.duration_seconds,
+      portrait.value.report.duration_seconds,
+    );
+    const landscapeUrl = await uploadFinal(
+      ctx,
+      "landscape",
+      landscape.value.path,
+    );
     const portraitUrl = await uploadFinal(ctx, "portrait", portrait.value.path);
-    let tiktokOutput: { portrait: string; quality: unknown; commercial: false } | undefined;
+    let tiktokOutput:
+      { portrait: string; quality: unknown; commercial: false } | undefined;
     if (script.platform_ctas) {
       // Only the ending changes. All preceding portrait checkpoints are reused.
       const tiktokCta = platformMediaScenes(script).at(-1)!;
-      const tiktokCtx: RenderContext = { ...ctx, script: { ...script, scenes: [tiktokCta] } };
+      const tiktokCtx: RenderContext = {
+        ...ctx,
+        script: { ...script, scenes: [tiktokCta] },
+      };
       const extra = await ensureSceneCheckpoints(tiktokCtx);
-      const tiktok = await concatOrientation(ctx, "portrait", [...checkpoints.portrait.slice(0, -1), extra.portrait[0]!]);
-      tiktokOutput = { portrait: await uploadFinal(ctx, "portrait", tiktok.path), quality: tiktok.report, commercial: false };
+      const tiktok = await concatOrientation(ctx, "portrait", [
+        ...checkpoints.portrait.slice(0, -1),
+        extra.portrait[0]!,
+      ]);
+      tiktokOutput = {
+        portrait: await uploadFinal(ctx, "portrait", tiktok.path),
+        quality: tiktok.report,
+        commercial: false,
+      };
     }
     const renderOutputs = {
       landscape: landscapeUrl,
       portrait: portraitUrl,
       completed_at: new Date().toISOString(),
       strategy: "scene_checkpoint_concat",
-      quality: { landscape: landscape.value.report, portrait: portrait.value.report },
-      ...(tiktokOutput ? { platforms: {
-        youtube: { portrait: portraitUrl, landscape: landscapeUrl, commercial: script.disclosures.commercial_content },
-        tiktok: tiktokOutput,
-      } } : {}),
+      quality: {
+        landscape: landscape.value.report,
+        portrait: portrait.value.report,
+      },
+      ...(tiktokOutput
+        ? {
+            platforms: {
+              youtube: {
+                portrait: portraitUrl,
+                landscape: landscapeUrl,
+                commercial: script.disclosures.commercial_content,
+              },
+              tiktok: tiktokOutput,
+            },
+          }
+        : {}),
     };
 
     await client.patchEpisode(episodeId, {
@@ -583,7 +843,10 @@ async function renderEpisode(episodeId: string): Promise<void> {
     });
   } finally {
     if (cleanup_tmp) await rm(workDir, { recursive: true, force: true });
-    else console.info(JSON.stringify({ level: "info", msg: "tmp preservado", workDir }));
+    else
+      console.info(
+        JSON.stringify({ level: "info", msg: "tmp preservado", workDir }),
+      );
   }
 }
 
@@ -592,12 +855,19 @@ async function main(): Promise<void> {
   try {
     await renderEpisode(episodeId);
   } catch (err) {
-    console.error(err instanceof Error ? err.stack ?? err.message : err);
+    console.error(err instanceof Error ? (err.stack ?? err.message) : err);
     try {
-      const client = new SupabaseRestClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"));
+      const client = new SupabaseRestClient(
+        requireEnv("SUPABASE_URL"),
+        requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+      );
       await client.patchEpisode(episodeId, {
         status: "failed",
-        failure_reason: `Render falhou: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500),
+        failure_reason:
+          `Render falhou: ${err instanceof Error ? err.message : String(err)}`.slice(
+            0,
+            500,
+          ),
       });
       await client.event({
         episode_id: episodeId,

@@ -73,24 +73,35 @@ export async function assertBufferChannel(
   }
 }
 
-export async function assertBufferTikTokChannel(key: string, channelId: string): Promise<void> {
+export async function assertBufferTikTokChannel(
+  key: string,
+  channelId: string,
+): Promise<void> {
   return assertBufferChannel(key, channelId, "tiktok");
 }
 
 export async function createBufferTikTokPost(
   key: string,
   channelId: string,
-  post: { caption: string; videoUrl: string; isAiGenerated: boolean },
+  post: {
+    caption: string;
+    videoUrl: string;
+    isAiGenerated: boolean;
+    dueAt?: string;
+  },
 ): Promise<{ id: string; status: string }> {
-  const data = await queryBuffer<
-    {
-      createPost?: {
-        __typename: string;
-        message?: string;
-        post?: { id: string; status: string; channelId: string; schedulingType: string };
+  const data = await queryBuffer<{
+    createPost?: {
+      __typename: string;
+      message?: string;
+      post?: {
+        id: string;
+        status: string;
+        channelId: string;
+        schedulingType: string;
       };
-    }
-  >(
+    };
+  }>(
     key,
     `mutation QueueTikTok($input: CreatePostInput!) {
       createPost(input: $input) {
@@ -104,7 +115,8 @@ export async function createBufferTikTokPost(
         text: post.caption,
         channelId,
         schedulingType: "automatic",
-        mode: "addToQueue",
+        mode: post.dueAt ? "customScheduled" : "addToQueue",
+        ...(post.dueAt ? { dueAt: post.dueAt } : {}),
         aiAssisted: true,
         metadata: { tiktok: { isAiGenerated: post.isAiGenerated } },
         assets: [{ video: { url: post.videoUrl } }],
@@ -118,15 +130,19 @@ export async function createBufferTikTokPost(
       "BUFFER_REJECTED",
     );
   }
-  const saved = z.object({
-    id: z.string().min(1).max(128),
-    status: postStatus,
-    channelId: z.string(),
-    schedulingType: z.string(),
-  }).parse(data.createPost.post);
+  const saved = z
+    .object({
+      id: z.string().min(1).max(128),
+      status: postStatus,
+      channelId: z.string(),
+      schedulingType: z.string(),
+    })
+    .parse(data.createPost.post);
   if (
-    saved.channelId !== channelId || saved.status === "draft" ||
-    saved.status === "needs_approval" || saved.schedulingType !== "automatic"
+    saved.channelId !== channelId ||
+    saved.status === "draft" ||
+    saved.status === "needs_approval" ||
+    saved.schedulingType !== "automatic"
   ) {
     throw new AppError(
       "Buffer não confirmou agendamento automático; conferir fila",
@@ -140,36 +156,82 @@ export async function createBufferTikTokPost(
 export async function createBufferYoutubeShort(
   key: string,
   channelId: string,
-  post: { title: string; description: string; videoUrl: string; categoryId: string; madeForKids: boolean },
+  post: {
+    title: string;
+    description: string;
+    videoUrl: string;
+    categoryId: string;
+    madeForKids: boolean;
+    dueAt?: string;
+  },
 ): Promise<{ id: string; status: string }> {
   const data = await queryBuffer<{
-    createPost?: { __typename: string; message?: string; post?: {
-      id: string; status: string; channelId: string; schedulingType: string;
-    } };
-  }>(key, `mutation QueueYoutubeShort($input: CreatePostInput!) {
+    createPost?: {
+      __typename: string;
+      message?: string;
+      post?: {
+        id: string;
+        status: string;
+        channelId: string;
+        schedulingType: string;
+      };
+    };
+  }>(
+    key,
+    `mutation QueueYoutubeShort($input: CreatePostInput!) {
     createPost(input: $input) {
       __typename
       ... on PostActionSuccess { post { id status channelId schedulingType } }
       ... on MutationError { message }
     }
-  }`, { input: {
-    text: post.description,
-    channelId,
-    schedulingType: "automatic",
-    mode: "addToQueue",
-    aiAssisted: true,
-    metadata: { youtube: { title: post.title, categoryId: post.categoryId,
-      madeForKids: post.madeForKids, privacy: "public", isAiGenerated: true } },
-    assets: [{ video: { url: post.videoUrl } }],
-  } });
+  }`,
+    {
+      input: {
+        text: post.description,
+        channelId,
+        schedulingType: "automatic",
+        mode: post.dueAt ? "customScheduled" : "addToQueue",
+        ...(post.dueAt ? { dueAt: post.dueAt } : {}),
+        aiAssisted: true,
+        metadata: {
+          youtube: {
+            title: post.title,
+            categoryId: post.categoryId,
+            madeForKids: post.madeForKids,
+            privacy: "public",
+            isAiGenerated: true,
+          },
+        },
+        assets: [{ video: { url: post.videoUrl } }],
+      },
+    },
+  );
   if (data.createPost?.__typename !== "PostActionSuccess") {
-    throw new AppError(data.createPost?.message ?? "Buffer não aceitou o Short", 409, "BUFFER_REJECTED");
+    throw new AppError(
+      data.createPost?.message ?? "Buffer não aceitou o Short",
+      409,
+      "BUFFER_REJECTED",
+    );
   }
-  const saved = z.object({ id: z.string().min(1).max(128), status: postStatus,
-    channelId: z.string(), schedulingType: z.string() }).parse(data.createPost.post);
-  if (saved.channelId !== channelId || saved.schedulingType !== "automatic" ||
-    saved.status === "draft" || saved.status === "needs_approval") {
-    throw new AppError("Buffer não confirmou Short automático; conferir fila", 502, "BUFFER_UNCERTAIN");
+  const saved = z
+    .object({
+      id: z.string().min(1).max(128),
+      status: postStatus,
+      channelId: z.string(),
+      schedulingType: z.string(),
+    })
+    .parse(data.createPost.post);
+  if (
+    saved.channelId !== channelId ||
+    saved.schedulingType !== "automatic" ||
+    saved.status === "draft" ||
+    saved.status === "needs_approval"
+  ) {
+    throw new AppError(
+      "Buffer não confirmou Short automático; conferir fila",
+      502,
+      "BUFFER_UNCERTAIN",
+    );
   }
   return { id: saved.id, status: saved.status };
 }
@@ -179,9 +241,14 @@ export async function getBufferPostStatus(
   postId: string,
   channelId: string,
 ) {
-  const data = await queryBuffer<
-    { post?: { id: string; status: string; channelId: string; schedulingType: string } }
-  >(
+  const data = await queryBuffer<{
+    post?: {
+      id: string;
+      status: string;
+      channelId: string;
+      schedulingType: string;
+    };
+  }>(
     key,
     "query Post($input: PostInput!) { post(input: $input) { id status channelId schedulingType } }",
     { input: { id: postId } },
@@ -193,13 +260,19 @@ export async function getBufferPostStatus(
       "BUFFER_POST_MISSING",
     );
   }
-  const saved = z.object({
-    id: z.string(),
-    channelId: z.string(),
-    status: postStatus,
-    schedulingType: z.string(),
-  }).parse(data.post);
-  if (saved.id !== postId || saved.channelId !== channelId || saved.schedulingType !== "automatic") {
+  const saved = z
+    .object({
+      id: z.string(),
+      channelId: z.string(),
+      status: postStatus,
+      schedulingType: z.string(),
+    })
+    .parse(data.post);
+  if (
+    saved.id !== postId ||
+    saved.channelId !== channelId ||
+    saved.schedulingType !== "automatic"
+  ) {
     throw new AppError(
       "Post do Buffer pertence a outro canal",
       409,

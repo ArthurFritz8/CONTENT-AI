@@ -1941,3 +1941,24 @@ blockquote {
     scroll-behavior: auto !important;
   }
 }
+/* Universal Studio controls share the existing theme and remain keyboard accessible. */
+.studio-feature { padding: 24px; margin-bottom: 24px; }
+.studio-feature h2 { font-size: 20px; margin: 0 0 10px; }
+.studio-feature p { line-height: 1.6; }
+.studio-feature label { display: block; margin: 14px 0; }
+.studio-feature input:not([type=checkbox]),.studio-feature textarea,.studio-feature select { width:100%; padding:12px; margin-top:6px; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:8px; }
+.studio-feature textarea { min-height:100px; }
+.studio-check { display:flex!important; gap:10px; align-items:center; }
+.studio-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.studio-actions > div:first-child { flex:1; }
+.studio-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.studio-candidates { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:16px; margin-top:20px; }
+.studio-candidates article { border:1px solid var(--line); border-radius:12px; padding:18px; }
+.studio-candidates blockquote { margin:14px 0; padding-left:12px; border-left:2px solid currentColor; font-size:12px; }
+.fia { position:fixed; right:20px; bottom:20px; z-index:45; }
+.fia-toggle { border:0; border-radius:30px; padding:15px 20px; background:#d5f36b; color:#17200b; font-weight:700; box-shadow:0 6px 24px #0004; cursor:pointer; }
+.fia-panel { position:absolute; bottom:60px; right:0; width:min(410px,calc(100vw - 32px)); max-height:75vh; overflow:auto; background:var(--surface,#1b241e); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:0 14px 48px #0005; }
+.fia-panel p { line-height:1.6; font-size:14px; }
+.fia-panel input { width:100%; padding:12px; margin:8px 0; background:var(--bg); color:inherit; border:1px solid var(--line); border-radius:8px; }
+.fia-topics { display:flex; flex-wrap:wrap; gap:7px; margin:18px 0; }
+@media(max-width:650px){.studio-form-grid{grid-template-columns:1fr}.studio-feature{padding:18px}.fia{right:12px;bottom:12px}}

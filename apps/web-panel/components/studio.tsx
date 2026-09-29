@@ -1,5 +1,10 @@
 "use client";
 import Link from "next/link";
+import { ScheduledPosts } from "./scheduled-posts";
+import { Connections } from "./connections";
+import { Fia } from "./fia";
+import { Discovery } from "./discovery";
+import { ReviewActions } from "./review-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -248,9 +253,15 @@ function ProductLink({ value }: { value: unknown }) {
     <span className="muted small">{t("noAffiliate")}</span>
   );
 }
-function AffiliateLinks({ links, legacy }: { links: unknown; legacy?: unknown }) {
+function AffiliateLinks({
+  links,
+  legacy,
+}: {
+  links: unknown;
+  legacy?: unknown;
+}) {
   const { t } = usePreferences();
-  const value = links && typeof links === "object" ? links as Row : {};
+  const value = links && typeof links === "object" ? (links as Row) : {};
   const entries = [
     ["YouTube", value.youtube],
     ["TikTok", value.tiktok],
@@ -272,7 +283,9 @@ function AffiliateLinks({ links, legacy }: { links: unknown; legacy?: unknown })
         </div>
       ))}
     </div>
-  ) : <ProductLink value={null} />;
+  ) : (
+    <ProductLink value={null} />
+  );
 }
 
 export default function Studio({
@@ -397,19 +410,31 @@ export default function Studio({
     setMutationError("");
     try {
       const response = await fetch("/api/recommend", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ideaId: idea.id }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || t("connectionError"));
-      setInspecting({ ...idea, recommendations: result.recommendations, revision: result.revision,
-        recommendation_checked_at: new Date().toISOString() });
+      setInspecting({
+        ...idea,
+        recommendations: result.recommendations,
+        revision: result.revision,
+        recommendation_checked_at: new Date().toISOString(),
+      });
       setRefresh((n) => n + 1);
     } catch (error) {
-      setMutationError(error instanceof Error ? error.message : t("connectionError"));
-    } finally { setBusy(false); }
+      setMutationError(
+        error instanceof Error ? error.message : t("connectionError"),
+      );
+    } finally {
+      setBusy(false);
+    }
   }
-  async function candidateAction(action: "choose_product" | "generate_video", payload: Row) {
+  async function candidateAction(
+    action: "choose_product" | "generate_video",
+    payload: Row,
+  ) {
     setBusy(true);
     setMutationError("");
     const serialized = JSON.stringify({ action, payload });
@@ -417,8 +442,13 @@ export default function Studio({
       requestRef.current = { payload: serialized, id: crypto.randomUUID() };
     try {
       const response = await fetch("/api/control", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, payload, requestId: requestRef.current.id }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          payload,
+          requestId: requestRef.current.id,
+        }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -427,11 +457,17 @@ export default function Studio({
       }
       requestRef.current = null;
       setInspecting(null);
-      setMessage(t(action === "generate_video" ? "generationStarted" : "productChosen"));
+      setMessage(
+        t(action === "generate_video" ? "generationStarted" : "productChosen"),
+      );
       setRefresh((n) => n + 1);
     } catch (error) {
-      setMutationError(error instanceof Error ? error.message : t("connectionError"));
-    } finally { setBusy(false); }
+      setMutationError(
+        error instanceof Error ? error.message : t("connectionError"),
+      );
+    } finally {
+      setBusy(false);
+    }
   }
   async function logout() {
     await fetch("/api/session", { method: "DELETE" });
@@ -462,9 +498,10 @@ export default function Studio({
             ]
           : ["id", "title", "status", "render_progress", "created_at"];
     const escape = (value: any) => {
-      let s = typeof value === "object" && value !== null
-        ? JSON.stringify(value)
-        : String(value ?? "");
+      let s =
+        typeof value === "object" && value !== null
+          ? JSON.stringify(value)
+          : String(value ?? "");
       if (/^[\s]*[=+\-@]/.test(s)) s = "'" + s;
       return '"' + s.replaceAll('"', '""') + '"';
     };
@@ -750,141 +787,205 @@ export default function Studio({
                   </>
                 )}
                 {section === "queue" && (
-                  <section className="panel">
-                    <Toolbar
-                      searchRef={searchRef}
-                      search={search}
-                      onSearch={(s) => {
-                        setSearch(s);
-                        setPage(1);
-                      }}
-                      onExport={exportRows}
-                    />
-                    {mutationError && !editing && !inspecting && <div className="error" role="alert">{t(mutationError)}</div>}
-                    {data.items.length ? (
-                      <div className="table-wrap">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>{t("briefing")}</th>
-                              <th>{t("product")}</th>
-                              <th>{t("priority")}</th>
-                              <th>{t("created")}</th>
-                              <th>{t("actions")}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.items.map((r: Row) => (
-                              <tr key={r.id}>
-                                <td className="wide-cell">
-                                  <strong>{r.briefing}</strong>
-                                  <small>#{r.id.slice(0, 8)}</small>
-                                  {r.source === "trend_discovery" && <small>{r.selected_product
-                                    ? `${t("selectedProduct")}: ${r.selected_product}`
-                                    : t("candidateNeedsProduct")}</small>}
-                                </td>
-                                <td>
-                                  <AffiliateLinks
-                                    links={r.affiliate_links}
-                                    legacy={r.product_url}
-                                  />
-                                </td>
-                                <td>
-                                  <span className="priority">{r.priority}</span>
-                                </td>
-                                <td className="nowrap">
-                                  {date(r.created_at, true)}
-                                </td>
-                                <td>
-                                  <div className="row-actions">
-                                    {r.source === "trend_discovery" && (
-                                      <button className="button small secondary" onClick={() => {
-                                        setMutationError(""); setInspecting(r);
-                                      }}>{t("candidateDetails")}</button>
-                                    )}
-                                    {r.source === "trend_discovery" && r.selected_product && (
-                                      <button className="button small primary" disabled={busy}
-                                        onClick={() => void candidateAction("generate_video", {
-                                          id: r.id, revision: r.revision,
-                                        })}>{t("generateVideo")}</button>
-                                    )}
-                                    <button
-                                      className="button small secondary"
-                                      onClick={() => {
-                                        setMutationError("");
-                                        setEditing({
-                                          ...r,
-                                          affiliate_links: {
-                                            ...(r.affiliate_links || {}),
-                                            youtube:
-                                              r.affiliate_links?.youtube ||
-                                              r.product_url ||
-                                              "",
-                                            tiktok:
-                                              r.affiliate_links?.tiktok || "",
-                                          },
-                                        });
-                                      }}
-                                    >
-                                      {t("edit")}
-                                    </button>
-                                    <button
-                                      className="icon-button danger-text"
-                                      title={t("cancelIdea")}
-                                      aria-label={`${t("cancelIdea")}: ${r.briefing}`}
-                                      onClick={() => {
-                                        setMutationError("");
-                                        setRemoving(r);
-                                      }}
-                                    >
-                                      <X size={18} />
-                                    </button>
-                                  </div>
-                                </td>
+                  <>
+                    <Discovery onSaved={() => setRefresh((v) => v + 1)} />
+                    <section className="panel">
+                      <Toolbar
+                        searchRef={searchRef}
+                        search={search}
+                        onSearch={(s) => {
+                          setSearch(s);
+                          setPage(1);
+                        }}
+                        onExport={exportRows}
+                      />
+                      {mutationError && !editing && !inspecting && (
+                        <div className="error" role="alert">
+                          {t(mutationError)}
+                        </div>
+                      )}
+                      {data.items.length ? (
+                        <div className="table-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>{t("briefing")}</th>
+                                <th>{t("product")}</th>
+                                <th>{t("priority")}</th>
+                                <th>{t("created")}</th>
+                                <th>{t("actions")}</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <Empty text={search ? t("noResults") : t("queueEmpty")}>
-                        <button className="button primary" onClick={newIdea}>
-                          <Plus size={16} />
-                          {t("newIdea")}
-                        </button>
-                      </Empty>
-                    )}
-                    <PageControls
-                      page={page}
-                      total={data.total}
-                      onPage={setPage}
-                    />
-                    {!!data.recent?.length && <div className="queue-progress">
-                      <h2>{t("recentGenerations")}</h2>
-                      {data.recent.map((item: Row) => {
-                        const episode = item.episode;
-                        const review = item.review;
-                        return <article className="queue-progress-item" key={item.id}>
-                          <div>
-                            <strong>{item.selected_product || item.briefing}</strong>
-                            <small>#{item.id.slice(0, 8)}</small>
-                            {episode && <p>{review?.decision === "approved" ? t("telegramApproved")
-                              : review?.delivery_status === "sent" ? t("telegramSent")
-                              : review && ["failed", "uncertain"].includes(review.delivery_status)
-                                ? t("telegramDeliveryProblem") : t("telegramPending")}</p>}
-                            {item.event && <small>{eventLabel(item.event.event_type, t)} · {date(item.event.created_at)}</small>}
-                          </div>
-                          {episode && <div className="queue-progress-state">
-                            <Status value={episode.status} />
-                            <small>{episode.status === "assets" ? `${episode.render_progress}%` : date(episode.updated_at)}</small>
-                            <Link className="button small secondary" href={`/studio/episodes/${episode.id}`}>
-                              {t("open")} <ArrowUpRight size={14} />
-                            </Link>
-                          </div>}
-                        </article>;
-                      })}
-                    </div>}
-                  </section>
+                            </thead>
+                            <tbody>
+                              {data.items.map((r: Row) => (
+                                <tr key={r.id}>
+                                  <td className="wide-cell">
+                                    <strong>{r.briefing}</strong>
+                                    <small>#{r.id.slice(0, 8)}</small>
+                                    {r.source === "trend_discovery" && (
+                                      <small>
+                                        {r.selected_product
+                                          ? `${t("selectedProduct")}: ${r.selected_product}`
+                                          : t("candidateNeedsProduct")}
+                                      </small>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <AffiliateLinks
+                                      links={r.affiliate_links}
+                                      legacy={r.product_url}
+                                    />
+                                  </td>
+                                  <td>
+                                    <span className="priority">
+                                      {r.priority}
+                                    </span>
+                                  </td>
+                                  <td className="nowrap">
+                                    {date(r.created_at, true)}
+                                  </td>
+                                  <td>
+                                    <div className="row-actions">
+                                      {r.source === "trend_discovery" && (
+                                        <button
+                                          className="button small secondary"
+                                          onClick={() => {
+                                            setMutationError("");
+                                            setInspecting(r);
+                                          }}
+                                        >
+                                          {t("candidateDetails")}
+                                        </button>
+                                      )}
+                                      {(r.source !== "trend_discovery" ||
+                                        r.selected_product) && (
+                                        <button
+                                          className="button small primary"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void candidateAction(
+                                              "generate_video",
+                                              {
+                                                id: r.id,
+                                                revision: r.revision,
+                                              },
+                                            )
+                                          }
+                                        >
+                                          {t("generateVideo")}
+                                        </button>
+                                      )}
+                                      <button
+                                        className="button small secondary"
+                                        onClick={() => {
+                                          setMutationError("");
+                                          setEditing({
+                                            ...r,
+                                            affiliate_links: {
+                                              ...(r.affiliate_links || {}),
+                                              youtube:
+                                                r.affiliate_links?.youtube ||
+                                                r.product_url ||
+                                                "",
+                                              tiktok:
+                                                r.affiliate_links?.tiktok || "",
+                                            },
+                                          });
+                                        }}
+                                      >
+                                        {t("edit")}
+                                      </button>
+                                      <button
+                                        className="icon-button danger-text"
+                                        title={t("cancelIdea")}
+                                        aria-label={`${t("cancelIdea")}: ${r.briefing}`}
+                                        onClick={() => {
+                                          setMutationError("");
+                                          setRemoving(r);
+                                        }}
+                                      >
+                                        <X size={18} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <Empty text={search ? t("noResults") : t("queueEmpty")}>
+                          <button className="button primary" onClick={newIdea}>
+                            <Plus size={16} />
+                            {t("newIdea")}
+                          </button>
+                        </Empty>
+                      )}
+                      <PageControls
+                        page={page}
+                        total={data.total}
+                        onPage={setPage}
+                      />
+                      {!!data.recent?.length && (
+                        <div className="queue-progress">
+                          <h2>{t("recentGenerations")}</h2>
+                          {data.recent.map((item: Row) => {
+                            const episode = item.episode;
+                            const review = item.review;
+                            return (
+                              <article
+                                className="queue-progress-item"
+                                key={item.id}
+                              >
+                                <div>
+                                  <strong>
+                                    {item.selected_product || item.briefing}
+                                  </strong>
+                                  <small>#{item.id.slice(0, 8)}</small>
+                                  {episode && (
+                                    <p>
+                                      {review?.decision === "approved"
+                                        ? t("telegramApproved")
+                                        : review?.delivery_status === "sent"
+                                          ? t("telegramSent")
+                                          : review &&
+                                              ["failed", "uncertain"].includes(
+                                                review.delivery_status,
+                                              )
+                                            ? t("telegramDeliveryProblem")
+                                            : t("telegramPending")}
+                                    </p>
+                                  )}
+                                  {item.event && (
+                                    <small>
+                                      {eventLabel(item.event.event_type, t)} ·{" "}
+                                      {date(item.event.created_at)}
+                                    </small>
+                                  )}
+                                </div>
+                                {episode && (
+                                  <div className="queue-progress-state">
+                                    <Status value={episode.status} />
+                                    <small>
+                                      {episode.status === "assets"
+                                        ? `${episode.render_progress}%`
+                                        : date(episode.updated_at)}
+                                    </small>
+                                    <Link
+                                      className="button small secondary"
+                                      href={`/studio/episodes/${episode.id}`}
+                                    >
+                                      {t("open")} <ArrowUpRight size={14} />
+                                    </Link>
+                                  </div>
+                                )}
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  </>
                 )}
                 {section === "episodes" && !episodeId && (
                   <section className="panel">
@@ -933,33 +1034,39 @@ export default function Studio({
                   <EpisodeDetail data={data} date={date} />
                 )}
                 {section === "publishes" && (
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <h2>{t("publishes")}</h2>
-                      <button
-                        className="icon-button"
-                        title={t("downloadList")}
-                        aria-label={t("downloadList")}
-                        onClick={exportRows}
-                      >
-                        <ArrowDownToLine size={18} />
-                      </button>
-                    </div>
-                    <PublishRows rows={data.items} date={date} />
-                    <PageControls
-                      page={page}
-                      total={data.total}
-                      onPage={setPage}
-                    />
-                  </section>
+                  <>
+                    <ScheduledPosts />
+                    <section className="panel">
+                      <div className="panel-heading">
+                        <h2>{t("publishes")}</h2>
+                        <button
+                          className="icon-button"
+                          title={t("downloadList")}
+                          aria-label={t("downloadList")}
+                          onClick={exportRows}
+                        >
+                          <ArrowDownToLine size={18} />
+                        </button>
+                      </div>
+                      <PublishRows rows={data.items} date={date} />
+                      <PageControls
+                        page={page}
+                        total={data.total}
+                        onPage={setPage}
+                      />
+                    </section>
+                  </>
                 )}
                 {section === "settings" && (
-                  <Settings
-                    data={data}
-                    mutate={mutate}
-                    busy={busy}
-                    error={mutationError}
-                  />
+                  <>
+                    <Connections />
+                    <Settings
+                      data={data}
+                      mutate={mutate}
+                      busy={busy}
+                      error={mutationError}
+                    />
+                  </>
                 )}
               </>
             )
@@ -973,50 +1080,119 @@ export default function Studio({
               }).format(time)}
             </div>
           )}
+          <Fia section={section} />
         </main>
       </div>
-      {inspecting && <Modal title={t("candidateDetails")} onClose={() => {
-        if (!busy) setInspecting(null);
-      }}>
-        <div className="candidate-inspection">
-          <p className="muted">{inspecting.briefing}</p>
-          {inspecting.selected_product && <div className="info-note">
-            <strong>{t("selectedProduct")}: {inspecting.selected_product}</strong>
-            <p>{inspecting.selected_hook}</p>
-            {safeLink(inspecting.selected_evidence_url) && <a href={safeLink(inspecting.selected_evidence_url)!}
-              target="_blank" rel="noopener noreferrer">{new URL(inspecting.selected_evidence_url).hostname} <ExternalLink size={13} /></a>}
-          </div>}
-          <p className="muted">{t("recommendationCaution")}</p>
-          {!!inspecting.recommendations?.length && <div className="recommendation-list">
-            {inspecting.recommendations.map((rec: Row, index: number) => <article key={`${rec.product_name}-${index}`}>
-              <div className="recommendation-heading"><span>{index + 1}</span><h3>{rec.product_name}</h3></div>
-              <p><strong>{t("visualHook")}:</strong> {rec.hook}</p>
-              <p><strong>{t("problemSolved")}:</strong> {rec.problem}</p>
-              <p><strong>{t("whyNow")}:</strong> {rec.why_now}</p>
-              <p><strong>{t("limitation")}:</strong> {rec.limitation}</p>
-              {safeLink(rec.source_url) && <a href={safeLink(rec.source_url)!} target="_blank" rel="noopener noreferrer">
-                {new URL(rec.source_url).hostname} <ExternalLink size={13} />
-              </a>}
-              <button className="button small secondary" disabled={busy}
-                onClick={() => void candidateAction("choose_product", {
-                  id: inspecting.id, revision: inspecting.revision, index,
-                })}>{t("chooseProduct")}</button>
-            </article>)}
-          </div>}
-          {inspecting.recommendation_checked_at && !inspecting.recommendations?.length &&
-            <p className="info-note">{t("noRecommendations")}</p>}
-          {mutationError && <div className="error" role="alert">{t(mutationError)}</div>}
-          <div className="modal-footer">
-            <button className="button secondary" disabled={busy} onClick={() => void recommend(inspecting)}>
-              {busy ? t("findingProducts") : t("findProducts")}
-            </button>
-            {inspecting.selected_product && <button className="button primary" disabled={busy}
-              onClick={() => void candidateAction("generate_video", {
-                id: inspecting.id, revision: inspecting.revision,
-              })}>{t("generateVideo")}</button>}
+      {inspecting && (
+        <Modal
+          title={t("candidateDetails")}
+          onClose={() => {
+            if (!busy) setInspecting(null);
+          }}
+        >
+          <div className="candidate-inspection">
+            <p className="muted">{inspecting.briefing}</p>
+            {inspecting.selected_product && (
+              <div className="info-note">
+                <strong>
+                  {t("selectedProduct")}: {inspecting.selected_product}
+                </strong>
+                <p>{inspecting.selected_hook}</p>
+                {safeLink(inspecting.selected_evidence_url) && (
+                  <a
+                    href={safeLink(inspecting.selected_evidence_url)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {new URL(inspecting.selected_evidence_url).hostname}{" "}
+                    <ExternalLink size={13} />
+                  </a>
+                )}
+              </div>
+            )}
+            <p className="muted">{t("recommendationCaution")}</p>
+            {!!inspecting.recommendations?.length && (
+              <div className="recommendation-list">
+                {inspecting.recommendations.map((rec: Row, index: number) => (
+                  <article key={`${rec.product_name}-${index}`}>
+                    <div className="recommendation-heading">
+                      <span>{index + 1}</span>
+                      <h3>{rec.product_name}</h3>
+                    </div>
+                    <p>
+                      <strong>{t("visualHook")}:</strong> {rec.hook}
+                    </p>
+                    <p>
+                      <strong>{t("problemSolved")}:</strong> {rec.problem}
+                    </p>
+                    <p>
+                      <strong>{t("whyNow")}:</strong> {rec.why_now}
+                    </p>
+                    <p>
+                      <strong>{t("limitation")}:</strong> {rec.limitation}
+                    </p>
+                    {safeLink(rec.source_url) && (
+                      <a
+                        href={safeLink(rec.source_url)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {new URL(rec.source_url).hostname}{" "}
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                    <button
+                      className="button small secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void candidateAction("choose_product", {
+                          id: inspecting.id,
+                          revision: inspecting.revision,
+                          index,
+                        })
+                      }
+                    >
+                      {t("chooseProduct")}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+            {inspecting.recommendation_checked_at &&
+              !inspecting.recommendations?.length && (
+                <p className="info-note">{t("noRecommendations")}</p>
+              )}
+            {mutationError && (
+              <div className="error" role="alert">
+                {t(mutationError)}
+              </div>
+            )}
+            <div className="modal-footer">
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void recommend(inspecting)}
+              >
+                {busy ? t("findingProducts") : t("findProducts")}
+              </button>
+              {inspecting.selected_product && (
+                <button
+                  className="button primary"
+                  disabled={busy}
+                  onClick={() =>
+                    void candidateAction("generate_video", {
+                      id: inspecting.id,
+                      revision: inspecting.revision,
+                    })
+                  }
+                >
+                  {t("generateVideo")}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </Modal>}
+        </Modal>
+      )}
       {editing && (
         <Modal
           title={t(editing.id ? "edit" : "newIdea")}
@@ -1442,6 +1618,9 @@ function EpisodeDetail({
         <h2>{e.briefing?.text || t("noTitle")}</h2>
         <Status value={e.status} />
       </div>
+      {e.status === "review" && (
+        <ReviewActions episode={e.id} onChange={() => {}} />
+      )}
       <div className="detail-layout">
         <section className="panel">
           <div className="tabs" role="tablist" aria-label={t("details")}>
@@ -1467,7 +1646,10 @@ function EpisodeDetail({
             {tab === "player" && (
               <>
                 <div className="video-controls">
-                  {(e.videos?.tiktok ? ["portrait", "landscape", "tiktok"] : ["portrait", "landscape"]).map((key) => (
+                  {(e.videos?.tiktok
+                    ? ["portrait", "landscape", "tiktok"]
+                    : ["portrait", "landscape"]
+                  ).map((key) => (
                     <button
                       key={key}
                       className={`button small ${orientation === key ? "dark" : "secondary"}`}
@@ -1479,7 +1661,9 @@ function EpisodeDetail({
                 </div>
                 {e.videos?.[orientation] ? (
                   <>
-                    <div className={`video-stage ${orientation === "tiktok" ? "portrait" : orientation}`}>
+                    <div
+                      className={`video-stage ${orientation === "tiktok" ? "portrait" : orientation}`}
+                    >
                       <video
                         key={e.videos[orientation]}
                         controls
@@ -1511,7 +1695,17 @@ function EpisodeDetail({
               (script ? (
                 <>
                   <h3>{script.metadata?.youtube?.title}</h3>
-                  {script.platform_ctas && <div className="info-note"><p>YouTube: {script.platform_ctas.youtube.narration_text}</p><p>{t("tiktok")}: {script.platform_ctas.tiktok.narration_text}</p></div>}
+                  {script.platform_ctas && (
+                    <div className="info-note">
+                      <p>
+                        YouTube: {script.platform_ctas.youtube.narration_text}
+                      </p>
+                      <p>
+                        {t("tiktok")}:{" "}
+                        {script.platform_ctas.tiktok.narration_text}
+                      </p>
+                    </div>
+                  )}
                   <p className="preserve">
                     {script.metadata?.youtube?.description}
                   </p>

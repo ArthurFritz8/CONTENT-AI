@@ -15,7 +15,8 @@ export function bufferTikTokPlan(snapshot: unknown, storageOrigin: string) {
   const script = episode.script_json;
   const organic = episode.metadata.render_outputs.platforms?.tiktok;
   if (
-    !organic || organic.commercial !== false ||
+    !organic ||
+    organic.commercial !== false ||
     script.platform_ctas?.tiktok.commercial !== false ||
     script.disclosures.commercial_content ||
     episode.product_compliance?.affiliate_links?.tiktok
@@ -28,19 +29,24 @@ export function bufferTikTokPlan(snapshot: unknown, storageOrigin: string) {
   if (quality.height <= quality.width) {
     throw new Error("O vídeo TikTok precisa ser vertical");
   }
-  const caption = `${script.metadata.tiktok.description.trim()} ${
-    script.metadata.tiktok.hashtags.join(" ")
-  }`.trim();
+  const caption =
+    `${script.metadata.tiktok.description.trim()} ${script.metadata.tiktok.hashtags.join(
+      " ",
+    )}`.trim();
   if (!caption || caption.length > 2200) {
     throw new Error("Legenda TikTok excede 2.200 unidades UTF-16");
   }
   const url = new URL(organic.portrait);
   const storage = new URL(storageOrigin);
   if (
-    storage.protocol !== "https:" || url.origin !== storage.origin ||
-    url.search || url.hash || url.username || url.password ||
+    storage.protocol !== "https:" ||
+    url.origin !== storage.origin ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password ||
     !new RegExp(
-      `^/storage/v1/object/public/[^/]+/episodes/${episode.id}/render/final/[a-f0-9]{64}/episode_portrait[.]mp4$`,
+      `^/storage/v1/object/(?:public/[^/]+|authenticated/studio-private)/episodes/${episode.id}/render/final/[a-f0-9]{64}/episode_portrait[.]mp4$`,
     ).test(url.pathname)
   ) {
     throw new Error(

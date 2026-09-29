@@ -1,16 +1,30 @@
 import { claimEpisode } from "../_shared/episode-lease.ts";
-import { applyGrowthStrategy, growthStrategySchema, growthBriefing } from "../../../packages/core/src/publish/growth-strategy.ts";
+import {
+  applyGrowthStrategy,
+  growthStrategySchema,
+  growthBriefing,
+} from "../../../packages/core/src/publish/growth-strategy.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
 // generate-script — Fase 2 (ADR-008): Gemini Flash + responseSchema, SEM grounding.
 // research → script. Repair loop de 1 tentativa; campos de sistema normalizados
 // pós-parse (o modelo nunca controla episode_id/hash/disclosure sintética).
 
 import { z } from "zod";
-import { AppError, jsonResponse, toErrorResponse } from "../_shared/error-handler.ts";
-import { createServiceClient, getSystemConfig } from "../_shared/supabase-client.ts";
+import {
+  AppError,
+  jsonResponse,
+  toErrorResponse,
+} from "../_shared/error-handler.ts";
+import {
+  createServiceClient,
+  getSystemConfig,
+} from "../_shared/supabase-client.ts";
 import { JobLogger } from "../_shared/logger.ts";
 import { parseJsonBody } from "../_shared/validators.ts";
-import { assertGeminiBudget, recordGeminiCall } from "../_shared/budget-guard.ts";
+import {
+  assertGeminiBudget,
+  recordGeminiCall,
+} from "../_shared/budget-guard.ts";
 import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { scriptJsonSchema } from "../../../packages/core/src/schemas/script-json.ts";
@@ -18,7 +32,10 @@ import { researchDataSchema } from "../../../packages/core/src/schemas/research.
 import { researchMatchesEvidence } from "../../../packages/core/src/validators/research-evidence.ts";
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import type { ScriptQualityReport } from "../../../packages/core/src/validators/script-quality.ts";
-import { loadScriptQualityChecker, recordScriptQuality } from "../_shared/script-quality.ts";
+import {
+  loadScriptQualityChecker,
+  recordScriptQuality,
+} from "../_shared/script-quality.ts";
 import {
   affiliateLinksFromCompliance,
   applyAffiliateMetadata,
@@ -71,7 +88,10 @@ const SCENE_RESPONSE_SCHEMA = {
     duration_seconds: { type: "NUMBER" },
     narration_text: { type: "STRING" },
     transition: { type: "STRING", enum: ["cut", "fade", "zoom"] },
-    ken_burns: { type: "STRING", enum: ["in", "out", "pan_left", "pan_right", "static"] },
+    ken_burns: {
+      type: "STRING",
+      enum: ["in", "out", "pan_left", "pan_right", "static"],
+    },
     visual: {
       type: "OBJECT",
       properties: {
@@ -82,7 +102,10 @@ const SCENE_RESPONSE_SCHEMA = {
     },
     highlight_words: { type: "ARRAY", items: { type: "STRING" } },
     presenter: { type: "BOOLEAN" },
-    subtitle_position: { type: "STRING", enum: ["bottom_center", "bottom_left"] },
+    subtitle_position: {
+      type: "STRING",
+      enum: ["bottom_center", "bottom_left"],
+    },
   },
   required: [
     "id",
@@ -159,7 +182,14 @@ const SCRIPT_RESPONSE_SCHEMA = {
       required: ["contains_synthetic_media", "commercial_content"],
     },
   },
-  required: ["metadata", "narration", "scenes", "sources", "disclosures", "editorial_style"],
+  required: [
+    "metadata",
+    "narration",
+    "scenes",
+    "sources",
+    "disclosures",
+    "editorial_style",
+  ],
 };
 
 /** Campos de sistema nunca ficam a cargo do modelo (ADR-008). */
@@ -173,14 +203,16 @@ function normalizeSystemFields(
 ): Record<string, unknown> {
   const withoutAssets = Array.isArray(raw.scenes)
     ? raw.scenes.map((s) => ({
-      ...(s as Record<string, unknown>),
-      asset_landscape: null,
-      asset_portrait: null,
-    }))
+        ...(s as Record<string, unknown>),
+        asset_landscape: null,
+        asset_portrait: null,
+      }))
     : raw.scenes;
-  const scenes = Array.isArray(withoutAssets) ? enforcePresenterCap(withoutAssets, spokesmodel) : withoutAssets;
+  const scenes = Array.isArray(withoutAssets)
+    ? enforcePresenterCap(withoutAssets, spokesmodel)
+    : withoutAssets;
   const disclosures = {
-    ...(raw.disclosures as Record<string, unknown> ?? {}),
+    ...((raw.disclosures as Record<string, unknown>) ?? {}),
     contains_synthetic_media: true,
     commercial_content: isCommercial,
     ...(isCommercial ? {} : { commercial_disclosure_text: null }),
@@ -212,9 +244,15 @@ async function getActivePromptVersion(
 }
 
 export async function handleScript(req: Request): Promise<Response> {
-  try { requireServiceRole(req); } catch (err) { return toErrorResponse(err); }
+  try {
+    requireServiceRole(req);
+  } catch (err) {
+    return toErrorResponse(err);
+  }
   if (req.method !== "POST") {
-    return toErrorResponse(new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"));
+    return toErrorResponse(
+      new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"),
+    );
   }
 
   let release: (() => Promise<void>) | undefined;
@@ -227,11 +265,19 @@ export async function handleScript(req: Request): Promise<Response> {
 
     const { data: episode, error } = await db
       .from("episodes")
-      .select("id, status, briefing, research_data, research_evidence, product_compliance")
+      .select(
+        "id, status, briefing, research_data, research_evidence, product_compliance, workspace_id",
+      )
       .eq("id", input.episode_id)
       .maybeSingle();
-    if (error) throw new AppError(`Erro ao buscar episódio: ${error.message}`, 500, "DB_ERROR");
-    if (!episode) throw new AppError("Episódio não encontrado", 404, "NOT_FOUND");
+    if (error)
+      throw new AppError(
+        `Erro ao buscar episódio: ${error.message}`,
+        500,
+        "DB_ERROR",
+      );
+    if (!episode)
+      throw new AppError("Episódio não encontrado", 404, "NOT_FOUND");
     if (episode.status !== "research") {
       throw new AppError(
         `Episódio em '${episode.status}' — script exige status 'research'`,
@@ -242,50 +288,95 @@ export async function handleScript(req: Request): Promise<Response> {
 
     const research = researchDataSchema.safeParse(episode.research_data);
     if (!research.success) {
-      throw new AppError("Episódio sem research_data válido", 422, "MISSING_RESEARCH");
+      throw new AppError(
+        "Episódio sem research_data válido",
+        422,
+        "MISSING_RESEARCH",
+      );
     }
     if (!researchMatchesEvidence(research.data, episode.research_evidence)) {
-      await markEpisodeFailed(db, logger, episode.id, "research_evidence_invalid",
-        "Pesquisa sem evidência válida ou alterada após grounding", "research");
-      throw new AppError("Pesquisa sem evidência válida ou alterada após grounding", 422, "RESEARCH_EVIDENCE_INVALID");
+      await markEpisodeFailed(
+        db,
+        logger,
+        episode.id,
+        "research_evidence_invalid",
+        "Pesquisa sem evidência válida ou alterada após grounding",
+        "research",
+      );
+      throw new AppError(
+        "Pesquisa sem evidência válida ou alterada após grounding",
+        422,
+        "RESEARCH_EVIDENCE_INVALID",
+      );
     }
-    const briefingData = episode.briefing as { text?: string; product_name?: string } | null;
+    const briefingData = episode.briefing as {
+      text?: string;
+      product_name?: string;
+      editorial_profile?: unknown;
+    } | null;
     const briefingText = briefingData?.text ?? "";
     const affiliateLinks = affiliateLinksFromCompliance(
       episode.product_compliance,
     );
-    const growthRaw = await getSystemConfig<unknown>(db, "growth_strategy", null);
-    const growth = growthRaw === null ? null : growthStrategySchema.parse(growthRaw);
-    const isCommercial = growth ? Boolean(affiliateLinks.youtube) : Object.keys(affiliateLinks).length > 0 || Boolean(
-      (episode.product_compliance as { commercial_content?: boolean } | null)
-        ?.commercial_content,
+    const growthRaw = await getSystemConfig<unknown>(
+      db,
+      "growth_strategy",
+      null,
     );
+    const growth =
+      growthRaw === null ? null : growthStrategySchema.parse(growthRaw);
+    const isCommercial = growth
+      ? Boolean(affiliateLinks.youtube)
+      : Object.keys(affiliateLinks).length > 0 ||
+        Boolean(
+          (
+            episode.product_compliance as {
+              commercial_content?: boolean;
+            } | null
+          )?.commercial_content,
+        );
 
     const gemini = await getSystemConfig<GeminiConfig>(db, "gemini", {});
-    const spokesmodel = await getSystemConfig<SpokesmodelConfig>(db, "spokesmodel", {});
+    const spokesmodel: SpokesmodelConfig =
+      episode.workspace_id &&
+      episode.workspace_id !== "00000000-0000-4000-8000-000000000001"
+        ? { enabled: false }
+        : await getSystemConfig<SpokesmodelConfig>(db, "spokesmodel", {});
     const configuredModel = gemini.text_model ?? "gemini-3.6-flash";
-    const modelCandidates = [...new Set([
-      configuredModel,
-      "gemini-3.1-flash-lite",
-      "gemini-3.5-flash",
-      "gemini-3.6-flash",
-    ])];
+    const modelCandidates = [
+      ...new Set([
+        configuredModel,
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+      ]),
+    ];
     const promptVersion = await getActivePromptVersion(db);
     // Fail closed before spending quota if editorial policy is missing or invalid.
     const quality = await loadScriptQualityChecker(db);
 
     const basePrompt = buildScriptPrompt({
-      briefing: growth ? `${briefingText}\n${growthBriefing(growth)}` : briefingText,
+      briefing: growth
+        ? `${briefingText}\n${growthBriefing(growth)}`
+        : briefingText,
       productName: briefingData?.product_name,
+      editorialProfile: briefingData?.editorial_profile,
       platformGrowth: Boolean(growth),
       researchData: research.data,
       isCommercial,
       commercialPlatforms: Object.keys(affiliateLinks) as Array<
         keyof AffiliateLinks
       >,
-      spokesmodel: spokesmodel.enabled && spokesmodel.character_description
-        ? { characterDescription: spokesmodel.character_description, maxScenesPerEpisode: Math.max(0, spokesmodel.max_scenes_per_episode ?? 1) }
-        : undefined,
+      spokesmodel:
+        spokesmodel.enabled && spokesmodel.character_description
+          ? {
+              characterDescription: spokesmodel.character_description,
+              maxScenesPerEpisode: Math.max(
+                0,
+                spokesmodel.max_scenes_per_episode ?? 1,
+              ),
+            }
+          : undefined,
     });
 
     // Tentativa 1 + repair loop (máx. 1 retry com os erros do Zod no prompt)
@@ -299,9 +390,10 @@ export async function handleScript(req: Request): Promise<Response> {
     for (const attempt of [1, 2] as const) {
       attempts = attempt;
       qualityReport = undefined;
-      const prompt = attempt === 1
-        ? basePrompt
-        : `${basePrompt}\n\n${buildRepairPrompt(lastInvalidJson, lastErrors)}`;
+      const prompt =
+        attempt === 1
+          ? basePrompt
+          : `${basePrompt}\n\n${buildRepairPrompt(lastInvalidJson, lastErrors)}`;
 
       let result: Awaited<ReturnType<typeof geminiGenerate>> | undefined;
       let model = configuredModel;
@@ -309,7 +401,8 @@ export async function handleScript(req: Request): Promise<Response> {
       for (const candidate of modelCandidates) {
         try {
           result = await geminiGenerate({
-            beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "text", candidate),
+            beforeRequest: () =>
+              assertGeminiBudget(db, logger!, episode.id, "text", candidate),
             model: candidate,
             prompt,
             responseSchema: SCRIPT_RESPONSE_SCHEMA,
@@ -321,18 +414,37 @@ export async function handleScript(req: Request): Promise<Response> {
         } catch (err) {
           lastModelError = err;
           if (!(err instanceof AppError) || err.status !== 502) throw err;
-          logger.info("modelo de roteiro indisponível; tentando fallback", { model: candidate, attempt });
+          logger.info("modelo de roteiro indisponível; tentando fallback", {
+            model: candidate,
+            attempt,
+          });
         }
       }
-      if (!result) throw lastModelError ?? new AppError("Nenhum modelo Gemini de roteiro respondeu", 502, "GEMINI_CALL_FAILED");
+      if (!result)
+        throw (
+          lastModelError ??
+          new AppError(
+            "Nenhum modelo Gemini de roteiro respondeu",
+            502,
+            "GEMINI_CALL_FAILED",
+          )
+        );
       await recordGeminiCall(logger, episode.id, "text", model, result.usage);
 
       let normalized: Record<string, unknown>;
       try {
         const raw = extractJson(result.text);
-        if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Roteiro deve ser um objeto JSON");
+        if (!raw || typeof raw !== "object" || Array.isArray(raw))
+          throw new Error("Roteiro deve ser um objeto JSON");
         normalized = normalizeSystemFields(
-          growth ? applyGrowthStrategy(raw as Record<string, any>, growth, affiliateLinks.youtube, episode.id) : raw as Record<string, unknown>,
+          growth
+            ? applyGrowthStrategy(
+                raw as Record<string, any>,
+                growth,
+                affiliateLinks.youtube,
+                episode.id,
+              )
+            : (raw as Record<string, unknown>),
           episode.id,
           promptVersion,
           isCommercial,
@@ -349,20 +461,28 @@ export async function handleScript(req: Request): Promise<Response> {
       if (parsed.success) {
         qualityReport = quality.check(parsed.data, research.data, isCommercial);
         await recordScriptQuality(db, episode.id, qualityReport, {
-          stage: "generate-script", script_hash: await computeScriptHash(parsed.data),
-          policy_hash: quality.policy_hash, attempt,
+          stage: "generate-script",
+          script_hash: await computeScriptHash(parsed.data),
+          policy_hash: quality.policy_hash,
+          attempt,
         });
         if (qualityReport.passed) {
           scriptJson = parsed.data;
           break;
         }
-        lastErrors = qualityReport.findings.filter(f => f.severity === "error")
-          .map(f => `${f.path}: ${f.message}`);
+        lastErrors = qualityReport.findings
+          .filter((f) => f.severity === "error")
+          .map((f) => `${f.path}: ${f.message}`);
       } else {
-        lastErrors = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
+        lastErrors = parsed.error.issues.map(
+          (i) => `${i.path.join(".")}: ${i.message}`,
+        );
       }
       lastInvalidJson = JSON.stringify(normalized);
-      logger.info("validação do roteiro falhou", { attempt, errors: lastErrors });
+      logger.info("validação do roteiro falhou", {
+        attempt,
+        errors: lastErrors,
+      });
     }
 
     if (!scriptJson) {
@@ -370,14 +490,18 @@ export async function handleScript(req: Request): Promise<Response> {
         db,
         logger,
         episode.id,
-        qualityReport?.passed === false ? "script_quality_failed" : "json_validation_failed",
+        qualityReport?.passed === false
+          ? "script_quality_failed"
+          : "json_validation_failed",
         lastErrors.join("; ").slice(0, 1000),
         "research",
       );
       throw new AppError(
         "Roteiro reprovado após repair loop — episódio marcado como failed",
         502,
-        qualityReport?.passed === false ? "SCRIPT_QUALITY_FAILED" : "JSON_VALIDATION_FAILED",
+        qualityReport?.passed === false
+          ? "SCRIPT_QUALITY_FAILED"
+          : "JSON_VALIDATION_FAILED",
       );
     }
 
@@ -388,7 +512,15 @@ export async function handleScript(req: Request): Promise<Response> {
         script_json: scriptJson,
         script_hash: scriptHash,
         prompt_version: promptVersion,
-        metadata: { ...scriptJson.metadata, editorial_style: scriptJson.editorial_style, script_qa: { ...qualityReport, policy_hash: quality.policy_hash, script_hash: scriptHash } },
+        metadata: {
+          ...scriptJson.metadata,
+          editorial_style: scriptJson.editorial_style,
+          script_qa: {
+            ...qualityReport,
+            policy_hash: quality.policy_hash,
+            script_hash: scriptHash,
+          },
+        },
         status: "script",
       })
       .eq("id", episode.id)
@@ -399,12 +531,32 @@ export async function handleScript(req: Request): Promise<Response> {
     if (updateError) {
       // 23505 = colisão de script_hash UNIQUE → roteiro duplicado (idempotência, ADR-005)
       if (updateError.code === "23505") {
-        await markEpisodeFailed(db, logger, episode.id, "duplicate_script", `script_hash já existe: ${scriptHash}`, "research");
-        throw new AppError("Roteiro duplicado detectado (script_hash colidiu)", 409, "DUPLICATE_SCRIPT");
+        await markEpisodeFailed(
+          db,
+          logger,
+          episode.id,
+          "duplicate_script",
+          `script_hash já existe: ${scriptHash}`,
+          "research",
+        );
+        throw new AppError(
+          "Roteiro duplicado detectado (script_hash colidiu)",
+          409,
+          "DUPLICATE_SCRIPT",
+        );
       }
-      throw new AppError(`Erro ao salvar script: ${updateError.message}`, 500, "DB_ERROR");
+      throw new AppError(
+        `Erro ao salvar script: ${updateError.message}`,
+        500,
+        "DB_ERROR",
+      );
     }
-    if (!updated) throw new AppError("Estado do episódio mudou durante a geração", 409, "INVALID_STATE");
+    if (!updated)
+      throw new AppError(
+        "Estado do episódio mudou durante a geração",
+        409,
+        "INVALID_STATE",
+      );
 
     await logger.event({
       episode_id: episode.id,
@@ -412,12 +564,26 @@ export async function handleScript(req: Request): Promise<Response> {
       model_used: usedModel,
       prompt_version: promptVersion,
       cost_estimate: 0,
-      metadata: { attempts, scenes: scriptJson.scenes.length, script_hash: scriptHash, editorial_style: scriptJson.editorial_style },
+      metadata: {
+        attempts,
+        scenes: scriptJson.scenes.length,
+        script_hash: scriptHash,
+        editorial_style: scriptJson.editorial_style,
+      },
     });
 
-    logger.info("script gerado", { episode_id: episode.id, attempts, script_hash: scriptHash });
+    logger.info("script gerado", {
+      episode_id: episode.id,
+      attempts,
+      script_hash: scriptHash,
+    });
     return jsonResponse(
-      { episode_id: episode.id, script_hash: scriptHash, attempts, scenes: scriptJson.scenes.length },
+      {
+        episode_id: episode.id,
+        script_hash: scriptHash,
+        attempts,
+        scenes: scriptJson.scenes.length,
+      },
       200,
     );
   } catch (err) {
