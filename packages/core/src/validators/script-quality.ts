@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { ResearchData } from "../schemas/research.ts";
 import type { ScriptJson } from "../schemas/script-json.ts";
 
-export const SCRIPT_QUALITY_VERSION = "1.1.0";
-export const MIN_NARRATION_WORDS = 130;
+export const SCRIPT_QUALITY_VERSION = "1.2.0";
+export const MIN_NARRATION_WORDS = 175;
 
 export const factCheckConfigSchema = z.object({
   blocked_patterns: z.record(z.array(z.string().trim().min(1).max(160)).max(50))

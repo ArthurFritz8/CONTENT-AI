@@ -8,7 +8,7 @@ const id = "33333333-3333-4333-8333-333333333333";
 test("ficha inclui conteúdo integral, fontes, licenças e decisão clara sem exceder limites Telegram", () => {
   const snapshot = makeReviewSnapshot();
   snapshot.episode.script_json.metadata.youtube.title = "🔋".repeat(50);
-  snapshot.episode.script_json.scenes[0]!.narration_text = "🔋".repeat(500);
+  snapshot.episode.script_json.scenes[0]!.narration_text += "🔋".repeat(500);
   snapshot.episode.script_json.narration.full_text = snapshot.episode.script_json.scenes.map(scene => scene.narration_text).join(" ");
   const packet = buildReviewPacket(snapshot, id);
   ok(packet.caption.length <= 1024);

@@ -13,7 +13,7 @@ test("roteiro curto não passa apenas por declarar alvo de sessenta segundos", (
   const report = check(script, research, false);
   strictEqual(report.passed, false);
   strictEqual(report.findings.some(f => f.code === "NARRATION_TOO_SHORT"), true);
-  strictEqual(MIN_NARRATION_WORDS, 130);
+  strictEqual(MIN_NARRATION_WORDS, 175);
 });
 const research = [{ claim: "Afirmação X", source_url: "https://example.com/fonte", confidence: 0.9, query_used: "teste" }];
 
