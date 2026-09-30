@@ -95,6 +95,8 @@ export const messages: Record<Language, Record<string, string>> = {
     seeAll: "Ver todas",
     activity: "Atividade recente",
     pipeline: "Produção automática",
+    manualProductionHint:
+      "Para criar um vídeo, abra Pautas e escolha Gerar vídeo. A pesquisa diária adiciona sugestões, mas não inicia a produção.",
     paused: "Pausada",
     enabled: "Ativada",
     pausedHint: "As pautas ficam guardadas até você ativar a produção.",
@@ -362,6 +364,8 @@ export const messages: Record<Language, Record<string, string>> = {
     seeAll: "View all",
     activity: "Recent activity",
     pipeline: "Automatic production",
+    manualProductionHint:
+      "To create a video, open Ideas and choose Generate video. Daily research adds suggestions without starting production.",
     paused: "Paused",
     enabled: "Enabled",
     pausedHint: "Ideas stay in the queue until you enable production.",
@@ -629,6 +633,8 @@ export const messages: Record<Language, Record<string, string>> = {
     seeAll: "Ver todas",
     activity: "Actividad reciente",
     pipeline: "Producción automática",
+    manualProductionHint:
+      "Para crear un vídeo, abre Ideas y elige Generar vídeo. La investigación diaria añade sugerencias sin iniciar la producción.",
     paused: "Pausada",
     enabled: "Activada",
     pausedHint: "Las ideas se guardan hasta que actives la producción.",

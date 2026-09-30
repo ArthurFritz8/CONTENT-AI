@@ -15,6 +15,10 @@ begin
  reply:=public.studio_command(w1,u1,gen_random_uuid(),'candidate',jsonb_build_object('briefing','Uma explicação de um assunto concreto e verificável','discovery_id',disc,'candidate',candidate));
  perform pg_temp.assert_ok((reply->>'idea_id')::uuid=idea,'same discovery not duplicated');
  begin perform public.studio_command(w2,u2,gen_random_uuid(),'cancel',jsonb_build_object('id',idea,'revision',0));raise exception 'Foreign idea edited';exception when insufficient_privilege then null;end;
+ reply:=public.studio_command(w1,u1,gen_random_uuid(),'generate_video',jsonb_build_object('id',idea,'revision',(select revision from public.idea_queue where id=idea)));
+ perform pg_temp.assert_ok(reply->>'code'='started','manual video starts while automatic production is off');
+ perform pg_temp.assert_ok((select settings#>>'{pipeline,enabled}'='false' from public.studio_workspaces where id=w1),'manual action does not enable automatic consumption');
+ perform pg_temp.assert_ok((select id=(reply->>'episode_id')::uuid from public.studio_next_episode()),'orchestrator advances manually started video while auto is off');
  insert into public.episodes(workspace_id)values(w1) returning id into ep;
  insert into public.episodes(workspace_id)values(w2) returning id into ep2;
  update public.episodes set status='research' where id=ep;

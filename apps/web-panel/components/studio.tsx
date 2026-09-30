@@ -1889,57 +1889,76 @@ function Settings({
             <SlidersHorizontal size={21} />
             {t("operationSettings")}
           </h2>
-          <form
-            key={pipeline?.updated_at}
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget),
-                payload = {
-                  revision: pipeline.updated_at,
-                  enabled: f.get("enabled") === "on",
-                  max_episodes_per_day: Number(f.get("limit")),
-                };
-              if (payload.enabled && !pipeline.value.enabled)
-                setEnableConfirm(payload);
-              else await mutate("pipeline", payload);
-            }}
-          >
-            <label className="switch-label">
-              <span>
-                {t("pipeline")}
-                <small>{t("activationHint")}</small>
-              </span>
-              <input
-                type="checkbox"
-                name="enabled"
-                defaultChecked={!!pipeline?.value.enabled}
-              />
-            </label>
-            <label>
-              {t("dailyLimit")}
-              <input
-                type="number"
-                name="limit"
-                min={1}
-                max={10}
-                required
-                defaultValue={pipeline?.value.max_episodes_per_day || 1}
-              />
-            </label>
-            <div className="locked-settings">
-              <span>
-                <ShieldCheck size={15} />
-                {t("approvalRequired")}
-              </span>
-              <span>
-                <Pause size={15} />
-                {t("autoPublishOff")}
-              </span>
-            </div>
-            <button disabled={busy || !pipeline} className="button primary">
-              {t(busy ? "saving" : "save")}
-            </button>
-          </form>
+          {legacy ? (
+            <form
+              key={pipeline?.updated_at}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget),
+                  payload = {
+                    revision: pipeline.updated_at,
+                    enabled: f.get("enabled") === "on",
+                    max_episodes_per_day: Number(f.get("limit")),
+                  };
+                if (payload.enabled && !pipeline.value.enabled)
+                  setEnableConfirm(payload);
+                else await mutate("pipeline", payload);
+              }}
+            >
+              <label className="switch-label">
+                <span>
+                  {t("pipeline")}
+                  <small>{t("activationHint")}</small>
+                </span>
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  defaultChecked={!!pipeline?.value.enabled}
+                />
+              </label>
+              <label>
+                {t("dailyLimit")}
+                <input
+                  type="number"
+                  name="limit"
+                  min={1}
+                  max={10}
+                  required
+                  defaultValue={pipeline?.value.max_episodes_per_day || 1}
+                />
+              </label>
+              <div className="locked-settings">
+                <span>
+                  <ShieldCheck size={15} />
+                  {t("approvalRequired")}
+                </span>
+                <span>
+                  <Pause size={15} />
+                  {t("autoPublishOff")}
+                </span>
+              </div>
+              <button disabled={busy || !pipeline} className="button primary">
+                {t(busy ? "saving" : "save")}
+              </button>
+            </form>
+          ) : (
+            <>
+              <p>{t("manualProductionHint")}</p>
+              <p className="muted">
+                {t("dailyLimit")}: {pipeline?.value.max_episodes_per_day || 1}
+              </p>
+              <div className="locked-settings">
+                <span>
+                  <ShieldCheck size={15} />
+                  {t("approvalRequired")}
+                </span>
+                <span>
+                  <Pause size={15} />
+                  {t("autoPublishOff")}
+                </span>
+              </div>
+            </>
+          )}
         </section>
         <section className="panel settings-panel">
           <h2>{t("editorial")}</h2>
