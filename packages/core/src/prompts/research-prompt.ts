@@ -40,6 +40,8 @@ REGRAS OBRIGATÓRIAS:
 6. Entre 3 e ${input.maxClaims} claims. Idioma: português do Brasil.
 7. Cada claim deve ser uma frase factual curta e estar explicitamente sustentado pelo trecho da fonte escolhida. Não inclua inferências nem fatos ausentes dos trechos.
 8. Não transforme uma página de afiliado, anúncio ou imagem stock em prova independente de desempenho. Marque limitações e contexto quando existirem; omita alegações de benefício sem fonte.
+9. Quando houver evidência, cubra fato central, aplicação/exemplo, contexto e limitação. Prefira fatos complementares a repetir o mesmo anúncio em frases diferentes.
+10. Quando duas ou mais fontes independentes sustentarem fatos distintos, distribua os claims entre elas. Muitas URLs do mesmo domínio não contam como verificação independente.
 
 FORMATO DA RESPOSTA — retorne APENAS um array JSON, sem markdown, sem texto extra:
 [

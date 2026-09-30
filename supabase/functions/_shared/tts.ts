@@ -14,6 +14,8 @@ export interface TtsConfig {
   voice_pt_br?: string;
   gemini_tts_model?: string;
   gemini_tts_voice?: string;
+  delivery_style?: string;
+  edge_rate?: string;
   edge_endpoint_url?: string | null;
   piper_endpoint_url?: string | null;
   preflight_enabled?: boolean;
@@ -32,6 +34,22 @@ export interface TtsResult {
 }
 
 export const DEFAULT_TTS_CHAIN: TtsEngine[] = ["gemini", "edge", "piper"];
+
+export function voiceDirectionForStyle(style: string): { delivery: string; edgeRate: string } {
+  switch (style) {
+    case "hook_choque_ritmo_rapido": return { delivery: "enérgica e curiosa, com frases claras e pausas curtas", edgeRate: "+3%" };
+    case "storytelling_pessoal": return { delivery: "próxima e conversacional, com pausas naturais", edgeRate: "-2%" };
+    case "comparacao_lado_a_lado": return { delivery: "objetiva, destacando as diferenças sem pressa", edgeRate: "+0%" };
+    case "mito_vs_verdade": return { delivery: "curiosa e precisa, destacando a evidência", edgeRate: "+1%" };
+    case "unboxing_primeira_impressao": return { delivery: "curiosa e descritiva, sem fingir experiência pessoal", edgeRate: "+1%" };
+    case "explicativo_pausado": return { delivery: "didática e calma, com pausas para compreensão", edgeRate: "-4%" };
+    default: return { delivery: "natural e clara, em tom de conversa", edgeRate: "+0%" };
+  }
+}
+
+export function geminiSpeechPrompt(text: string, delivery: string): string {
+  return `Leia em português brasileiro com voz ${delivery}. Preserve exatamente o texto e suas pausas; não acrescente comentários. Texto a narrar:\n${text}`;
+}
 
 export function normalizeTtsChain(chain: TtsConfig["chain"]): TtsEngine[] {
   const valid = (chain ?? DEFAULT_TTS_CHAIN).filter((e): e is TtsEngine =>
@@ -58,7 +76,7 @@ export async function synthesizeTts(
     const result = await geminiGenerateTts({
       beforeRequest,
       model: cfg.gemini_tts_model ?? "gemini-2.5-flash-preview-tts",
-      prompt: text,
+      prompt: geminiSpeechPrompt(text, cfg.delivery_style ?? "natural e clara, em tom de conversa"),
       voiceName: cfg.gemini_tts_voice ?? "Kore",
     });
     return {

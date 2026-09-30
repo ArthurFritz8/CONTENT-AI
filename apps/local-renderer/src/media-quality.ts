@@ -1,4 +1,5 @@
 import { FPS, ORIENTATIONS, type Orientation } from "./render-utils.ts";
+import { TOTAL_DURATION_TARGET_SECONDS } from "@content-ai/core";
 
 interface ProbeStream {
   codec_type?: string;
@@ -38,6 +39,9 @@ export function assessMedia(probe: MediaProbe, orientation: Orientation, expecte
   if (!Number.isFinite(bytes) || bytes <= 0) problems.push("arquivo vazio ou tamanho inválido");
   if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(expectedDuration) || expectedDuration <= 0 ||
     Math.abs(duration - expectedDuration) > MEDIA_DURATION_TOLERANCE_SECONDS) problems.push("duração final diverge da soma das cenas");
+  if (Number.isFinite(duration) && duration < TOTAL_DURATION_TARGET_SECONDS.min) {
+    problems.push(`duração real abaixo do mínimo editorial de ${TOTAL_DURATION_TARGET_SECONDS.min}s`);
+  }
   for (const [name, stream] of [["vídeo", video], ["áudio", audio]] as const) {
     const streamDuration = Number(stream?.duration);
     if (!Number.isFinite(streamDuration) || streamDuration <= 0 || Math.abs(streamDuration - duration) > MEDIA_DURATION_TOLERANCE_SECONDS) problems.push(`duração da faixa de ${name} inválida ou incompleta`);

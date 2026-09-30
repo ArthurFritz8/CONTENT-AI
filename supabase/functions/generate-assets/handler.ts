@@ -28,7 +28,8 @@ import {
   pickPresenterPhoto,
   type SpokesmodelConfig,
 } from "../../../packages/core/src/planners/spokesmodel-plan.ts";
-import { searchPexelsPhoto } from "../_shared/pexels.ts";
+import { searchPexelsPhotos } from "../_shared/pexels.ts";
+import { selectPexelsPhotos } from "../_shared/pexels-selection.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import {
   loadScriptQualityChecker,
@@ -39,6 +40,7 @@ import { researchMatchesEvidence } from "../../../packages/core/src/validators/r
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import {
   normalizeTtsChain,
+  voiceDirectionForStyle,
   sourceForTtsEngine,
   synthesizeTts,
   type TtsConfig,
@@ -202,6 +204,7 @@ function assetFor(
   return assets.find((asset) => {
     if (asset.type !== type) return false;
     if (asset.metadata?.scene_order !== sceneOrder) return false;
+    if (type === "image" && asset.metadata?.shot_index !== undefined && asset.metadata.shot_index !== 0) return false;
     return !orientation || asset.metadata?.orientation === orientation;
   });
 }
@@ -289,6 +292,7 @@ async function stageImages(args: {
     affiliate: 0,
     generated: 0,
     pexels: 0,
+    additional_shots: 0,
     skipped: 0,
     presenter: 0,
   };
@@ -326,6 +330,9 @@ async function stageImages(args: {
   });
   const planByOrder = new Map(plan.map((p) => [p.order, p.source]));
   const rows: AssetRowInsert[] = [];
+  const usedPexelsUrls = new Set(assets.filter((asset) => asset.type === "image")
+    .map((asset) => asset.metadata?.pexels_url)
+    .filter((url): url is string => typeof url === "string"));
   let affiliateUrl: string | null = null;
 
   const resolvedScenes: Scene[] = [];
@@ -407,7 +414,7 @@ async function stageImages(args: {
           img.bytes,
           img.mimeType,
         );
-      } catch (err) {
+      } catch {
         logger.info("Imagem do produto indisponível; usando stock", {
           scene: scene.order,
         });
@@ -489,11 +496,18 @@ async function stageImages(args: {
       portrait = { url, license: "generated", source: "gemini" };
       counts.generated += 1;
     } else {
-      const photo =
-        (await searchPexelsPhoto(scene.visual.search_query)) ??
-        (await searchPexelsPhoto(
-          cfg.pexels_fallback_query ?? "technology gadget",
-        ));
+      const context = `${scene.narration_text} ${script.metadata.youtube.title}`;
+      let photos = selectPexelsPhotos(
+        await searchPexelsPhotos(scene.visual.search_query),
+        scene.visual.search_query,
+        context,
+        usedPexelsUrls,
+      );
+      if (!photos.length) {
+        const fallback = cfg.pexels_fallback_query ?? "neutral abstract background";
+        photos = selectPexelsPhotos(await searchPexelsPhotos(fallback), fallback, context, usedPexelsUrls);
+      }
+      const photo = photos[0];
       if (!photo)
         throw new AppError(
           `Pexels sem resultados para cena ${scene.order}`,
@@ -518,11 +532,38 @@ async function stageImages(args: {
               orientation,
               role: scene.role,
               pexels_url: photo.pexels_url,
+              alt: photo.alt,
+              shot_index: 0,
+              illustrative: true,
               source_plan: source,
             },
           });
         }
       }
+      for (const [index, extra] of photos.slice(1).entries()) {
+        for (const orientation of ORIENTATIONS) {
+          rows.push({
+            episode_id: episode.id,
+            type: "image",
+            url: orientation === "landscape" ? extra.landscape_url : extra.portrait_url,
+            license: "pexels",
+            source: "pexels",
+            author: extra.author,
+            metadata: {
+              scene_order: scene.order,
+              orientation,
+              role: scene.role,
+              pexels_url: extra.pexels_url,
+              alt: extra.alt,
+              shot_index: index + 1,
+              illustrative: true,
+              source_plan: source,
+            },
+          });
+        }
+      }
+      for (const selected of photos) usedPexelsUrls.add(selected.pexels_url);
+      counts.additional_shots += photos.length - 1;
       landscape = {
         url: photo.landscape_url,
         license: "pexels",
@@ -1028,7 +1069,13 @@ export async function handleAssets(req: Request): Promise<Response> {
       );
     }
     const cfg = await getSystemConfig<AssetsConfig>(db, "assets", {});
-    const ttsCfg = await getSystemConfig<TtsConfig>(db, "tts", {});
+    const baseTtsCfg = await getSystemConfig<TtsConfig>(db, "tts", {});
+    const voiceDirection = voiceDirectionForStyle(script.editorial_style);
+    const ttsCfg: TtsConfig = {
+      ...baseTtsCfg,
+      delivery_style: baseTtsCfg.delivery_style ?? voiceDirection.delivery,
+      edge_rate: baseTtsCfg.edge_rate ?? voiceDirection.edgeRate,
+    };
     const spokesmodelCfg: SpokesmodelConfig =
       episode.workspace_id &&
       episode.workspace_id !== "00000000-0000-4000-8000-000000000001"

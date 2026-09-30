@@ -29,6 +29,7 @@ import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
 import { tavilySearch } from "../_shared/tavily.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { buildResearchPrompt } from "../../../packages/core/src/prompts/research-prompt.ts";
+import { mergeResearchSources, sourceDomains } from "../_shared/research-sources.ts";
 import {
   researchDataSchema,
   type ResearchData,
@@ -49,6 +50,7 @@ interface GeminiConfig {
   research_model?: string;
   research_max_claims?: number;
   research_max_sources?: number;
+  research_second_search_enabled?: boolean;
 }
 
 function researchResponseSchema(maxClaims: number) {
@@ -129,7 +131,7 @@ export async function handleResearch(req: Request): Promise<Response> {
       20,
       Math.max(3, gemini.research_max_claims ?? 12),
     );
-    const search = await tavilySearch({
+    let search = await tavilySearch({
       query:
         `${briefingText} ${niche.focus ?? "gadgets e produtos inovadores"}`.slice(
           0,
@@ -148,6 +150,29 @@ export async function handleResearch(req: Request): Promise<Response> {
         request_id: search.requestId,
       },
     });
+    if (gemini.research_second_search_enabled !== false && sourceDomains(search.sources).size < 2) {
+      const query = `${briefingText.slice(0, 180)} fonte oficial detalhes limitações`.slice(0, 250);
+      try {
+        const complementary = await tavilySearch({
+          query,
+          maxResults: 3,
+          beforeRequest: () => reserveTavilyCall(db, logger!, episode.id),
+        });
+        await logger.event({ episode_id: episode.id, event_type: "tavily_call", cost_estimate: 0,
+          metadata: { credits: complementary.credits, sources: complementary.sources.length,
+            request_id: complementary.requestId, purpose: "independent_source" } });
+        search = {
+          ...search,
+          query: `${search.query} | ${complementary.query}`,
+          sources: mergeResearchSources(search.sources, complementary.sources),
+          credits: search.credits + complementary.credits,
+        };
+      } catch (error) {
+        logger.info("busca complementar indisponível; pesquisa mantém fontes iniciais", {
+          reason: error instanceof AppError ? error.code : "unknown",
+        });
+      }
+    }
 
     const models = [
       ...new Set([
@@ -303,6 +328,7 @@ export async function handleResearch(req: Request): Promise<Response> {
       cost_estimate: 0,
       metadata: {
         claims: grounded.length,
+        source_domains: sourceDomains(search.sources).size,
         evidence_version: evidence.version,
         factual_verification: "requires_human_review",
         ...result.usage,

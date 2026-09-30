@@ -7,6 +7,68 @@ export const ORIENTATIONS = {
 
 export type Orientation = keyof typeof ORIENTATIONS;
 
+export type KenBurns = "in" | "out" | "pan_left" | "pan_right" | "static";
+
+export function planShotDurations(totalSeconds: number, availableImages: number): number[] {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0 || availableImages < 1) {
+    throw new RangeError("Duração e quantidade de imagens devem ser positivas");
+  }
+  const count = Math.min(3, availableImages, Math.max(1, Math.floor(totalSeconds / 3)));
+  return Array.from({ length: count }, (_, index) =>
+    index === count - 1 ? totalSeconds - (count - 1) * (totalSeconds / count) : totalSeconds / count);
+}
+
+export function motionForShot(base: KenBurns, shotIndex: number): KenBurns {
+  if (shotIndex === 0 || base === "static") return base;
+  return shotIndex % 2 ? "pan_right" : "out";
+}
+
+export function zoomPanFilter(motion: KenBurns, frames: number, size: { width: number; height: number }): string {
+  const centerX = "iw/2-(iw/zoom/2)";
+  const centerY = "ih/2-(ih/zoom/2)";
+  const movement = {
+    in: { z: "min(1+on*0.0015,1.12)", x: centerX, y: centerY },
+    out: { z: "max(1.12-on*0.0015,1)", x: centerX, y: centerY },
+    pan_left: { z: "1.08", x: `(iw-iw/zoom)*(1-min(on/${frames},1))`, y: centerY },
+    pan_right: { z: "1.08", x: `(iw-iw/zoom)*min(on/${frames},1)`, y: centerY },
+    static: { z: "1", x: "0", y: "0" },
+  }[motion];
+  return `zoompan=z='${movement.z}':x='${movement.x}':y='${movement.y}':d=${frames}:s=${size.width}x${size.height}:fps=${FPS}`;
+}
+
+export function buildSceneFilterGraph(args: {
+  shotDurations: number[];
+  motion: KenBurns;
+  size: { width: number; height: number };
+  subtitlePath: string;
+  audioDuration: number;
+  gapSeconds: number;
+}): string {
+  const shots = args.shotDurations.map((duration, index) => {
+    const frames = Math.ceil(duration * FPS);
+    return `[${index}:v]scale=${args.size.width}:${args.size.height}:force_original_aspect_ratio=increase,` +
+      `crop=${args.size.width}:${args.size.height},` +
+      `${zoomPanFilter(motionForShot(args.motion, index), frames, args.size)},` +
+      `trim=duration=${duration.toFixed(3)},setpts=PTS-STARTPTS[shot${index}]`;
+  });
+  const visual = `${args.shotDurations.map((_, index) => `[shot${index}]`).join("")}` +
+    `concat=n=${args.shotDurations.length}:v=1:a=0,` +
+    `subtitles='${escapeFfmpegFilterPath(args.subtitlePath)}'[v]`;
+  const totalDuration = args.audioDuration + args.gapSeconds;
+  const audio = `[${args.shotDurations.length}:a]apad=pad_dur=${args.gapSeconds.toFixed(3)},` +
+    `atrim=0:${totalDuration.toFixed(3)},asetpts=PTS-STARTPTS[a]`;
+  return [...shots, visual, audio].join(";");
+}
+
+export function buildMusicMixFilter(volume: number): string {
+  if (!Number.isFinite(volume) || volume < 0 || volume > 1) {
+    throw new RangeError("Volume da música fora de 0-1");
+  }
+  return `[1:a]volume=${volume}[music];` +
+    `[music][0:a]sidechaincompress=threshold=0.03:ratio=6:attack=40:release=350[ducked];` +
+    `[0:a][ducked]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]`;
+}
+
 export interface AudioAssetLike {
   url: string;
 }
@@ -15,6 +77,21 @@ export interface SceneAssetLike {
   type?: string;
   url: string;
   metadata?: Record<string, unknown> | null;
+}
+
+export function plannedRenderedDuration(
+  sceneOrders: number[],
+  assets: SceneAssetLike[],
+  gapSeconds: number,
+): number {
+  let duration = 0;
+  for (const order of sceneOrders) {
+    const asset = assets.find((item) => item.type === "audio" && item.metadata?.scene_order === order);
+    const seconds = Number(asset?.metadata?.duration_seconds);
+    if (!Number.isFinite(seconds) || seconds <= 0) throw new Error(`Áudio da cena ${order} sem duração medida`);
+    duration += seconds + gapSeconds;
+  }
+  return duration;
 }
 
 export function padSceneOrder(order: number): string {

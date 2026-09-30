@@ -18,7 +18,7 @@ export async function synthesizeOnRunner(engine: Exclude<TtsEngine, "gemini">, t
     let word_boundaries: TtsWordBoundary[] | null = null;
     if (engine === "edge") {
       const boundaries = `${dir}/words.json`;
-      await command("python", ["scripts/synthesize-edge.py"], JSON.stringify({ text, voice: cfg.voice_pt_br ?? "pt-BR-FranciscaNeural", audio: path, boundaries }));
+      await command("python", ["scripts/synthesize-edge.py"], JSON.stringify({ text, voice: cfg.voice_pt_br ?? "pt-BR-FranciscaNeural", rate: cfg.edge_rate ?? "+0%", audio: path, boundaries }));
       word_boundaries = JSON.parse(await Deno.readTextFile(boundaries));
     } else {
       const model = Deno.env.get("PIPER_MODEL_PATH");

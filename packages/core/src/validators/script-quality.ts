@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { ResearchData } from "../schemas/research.ts";
 import type { ScriptJson } from "../schemas/script-json.ts";
 
-export const SCRIPT_QUALITY_VERSION = "1.0.0";
+export const SCRIPT_QUALITY_VERSION = "1.1.0";
+export const MIN_NARRATION_WORDS = 130;
 
 export const factCheckConfigSchema = z.object({
   blocked_patterns: z.record(z.array(z.string().trim().min(1).max(160)).max(50))
@@ -79,6 +80,11 @@ export function createScriptQualityChecker(rawConfig: unknown) {
     const scenes = [...script.scenes].sort((a, b) => a.order - b.order);
     if (normalize(script.narration.full_text) !== normalize(scenes.map(s => s.narration_text).join(" "))) {
       error("NARRATION_MISMATCH", "narration.full_text", "full_text deve concatenar exatamente as narrações na ordem das cenas");
+    }
+    const spokenWords = normalize(script.narration.full_text).match(/[\p{L}\p{N}]+/gu)?.length ?? 0;
+    if (spokenWords < MIN_NARRATION_WORDS) {
+      error("NARRATION_TOO_SHORT", "narration.full_text",
+        `Narração com ${spokenWords} palavras; escreva pelo menos ${MIN_NARRATION_WORDS} palavras substantivas para sustentar 60s reais`);
     }
     for (const [index, source] of script.sources.entries()) {
       const url = sourceUrl(source.source_url);

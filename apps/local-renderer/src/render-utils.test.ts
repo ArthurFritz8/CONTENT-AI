@@ -1,7 +1,8 @@
-import { deepStrictEqual, strictEqual } from "node:assert";
+import { deepStrictEqual, strictEqual, throws } from "node:assert";
 import { test } from "node:test";
 import {
   buildConcatList,
+  buildMusicMixFilter,
   conventionalSceneAudioPath,
   conventionalWordBoundariesPath,
   escapeConcatPath,
@@ -10,12 +11,44 @@ import {
   isMissingOptionalStorageObject,
   isTransientStorageStatus,
   padSceneOrder,
+  plannedRenderedDuration,
+  planShotDurations,
+  motionForShot,
+  zoomPanFilter,
   sceneIntermediatePath,
   sceneProgress,
   selectAssetUrlForScene,
   selectAudioUrlForScene,
   storagePublicUrl,
 } from "./render-utils.ts";
+
+test("planejamento visual limita tomadas e usa o movimento pedido pelo roteiro", () => {
+  deepStrictEqual(planShotDurations(2.5, 3), [2.5]);
+  deepStrictEqual(planShotDurations(12, 3), [4, 4, 4]);
+  strictEqual(motionForShot("static", 2), "static");
+  strictEqual(motionForShot("in", 1), "pan_right");
+  const left = zoomPanFilter("pan_left", 120, { width: 1080, height: 1920 });
+  const right = zoomPanFilter("pan_right", 120, { width: 1080, height: 1920 });
+  strictEqual(left.includes("1-min(on/120,1)"), true);
+  strictEqual(right.includes("min(on/120,1)"), true);
+});
+
+test("pré-verificação soma áudio medido e detecta cena sem duração", () => {
+  const assets = [
+    { type: "audio", url: "https://cdn/0.mp3", metadata: { scene_order: 0, duration_seconds: 20 } },
+    { type: "audio", url: "https://cdn/1.mp3", metadata: { scene_order: 1, duration_seconds: 21 } },
+  ];
+  strictEqual(plannedRenderedDuration([0, 1], assets, 0.5), 42);
+  strictEqual(plannedRenderedDuration([0], assets, 0.5), 20.5);
+  throws(() => plannedRenderedDuration([0, 2], assets, 0.5), /Áudio da cena 2/);
+});
+
+test("música baixa sob a voz e usa volume validado", () => {
+  const filter = buildMusicMixFilter(0.08);
+  strictEqual(filter.includes("volume=0.08"), true);
+  strictEqual(filter.includes("sidechaincompress"), true);
+  throws(() => buildMusicMixFilter(1.2), RangeError);
+});
 
 test("paths do renderer seguem convenção estável por cena", () => {
   strictEqual(padSceneOrder(4), "004");

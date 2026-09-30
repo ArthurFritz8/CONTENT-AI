@@ -26,3 +26,5 @@ O prompt de roteiro (ADR-005/008) já expõe todos os parâmetros necessários p
 
 - Testes cobrem: `scriptJsonSchema` exige `editorial_style` (schema); `buildScriptPrompt` inclui o catálogo completo e referencia o estilo corretamente.
 - Qualquer novo parâmetro técnico de estilo (ex.: nova opção de `ken_burns`) deve ser adicionado ao contrato primeiro (fonte única de verdade) e só depois referenciado no catálogo do prompt — nunca o inverso.
+
+Adendo de 30/09/2026 (ADR-044): a premissa de que o renderer anterior já executava todos os movimentos era incorreta. Ele usava zoom central fixo. O ADR-044 implementa as opções de `ken_burns`; `transition` ainda não produz crossfade real.

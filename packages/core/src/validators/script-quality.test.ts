@@ -1,10 +1,20 @@
 import { test } from "node:test";
 import { strictEqual, ok, throws } from "node:assert";
 import { makeValidScript } from "../testing/script-fixture.ts";
-import { createScriptQualityChecker } from "./script-quality.ts";
+import { createScriptQualityChecker, MIN_NARRATION_WORDS } from "./script-quality.ts";
 
 const config = { blocked_patterns: { medical: ["\\mcura\\M"], absolute: ["único no mercado"] }, require_source_per_claim: true };
 const check = createScriptQualityChecker(config);
+
+test("roteiro curto não passa apenas por declarar alvo de sessenta segundos", () => {
+  const script = makeValidScript();
+  for (const scene of script.scenes) scene.narration_text = "Uma frase breve.";
+  script.narration.full_text = script.scenes.map(scene => scene.narration_text).join(" ");
+  const report = check(script, research, false);
+  strictEqual(report.passed, false);
+  strictEqual(report.findings.some(f => f.code === "NARRATION_TOO_SHORT"), true);
+  strictEqual(MIN_NARRATION_WORDS, 130);
+});
 const research = [{ claim: "Afirmação X", source_url: "https://example.com/fonte", confidence: 0.9, query_used: "teste" }];
 
 test("QA válido mantém revisão humana obrigatória e não inventa score factual", () => {
@@ -17,7 +27,7 @@ test("QA válido mantém revisão humana obrigatória e não inventa score factu
 test("narração segue order mesmo quando array está invertido; whitespace não cria falso erro", () => {
   const script = makeValidScript();
   script.scenes.reverse();
-  script.narration.full_text = " Narração da cena 0\nNarração da cena 1  Narração da cena 2 ";
+  script.narration.full_text = ` ${[...script.scenes].sort((a, b) => a.order - b.order).map(scene => scene.narration_text).join("\n  ")} `;
   strictEqual(check(script, research, false).passed, true);
   script.narration.full_text = "Outro roteiro";
   ok(check(script, research, false).findings.some(f => f.code === "NARRATION_MISMATCH"));

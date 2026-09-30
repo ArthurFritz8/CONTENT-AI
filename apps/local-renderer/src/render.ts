@@ -19,6 +19,7 @@ import {
 } from "./media-quality.ts";
 import {
   buildAssSubtitles,
+  formatAssTime,
   canonicalStringify,
   sha256Hex,
   isRenderReady,
@@ -26,6 +27,7 @@ import {
   scriptJsonSchema,
   SUBTITLE_STYLE_LANDSCAPE,
   SUBTITLE_STYLE_PORTRAIT,
+  TOTAL_DURATION_TARGET_SECONDS,
   type Scene,
   type ScriptJson,
   type TtsWordBoundary,
@@ -33,14 +35,17 @@ import {
 } from "@content-ai/core";
 import {
   buildConcatList,
+  buildSceneFilterGraph,
+  buildMusicMixFilter,
   conventionalSceneAudioPath,
   conventionalWordBoundariesPath,
-  escapeFfmpegFilterPath,
   finalRenderPath,
   FPS,
   isMissingOptionalStorageObject,
   isTransientStorageStatus,
   ORIENTATIONS,
+  planShotDurations,
+  plannedRenderedDuration,
   sceneIntermediatePath,
   sceneProgress,
   selectAssetUrlForScene,
@@ -91,7 +96,7 @@ interface SceneLocalFiles {
   audioPath: string;
   audioDuration: number;
   wordBoundaries: TtsWordBoundary[] | null;
-  imageByOrientation: Record<Orientation, string>;
+  imageByOrientation: Record<Orientation, string[]>;
   subtitleByOrientation: Record<Orientation, string>;
 }
 
@@ -385,7 +390,7 @@ async function prepareSceneFiles(
     word_boundaries: wordBoundaries,
   });
 
-  const imageByOrientation = {} as Record<Orientation, string>;
+  const imageByOrientation = {} as Record<Orientation, string[]>;
   const subtitleByOrientation = {} as Record<Orientation, string>;
 
   for (const orientation of Object.keys(ORIENTATIONS) as Orientation[]) {
@@ -394,7 +399,18 @@ async function prepareSceneFiles(
       `${orientation}_${basename(new URL(sceneAssetUrl(scene, orientation)).pathname) || "image"}`,
     );
     await downloadUrl(sceneAssetUrl(scene, orientation), imagePath);
-    imageByOrientation[orientation] = imagePath;
+    const imagePaths = [imagePath];
+    const extraImages = ctx.assets.filter((asset) =>
+      asset.type === "image" && asset.metadata?.scene_order === scene.order &&
+      asset.metadata?.orientation === orientation &&
+      typeof asset.metadata?.shot_index === "number" && asset.metadata.shot_index > 0
+    ).sort((a, b) => Number(a.metadata!.shot_index) - Number(b.metadata!.shot_index));
+    for (const [index, extra] of extraImages.entries()) {
+      const extraPath = join(sceneDir, `${orientation}_shot_${index + 1}_${basename(new URL(extra.url).pathname) || "image"}`);
+      await downloadUrl(extra.url, extraPath);
+      imagePaths.push(extraPath);
+    }
+    imageByOrientation[orientation] = imagePaths;
 
     const subtitlePath = join(sceneDir, `${orientation}.ass`);
     const subtitleUrl = selectAssetUrlForScene(
@@ -427,6 +443,13 @@ async function prepareSceneFiles(
         ),
       );
     }
+    if (scene.asset_portrait?.source === "pexels") {
+      const style = orientation === "portrait"
+        ? "\\an7\\pos(70,110)\\fs32\\bord2\\shad1"
+        : "\\an7\\pos(60,60)\\fs22\\bord2\\shad1";
+      const caption = `Dialogue: 1,0:00:00.00,${formatAssTime(audioDuration + ctx.script.gap_seconds)},Default,,0,0,0,,{${style}}IMAGEM ILUSTRATIVA`;
+      await writeFile(subtitlePath, `${(await readFile(subtitlePath, "utf8")).trimEnd()}\n${caption}\n`);
+    }
     subtitleByOrientation[orientation] = subtitlePath;
   }
 
@@ -440,7 +463,8 @@ async function prepareSceneFiles(
 }
 
 async function renderSceneOrientation(args: {
-  imagePath: string;
+  imagePaths: string[];
+  scene: Scene;
   audioPath: string;
   subtitlePath: string;
   outputPath: string;
@@ -451,29 +475,23 @@ async function renderSceneOrientation(args: {
 }): Promise<void> {
   const size = ORIENTATIONS[args.orientation];
   const totalDuration = args.audioDuration + args.gapSeconds;
-  const frames = Math.ceil(totalDuration * FPS);
-  const subtitlePath = escapeFfmpegFilterPath(args.subtitlePath);
-  const video =
-    `[0:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=increase,` +
-    `crop=${size.width}:${size.height},` +
-    `zoompan=z='min(zoom+0.0015,1.12)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':` +
-    `d=${frames}:s=${size.width}x${size.height}:fps=${FPS},` +
-    `trim=duration=${totalDuration.toFixed(3)},setpts=PTS-STARTPTS,` +
-    `subtitles='${subtitlePath}'[v]`;
-  const audio =
-    `[1:a]apad=pad_dur=${args.gapSeconds.toFixed(3)},` +
-    `atrim=0:${totalDuration.toFixed(3)},asetpts=PTS-STARTPTS[a]`;
+  const shotDurations = planShotDurations(totalDuration, args.imagePaths.length);
+  const filterGraph = buildSceneFilterGraph({
+    shotDurations,
+    motion: args.scene.ken_burns,
+    size,
+    subtitlePath: args.subtitlePath,
+    audioDuration: args.audioDuration,
+    gapSeconds: args.gapSeconds,
+  });
 
+  const inputs = args.imagePaths.slice(0, shotDurations.length).flatMap((path) => ["-loop", "1", "-i", path]);
   await run("ffmpeg", [
-    "-y",
-    "-loop",
-    "1",
-    "-i",
-    args.imagePath,
+    "-y", ...inputs,
     "-i",
     args.audioPath,
     "-filter_complex",
-    `${video};${audio}`,
+    filterGraph,
     "-map",
     "[v]",
     "-map",
@@ -545,7 +563,8 @@ async function ensureSceneCheckpoints(
       const files = await prepareSceneFiles(ctx, scene);
       for (const orientation of missing) {
         await renderSceneOrientation({
-          imagePath: files.imageByOrientation[orientation],
+          imagePaths: files.imageByOrientation[orientation],
+          scene,
           audioPath: files.audioPath,
           subtitlePath: files.subtitleByOrientation[orientation],
           outputPath: localPaths[orientation],
@@ -624,7 +643,7 @@ async function concatOrientation(
       "-i",
       musicPath,
       "-filter_complex",
-      `[1:a]volume=${ctx.script.music.volume}[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]`,
+      buildMusicMixFilter(ctx.script.music.volume),
       "-map",
       "0:v",
       "-map",
@@ -727,6 +746,15 @@ async function renderEpisode(episodeId: string): Promise<void> {
     client.getSystemConfig<RenderConfig>("render", {}),
     client.getSystemConfig<AssetsConfig>("assets", {}),
   ]);
+  const measuredDuration = plannedRenderedDuration(
+    script.scenes.map((scene) => scene.order), assets, script.gap_seconds,
+  );
+  if (measuredDuration < TOTAL_DURATION_TARGET_SECONDS.min) {
+    const message = `Narração medida prevê ${measuredDuration.toFixed(1)}s; o contrato exige ao menos ${TOTAL_DURATION_TARGET_SECONDS.min}s. Enriqueça o roteiro antes de renderizar.`;
+    await client.event({ episode_id: episodeId, event_type: "qa_failed", error_message: message,
+      metadata: { stage: "pre_render_duration", measured_seconds: measuredDuration, required_seconds: TOTAL_DURATION_TARGET_SECONDS.min } });
+    throw new Error(message);
+  }
   const bucket =
     episode.workspace_id &&
     episode.workspace_id !== "00000000-0000-4000-8000-000000000001"

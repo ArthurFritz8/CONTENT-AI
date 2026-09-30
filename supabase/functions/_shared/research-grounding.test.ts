@@ -79,7 +79,7 @@ Deno.test("research persiste busca, trechos e claims com URL encontrada", async 
     assertEquals(episode.status, "research");
     assertEquals(researchMatchesEvidence(episode.research_data as ResearchData, episode.research_evidence), true);
     assertEquals((episode.research_evidence as { provider: string }).provider, "tavily_search");
-    assertEquals(geminiCalls, 1); assertEquals(geminiReserved, 1); assertEquals(tavilyReserved, 1);
+    assertEquals(geminiCalls, 1); assertEquals(geminiReserved, 1); assertEquals(tavilyReserved, 2);
     assertEquals(events.some(event => event.event_type === "tavily_call"), true);
   });
 });

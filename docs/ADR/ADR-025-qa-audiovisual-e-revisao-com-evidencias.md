@@ -28,3 +28,5 @@ Snapshots antigos continuam revisáveis e dizem explicitamente que não possuem 
 Testes unitários cobrem áudio ausente/truncado, codecs, FPS, resolução, duração, tamanho e divergência entre variantes. A fixture real FFmpeg verifica dois renders, relatórios, retomada de checkpoints e rejeição de MP4 legível sem faixa de áudio, sem novo arquivo final ou evento de conclusão. Testes do dossiê cobrem snapshots antigos e evidências Tavily.
 
 Rollback: reverter este commit. Os metadados adicionados são opcionais e compatíveis com leitores anteriores. Nenhuma aprovação existente é modificada.
+
+Adendo de 30/09/2026 (ADR-044): além dos checks técnicos acima, o renderer agora reprova previsão de duração abaixo de 60 segundos baseada nos áudios medidos e reprova MP4 final abaixo de 60 segundos reais. O desvio do alvo continua aparecendo como aviso quando o mínimo é atendido.

@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { handleAssets } from "../generate-assets/handler.ts";
 import { makeResearchEvidence } from "../../../packages/core/src/testing/research-fixture.ts";
+import { makeValidScript } from "../../../packages/core/src/testing/script-fixture.ts";
 
 for (const growth of [false, true]) Deno.test(`assets retoma áudio e só promove com todas as legendas (growth=${growth})`, async () => {
   const savedFetch = globalThis.fetch;
@@ -9,16 +10,17 @@ for (const growth of [false, true]) Deno.test(`assets retoma áudio e só promov
   for (const [key,value] of Object.entries(vars)) Deno.env.set(key,value);
   const id = "11111111-1111-4111-8111-111111111111";
   const ref = { url: "https://images.pexels.com/image.jpg", license: "pexels", source: "pexels" };
+  const narrations = makeValidScript().scenes.map(scene => scene.narration_text);
   const scenes = ["hook","content","cta"].map((role,order)=>({ id: `s${order}`, order, role, duration_seconds: 20,
-    narration_text: "Texto de teste", transition: "cut", ken_burns: "static", visual: {description:"Teste",search_query:"test"},
+    narration_text: narrations[order], transition: "cut", ken_burns: "static", visual: {description:"Teste",search_query:"test"},
     highlight_words: [], asset_landscape: ref, asset_portrait: ref, subtitle_position: "bottom_center" }));
   const script = { episode_id:id,prompt_version:"1.0.0",editorial_style:"explicativo_pausado",gap_seconds:0.5,music:null,scenes,
-    narration:{full_text:"Texto de teste Texto de teste Texto de teste",language:"pt-BR",estimated_duration_seconds:60},
+    narration:{full_text:narrations.join(" "),language:"pt-BR",estimated_duration_seconds:95},
     sources:[{claim:"Teste",source_url:"https://example.com/source"}],
     disclosures:{contains_synthetic_media:true,commercial_content:false,commercial_disclosure_text:null},
     metadata:{youtube:{title:"Teste",description:"Teste",category:"Education",tags:["teste"]},tiktok:{title:"Teste",description:"Teste",hashtags:["#teste"]}} };
   const platformScript = growth ? { ...script, platform_ctas: {
-    youtube: { narration_text: "Texto de teste", commercial: false },
+    youtube: { narration_text: narrations[2], commercial: false },
     tiktok: { narration_text: "Conte sua opinião nos comentários.", commercial: false },
     organic_blocked_phrases: ["compre"],
   } } : script;
