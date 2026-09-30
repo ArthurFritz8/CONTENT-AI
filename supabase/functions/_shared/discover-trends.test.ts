@@ -152,6 +152,7 @@ Deno.test("discover-trends insere sugestões com prioridade baixa e nunca excede
       for (const row of inserted) {
         assertEquals(row.source, "trend_discovery");
         assertEquals(row.priority, 500);
+        assertEquals(row.workspace_id, "00000000-0000-4000-8000-000000000001");
       }
     } finally {
       globalThis.fetch = savedFetch;
