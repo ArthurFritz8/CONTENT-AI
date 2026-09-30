@@ -292,10 +292,14 @@ export default function Studio({
   section,
   episodeId,
   email,
+  workspaceName,
+  legacy,
 }: {
   section: string;
   episodeId?: string;
   email: string;
+  workspaceName: string;
+  legacy: boolean;
 }) {
   const { t, language } = usePreferences();
   const [menu, setMenu] = useState(false),
@@ -555,7 +559,8 @@ export default function Studio({
           <div className="workspace-note">
             <span className="online-dot" />
             <span>
-              Fritz Inova<small>{t("restricted")}</small>
+              {workspaceName}
+              <small>{t("restricted")}</small>
             </span>
           </div>
           <Link className="sidebar-site" href="/" target="_blank">
@@ -1065,6 +1070,7 @@ export default function Studio({
                       mutate={mutate}
                       busy={busy}
                       error={mutationError}
+                      legacy={legacy}
                     />
                   </>
                 )}
@@ -1862,11 +1868,13 @@ function Settings({
   mutate,
   busy,
   error,
+  legacy,
 }: {
   data: Row;
   mutate: (a: string, p: Row) => Promise<boolean>;
   busy: boolean;
   error: string;
+  legacy: boolean;
 }) {
   const { t } = usePreferences();
   const pipeline = data.settings.find((s: Row) => s.key === "pipeline"),
@@ -1999,23 +2007,25 @@ function Settings({
         </section>
       </div>
       <div>
-        <section className="panel settings-panel">
-          <h2>{t("integrations")}</h2>
-          {[
-            ["YouTube", "existingFlow", "youtubeHint"],
-            ["TikTok Shop", "manual", "tiktokHint"],
-            ["Telegram", "existingFlow", "telegramHint"],
-            ["GitHub Actions", "existingFlow", "actionsHint"],
-          ].map(([name, state, hint]) => (
-            <article className="integration" key={name}>
-              <div>
-                <strong>{name}</strong>
-                <span>{t(state)}</span>
-              </div>
-              <p>{t(hint)}</p>
-            </article>
-          ))}
-        </section>
+        {legacy && (
+          <section className="panel settings-panel">
+            <h2>{t("integrations")}</h2>
+            {[
+              ["YouTube", "existingFlow", "youtubeHint"],
+              ["TikTok Shop", "manual", "tiktokHint"],
+              ["Telegram", "existingFlow", "telegramHint"],
+              ["GitHub Actions", "existingFlow", "actionsHint"],
+            ].map(([name, state, hint]) => (
+              <article className="integration" key={name}>
+                <div>
+                  <strong>{name}</strong>
+                  <span>{t(state)}</span>
+                </div>
+                <p>{t(hint)}</p>
+              </article>
+            ))}
+          </section>
+        )}
         <section className="panel settings-panel">
           <h2>{t("limits")}</h2>
           <p className="muted">{t("limitsHint")}</p>

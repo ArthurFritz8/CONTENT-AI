@@ -46,7 +46,7 @@ export const messages: Record<Language, Record<string, string>> = {
     dark: "Escuro",
     system: "Automático",
     overview: "Visão geral",
-    queue: "Pautas e produtos",
+    queue: "Pautas",
     episodes: "Gerações",
     publishes: "Publicações",
     settings: "Configurações",
@@ -79,8 +79,7 @@ export const messages: Record<Language, Record<string, string>> = {
     welcome: "Seu estúdio, em movimento.",
     overviewSubtitle:
       "Acompanhe o que entra na fila, o que está em produção e o que já foi enviado.",
-    queueSubtitle:
-      "Organize os próximos vídeos e os links dos produtos que você quer divulgar.",
+    queueSubtitle: "Organize os próximos vídeos por tema, assunto e objetivo.",
     episodesSubtitle:
       "Da primeira pesquisa ao vídeo final: acompanhe cada etapa da produção.",
     publishesSubtitle:
@@ -112,7 +111,7 @@ export const messages: Record<Language, Record<string, string>> = {
     reviewStage: "Revisão",
     publishedStage: "Publicado",
     failedStage: "Falhou",
-    product: "Produto",
+    product: "Link",
     briefing: "Pauta",
     priority: "Prioridade",
     created: "Criado em",
@@ -122,7 +121,7 @@ export const messages: Record<Language, Record<string, string>> = {
     edit: "Editar",
     cancelIdea: "Retirar da fila",
     open: "Abrir geração",
-    noAffiliate: "Sem link de afiliado",
+    noAffiliate: "Sem link",
     affiliateLink: "Link do produto / afiliado",
     linkHint:
       "Cole o link HTTPS com seu identificador de afiliado. O painel não cria comissões ou vínculos automaticamente.",
@@ -134,7 +133,7 @@ export const messages: Record<Language, Record<string, string>> = {
       "Use somente o link oficial do TikTok Shop afiliado. Ele não será usado no YouTube.",
     legacyAffiliateLink: "Link antigo — tratado como YouTube",
     briefingHint:
-      "Descreva o produto, o problema que ele resolve e o objetivo do vídeo.",
+      "Descreva o assunto concreto, o gancho e o objetivo do vídeo.",
     priorityHint: "Números menores entram primeiro (1 a 1.000).",
     save: "Salvar alterações",
     createIdea: "Adicionar à fila",
@@ -148,7 +147,7 @@ export const messages: Record<Language, Record<string, string>> = {
     added: "Pauta adicionada à fila.",
     cancelled: "Pauta retirada da fila.",
     queueEmpty:
-      "Adicione a primeira pauta com o produto e o objetivo do vídeo.",
+      "Escolha um tema e pesquise assuntos recentes, ou adicione uma pauta específica.",
     videoEmpty: "Nenhum vídeo disponível nesta etapa.",
     player: "Vídeos",
     portrait: "Vertical • 9:16",
@@ -160,7 +159,7 @@ export const messages: Record<Language, Record<string, string>> = {
     media: "Mídias",
     details: "Detalhes",
     reviewHint:
-      "A decisão de aprovação é feita no Telegram e fica vinculada à versão revisada. Aqui você pode assistir e conferir o material.",
+      "Assista ao vídeo, confira roteiro e fontes, e aprove ou peça ajustes nesta página. Telegram é opcional.",
     reviewHistory: "Histórico de revisão",
     noReview: "Nenhuma revisão registrada.",
     noEvents: "Nenhum evento registrado.",
@@ -316,7 +315,7 @@ export const messages: Record<Language, Record<string, string>> = {
     dark: "Dark",
     system: "System",
     overview: "Overview",
-    queue: "Ideas & products",
+    queue: "Ideas",
     episodes: "Productions",
     publishes: "Publications",
     settings: "Settings",
@@ -348,8 +347,7 @@ export const messages: Record<Language, Record<string, string>> = {
     welcome: "Your studio, in motion.",
     overviewSubtitle:
       "Track what is queued, what is in production and what has been uploaded.",
-    queueSubtitle:
-      "Organize upcoming videos and the product links you want to promote.",
+    queueSubtitle: "Organize upcoming videos by topic, subject and goal.",
     episodesSubtitle:
       "From research to the final video: follow every production stage.",
     publishesSubtitle: "Platform upload records, including private videos.",
@@ -379,7 +377,7 @@ export const messages: Record<Language, Record<string, string>> = {
     reviewStage: "Review",
     publishedStage: "Published",
     failedStage: "Failed",
-    product: "Product",
+    product: "Link",
     briefing: "Brief",
     priority: "Priority",
     created: "Created",
@@ -389,7 +387,7 @@ export const messages: Record<Language, Record<string, string>> = {
     edit: "Edit",
     cancelIdea: "Remove from queue",
     open: "Open production",
-    noAffiliate: "No affiliate link",
+    noAffiliate: "No link",
     affiliateLink: "Product / affiliate link",
     linkHint:
       "Paste the HTTPS link with your affiliate identifier. This panel does not automatically create commissions or affiliations.",
@@ -400,8 +398,7 @@ export const messages: Record<Language, Record<string, string>> = {
     tiktokLinkHint:
       "Use only the official TikTok Shop affiliate link. It will not be used on YouTube.",
     legacyAffiliateLink: "Legacy link — treated as YouTube",
-    briefingHint:
-      "Describe the product, the problem it solves and the purpose of the video.",
+    briefingHint: "Describe the specific subject, the hook and the video goal.",
     priorityHint: "Lower numbers go first (1 to 1,000).",
     save: "Save changes",
     createIdea: "Add to queue",
@@ -414,7 +411,8 @@ export const messages: Record<Language, Record<string, string>> = {
     saved: "Changes saved.",
     added: "Idea added to the queue.",
     cancelled: "Idea removed from the queue.",
-    queueEmpty: "Add your first idea with a product and a video objective.",
+    queueEmpty:
+      "Choose a topic and research recent subjects, or add a specific idea.",
     videoEmpty: "No video is available at this stage.",
     player: "Videos",
     portrait: "Vertical • 9:16",
@@ -426,7 +424,7 @@ export const messages: Record<Language, Record<string, string>> = {
     media: "Media",
     details: "Details",
     reviewHint:
-      "Approval happens in Telegram and is tied to the reviewed version. You can watch and inspect the material here.",
+      "Watch the video, check its script and sources, then approve or request changes here. Telegram is optional.",
     reviewHistory: "Review history",
     noReview: "No reviews recorded.",
     noEvents: "No events recorded.",
@@ -583,7 +581,7 @@ export const messages: Record<Language, Record<string, string>> = {
     dark: "Oscuro",
     system: "Automático",
     overview: "Resumen",
-    queue: "Ideas y productos",
+    queue: "Ideas",
     episodes: "Producciones",
     publishes: "Publicaciones",
     settings: "Configuración",
@@ -615,8 +613,7 @@ export const messages: Record<Language, Record<string, string>> = {
     welcome: "Tu estudio, en movimiento.",
     overviewSubtitle:
       "Sigue lo que está en cola, en producción y lo que ya se ha enviado.",
-    queueSubtitle:
-      "Organiza los próximos vídeos y los enlaces de los productos que quieres promocionar.",
+    queueSubtitle: "Organiza los próximos vídeos por tema, asunto y objetivo.",
     episodesSubtitle:
       "De la investigación al vídeo final: sigue cada etapa de producción.",
     publishesSubtitle:
@@ -647,7 +644,7 @@ export const messages: Record<Language, Record<string, string>> = {
     reviewStage: "Revisión",
     publishedStage: "Publicado",
     failedStage: "Error",
-    product: "Producto",
+    product: "Enlace",
     briefing: "Idea",
     priority: "Prioridad",
     created: "Creado",
@@ -657,7 +654,7 @@ export const messages: Record<Language, Record<string, string>> = {
     edit: "Editar",
     cancelIdea: "Retirar de la cola",
     open: "Abrir producción",
-    noAffiliate: "Sin enlace de afiliado",
+    noAffiliate: "Sin enlace",
     affiliateLink: "Enlace del producto / afiliado",
     linkHint:
       "Pega el enlace HTTPS con tu identificador de afiliado. El panel no crea comisiones ni afiliaciones automáticamente.",
@@ -669,7 +666,7 @@ export const messages: Record<Language, Record<string, string>> = {
       "Usa solamente el enlace oficial de afiliado de TikTok Shop. No se utilizará en YouTube.",
     legacyAffiliateLink: "Enlace anterior — tratado como YouTube",
     briefingHint:
-      "Describe el producto, el problema que resuelve y el objetivo del vídeo.",
+      "Describe el asunto concreto, el gancho y el objetivo del vídeo.",
     priorityHint: "Los números menores van primero (1 a 1.000).",
     save: "Guardar cambios",
     createIdea: "Añadir a la cola",
@@ -683,7 +680,7 @@ export const messages: Record<Language, Record<string, string>> = {
     added: "Idea añadida a la cola.",
     cancelled: "Idea retirada de la cola.",
     queueEmpty:
-      "Añade tu primera idea con un producto y el objetivo del vídeo.",
+      "Elige un tema e investiga asuntos recientes, o añade una idea específica.",
     videoEmpty: "Todavía no hay vídeo disponible en esta etapa.",
     player: "Vídeos",
     portrait: "Vertical • 9:16",
@@ -695,7 +692,7 @@ export const messages: Record<Language, Record<string, string>> = {
     media: "Medios",
     details: "Detalles",
     reviewHint:
-      "La aprobación se realiza en Telegram y se vincula a la versión revisada. Aquí puedes ver y comprobar el material.",
+      "Mira el vídeo, comprueba el guion y las fuentes, y aprueba o solicita cambios aquí. Telegram es opcional.",
     reviewHistory: "Historial de revisión",
     noReview: "No hay revisiones registradas.",
     noEvents: "No hay eventos registrados.",

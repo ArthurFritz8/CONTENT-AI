@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "../../../lib/server";
+import { db, requireUser } from "../../../lib/server";
 import { PanelError } from "../../../lib/security.mjs";
+import { LEGACY_WORKSPACE } from "../../../lib/workspace";
 import Studio from "../../../components/studio";
 export const dynamic = "force-dynamic";
 export default async function Page({
@@ -27,11 +28,17 @@ export default async function Page({
     );
   }
   const { path = [] } = await params;
+  const workspace = await db("studio_workspaces", {
+    id: `eq.${user.workspaceId}`,
+    select: "name",
+  });
   return (
     <Studio
       section={path[0] || "overview"}
       episodeId={path[1]}
       email={user.email}
+      workspaceName={workspace.data[0]?.name || "Meu Studio"}
+      legacy={user.workspaceId === LEGACY_WORKSPACE}
     />
   );
 }
