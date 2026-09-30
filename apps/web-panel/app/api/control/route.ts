@@ -1,3 +1,5 @@
+import { previewUrl } from "../../../lib/media";
+import { workspaceDb, studioRpc } from "../../../lib/workspace";
 import {
   appUrl,
   body,
@@ -28,7 +30,11 @@ function title(e: any) {
     briefing: undefined,
   };
 }
-async function count(table: string, filters: Record<string, string> = {}) {
+async function count(
+  db: ReturnType<typeof workspaceDb>,
+  table: string,
+  filters: Record<string, string> = {},
+) {
   const result = await db(
     table,
     { select: "id", ...filters },
@@ -41,6 +47,7 @@ async function count(table: string, filters: Record<string, string> = {}) {
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
+    const db = workspaceDb(user);
     const params = new URL(request.url).searchParams,
       resource = params.get("resource") || "overview";
     let result: unknown;
@@ -55,13 +62,13 @@ export async function GET(request: Request) {
         events,
         settings,
       ] = await Promise.all([
-        count("idea_queue", { status: "eq.pending" }),
-        count("episodes", {
+        count(db, "idea_queue", { status: "eq.pending" }),
+        count(db, "episodes", {
           status: "in.(idea,research,script,assets,rendered)",
         }),
-        count("episodes", { status: "eq.review" }),
-        count("episodes", { status: "eq.failed" }),
-        count("publishes", { status: "eq.published" }),
+        count(db, "episodes", { status: "eq.review" }),
+        count(db, "episodes", { status: "eq.failed" }),
+        count(db, "publishes", { status: "eq.published" }),
         db("episodes", {
           select: episodeSelect,
           order: "created_at.desc",
@@ -114,39 +121,52 @@ export async function GET(request: Request) {
         db("idea_queue", filters),
         db("idea_queue", {
           select: "id,briefing,episode_id,consumed_at,selected_product",
-          status: "eq.consumed", order: "consumed_at.desc", limit: "8",
+          status: "eq.consumed",
+          order: "consumed_at.desc",
+          limit: "8",
         }),
       ]);
       const ids = recent.data.map((row: any) => row.episode_id).filter(Boolean);
-      const [episodes, reviews, events] = ids.length ? await Promise.all([
-        db("episodes", {
-          select: "id,status,render_progress,updated_at",
-          id: `in.(${ids.join(",")})`,
-        }),
-        db("review_requests", {
-          select: "episode_id,delivery_status,decision,created_at",
-          episode_id: `in.(${ids.join(",")})`,
-          order: "created_at.desc", limit: "30",
-        }),
-        db("job_events", {
-          select: "episode_id,event_type,created_at,error_message",
-          episode_id: `in.(${ids.join(",")})`,
-          order: "created_at.desc", limit: "100",
-        }),
-      ]) : [{ data: [] }, { data: [] }, { data: [] }];
-      const episodeById = new Map(episodes.data.map((row: any) => [row.id, row]));
+      const [episodes, reviews, events] = ids.length
+        ? await Promise.all([
+            db("episodes", {
+              select: "id,status,render_progress,updated_at",
+              id: `in.(${ids.join(",")})`,
+            }),
+            db("review_requests", {
+              select: "episode_id,delivery_status,decision,created_at",
+              episode_id: `in.(${ids.join(",")})`,
+              order: "created_at.desc",
+              limit: "30",
+            }),
+            db("job_events", {
+              select: "episode_id,event_type,created_at,error_message",
+              episode_id: `in.(${ids.join(",")})`,
+              order: "created_at.desc",
+              limit: "100",
+            }),
+          ])
+        : [{ data: [] }, { data: [] }, { data: [] }];
+      const episodeById = new Map(
+        episodes.data.map((row: any) => [row.id, row]),
+      );
       const reviewByEpisode = new Map<string, any>();
       for (const review of reviews.data) {
-        if (!reviewByEpisode.has(review.episode_id)) reviewByEpisode.set(review.episode_id, review);
+        if (!reviewByEpisode.has(review.episode_id))
+          reviewByEpisode.set(review.episode_id, review);
       }
       const eventByEpisode = new Map<string, any>();
       for (const event of events.data) {
-        if (!eventByEpisode.has(event.episode_id)) eventByEpisode.set(event.episode_id, {
-          ...event, error_message: safeErrorText(event.error_message),
-        });
+        if (!eventByEpisode.has(event.episode_id))
+          eventByEpisode.set(event.episode_id, {
+            ...event,
+            error_message: safeErrorText(event.error_message),
+          });
       }
       result = {
-        items: r.data, total: r.total, page: p.page,
+        items: r.data,
+        total: r.total,
+        page: p.page,
         recent: recent.data.map((row: any) => ({
           ...row,
           episode: episodeById.get(row.episode_id) || null,
@@ -198,9 +218,12 @@ export async function GET(request: Request) {
           ...safe,
           failure_reason: safeErrorText(e.failure_reason),
           videos: {
-            portrait: mediaUrl(outputs?.portrait || e.render_url, c.url),
-            landscape: mediaUrl(outputs?.landscape, c.url),
-            tiktok: mediaUrl(outputs?.platforms?.tiktok?.portrait, c.url),
+            portrait: await previewUrl(outputs?.portrait || e.render_url, e.id),
+            landscape: await previewUrl(outputs?.landscape, e.id),
+            tiktok: await previewUrl(
+              outputs?.platforms?.tiktok?.portrait,
+              e.id,
+            ),
           },
         },
         events: events.data.map((e: any) => ({
@@ -209,10 +232,12 @@ export async function GET(request: Request) {
         })),
         publishes: publishes.data,
         reviews: reviews.data,
-        assets: assets.data.map((a: any) => ({
-          ...a,
-          url: mediaUrl(a.url, c.url),
-        })),
+        assets: await Promise.all(
+          assets.data.map(async (a: any) => ({
+            ...a,
+            url: await previewUrl(a.url, e.id),
+          })),
+        ),
       };
     } else if (resource === "publishes") {
       const p = pagination(params),
@@ -261,20 +286,15 @@ export async function POST(request: Request) {
     assertOrigin(request, appUrl());
     const user = await requireUser(),
       input = mutation(await body(request));
-    const r = await db(
-      ["choose_product", "generate_video"].includes(input.action)
-        ? "rpc/web_panel_candidate_action" : "rpc/web_panel_mutation",
-      {},
-      {
-        method: "POST",
-        body: JSON.stringify({
-          p_request_id: input.requestId,
-          p_actor: user.id,
-          p_action: input.action,
-          p_payload: input.payload,
-        }),
-      },
-    );
+    const r = {
+      data: await studioRpc("studio_command", {
+        p_workspace: user.workspaceId,
+        p_actor: user.id,
+        p_request: input.requestId,
+        p_action: input.action,
+        p_payload: input.payload,
+      }),
+    };
     const errors: Record<string, string> = {
       conflict:
         "Esta pauta ou configuração mudou. Atualize a página antes de editar.",
@@ -284,13 +304,25 @@ export async function POST(request: Request) {
       not_found: "Registro não encontrado.",
       already_started: "A geração desta pauta já começou. Atualize a fila.",
       not_candidate: "Esta ação é exclusiva das sugestões de tendências.",
-      pipeline_paused: "Ative a Produção automática em Configurações antes de gerar.",
+      pipeline_paused:
+        "Ative a Produção automática em Configurações antes de gerar.",
       product_required: "Escolha um produto concreto antes de gerar o vídeo.",
-      production_busy: "Já existe um vídeo em produção. Acompanhe-o em Gerações.",
-      daily_cap_reached: "O limite diário de episódios foi atingido. Tente no próximo dia UTC.",
+      production_busy:
+        "Já existe um vídeo em produção. Acompanhe-o em Gerações.",
+      daily_cap_reached:
+        "O limite diário de episódios foi atingido. Tente no próximo dia UTC.",
     };
     if (errors[r.data.code]) throw new PanelError(errors[r.data.code], 409);
-    if (!["created", "updated", "cancelled", "saved", "product_chosen", "started"].includes(r.data.code))
+    if (
+      ![
+        "created",
+        "updated",
+        "cancelled",
+        "saved",
+        "product_chosen",
+        "started",
+      ].includes(r.data.code)
+    )
       throw new PanelError("A operação não foi confirmada.", 502);
     return Response.json(r.data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {

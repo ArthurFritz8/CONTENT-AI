@@ -1,11 +1,21 @@
+import { discoverStudioDaily } from "../_shared/studio-daily.ts";
+import { dispatchStudioPost } from "../_shared/studio-publisher.ts";
+import { sendStudioNotifications } from "../_shared/studio-telegram.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
 import { advancePipeline } from "../_shared/advance-pipeline.ts";
 import { sendReview } from "../_shared/review-delivery.ts";
 // orchestrator — consome idea_queue e cria episódios respeitando o cap diário (ADR-007).
 // Sem input: disparado pelo pg_cron diário; consumo atômico via RPC consume_next_idea.
 
-import { AppError, jsonResponse, toErrorResponse } from "../_shared/error-handler.ts";
-import { createServiceClient, getSystemConfig } from "../_shared/supabase-client.ts";
+import {
+  AppError,
+  jsonResponse,
+  toErrorResponse,
+} from "../_shared/error-handler.ts";
+import {
+  createServiceClient,
+  getSystemConfig,
+} from "../_shared/supabase-client.ts";
 import { JobLogger } from "../_shared/logger.ts";
 import { dispatchApprovedShort } from "../_shared/publication-dispatch.ts";
 import { dispatchApprovedBufferTikTok } from "../_shared/buffer-tiktok-dispatch.ts";
@@ -22,27 +32,40 @@ interface ConsumeResult {
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  try { requireServiceRole(req); } catch (err) { return toErrorResponse(err); }
+  try {
+    requireServiceRole(req);
+  } catch (err) {
+    return toErrorResponse(err);
+  }
   if (req.method !== "POST") {
-    return toErrorResponse(new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"));
+    return toErrorResponse(
+      new AppError("Método não permitido", 405, "METHOD_NOT_ALLOWED"),
+    );
   }
 
   let logger: JobLogger | undefined;
   try {
     const db = createServiceClient();
     logger = new JobLogger(db, "orchestrator");
+    const studioPublication = await dispatchStudioPost(db);
+    if (studioPublication) return jsonResponse(studioPublication);
     const publication = await dispatchApprovedShort(db);
     if (publication) return jsonResponse(publication);
     const tiktokPublication = await dispatchApprovedBufferTikTok(db);
     if (tiktokPublication) return jsonResponse(tiktokPublication);
     const bufferYoutubePublication = await dispatchApprovedBufferYoutube(db);
     if (bufferYoutubePublication) return jsonResponse(bufferYoutubePublication);
+    const notification = await sendStudioNotifications(db);
+    if (notification) return jsonResponse(notification);
     const cfg = await getSystemConfig<PipelineConfig>(db, "pipeline", {});
-    if (!cfg.enabled) return jsonResponse({ paused: true, reason: "pipeline_disabled" });
+    const discovered = await discoverStudioDaily(db);
+    if (discovered) return jsonResponse(discovered);
     const review = await sendReview(db);
     if (review) return jsonResponse(review);
     const advanced = await advancePipeline(db);
     if (advanced) return jsonResponse(advanced);
+    if (!cfg.enabled)
+      return jsonResponse({ paused: true, reason: "pipeline_disabled" });
     const maxPerDay = cfg.max_episodes_per_day ?? 1;
 
     const todayStart = new Date();
@@ -50,21 +73,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { count, error: countError } = await db
       .from("episodes")
       .select("id", { count: "exact", head: true })
+      .eq("workspace_id", "00000000-0000-4000-8000-000000000001")
       .gte("created_at", todayStart.toISOString());
     if (countError) {
-      throw new AppError(`Erro ao contar episódios do dia: ${countError.message}`, 500, "DB_ERROR");
+      throw new AppError(
+        `Erro ao contar episódios do dia: ${countError.message}`,
+        500,
+        "DB_ERROR",
+      );
     }
 
     if ((count ?? 0) >= maxPerDay) {
-      logger.info("cap diário atingido — nenhuma ideia consumida", { count, maxPerDay });
-      return jsonResponse({ created: false, reason: "daily_cap_reached", count, maxPerDay });
+      logger.info("cap diário atingido — nenhuma ideia consumida", {
+        count,
+        maxPerDay,
+      });
+      return jsonResponse({
+        created: false,
+        reason: "daily_cap_reached",
+        count,
+        maxPerDay,
+      });
     }
 
     const { data, error } = await db.rpc("consume_next_idea");
     if (error) {
-      throw new AppError(`consume_next_idea falhou: ${error.message}`, 500, "DB_ERROR");
+      throw new AppError(
+        `consume_next_idea falhou: ${error.message}`,
+        500,
+        "DB_ERROR",
+      );
     }
-    const row = (Array.isArray(data) ? data[0] : data) as ConsumeResult | undefined;
+    const row = (Array.isArray(data) ? data[0] : data) as
+      ConsumeResult | undefined;
     if (!row) {
       logger.info("fila de ideias vazia");
       return jsonResponse({ created: false, reason: "idea_queue_empty" });

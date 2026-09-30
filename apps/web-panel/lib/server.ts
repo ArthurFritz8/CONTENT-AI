@@ -32,9 +32,58 @@ export async function requestUser(token: string) {
   if (!res.ok)
     throw new PanelError("Sua sessão expirou. Entre novamente.", 401);
   const user = await res.json();
-  if (!allowedUser(user.id, c.users))
-    throw new PanelError("Esta conta não tem acesso ao painel.", 403);
-  return { id: user.id as string, email: user.email as string };
+  let workspaceId: string;
+  if (allowedUser(user.id, c.users)) {
+    workspaceId = (
+      await db(
+        "rpc/studio_provision",
+        {},
+        {
+          method: "POST",
+          body: JSON.stringify({
+            p_actor: user.id,
+            p_name: "Fritz Inova",
+            p_legacy: true,
+          }),
+        },
+      )
+    ).data;
+  } else {
+    const member = await db("studio_members", {
+      select: "workspace_id",
+      user_id: `eq.${user.id}`,
+      limit: "1",
+    });
+    if (member.data[0]) workspaceId = member.data[0].workspace_id;
+    else {
+      const flag = await db("system_config", {
+        key: "eq.studio_public",
+        select: "value",
+      });
+      if (!user.email_confirmed_at || flag.data[0]?.value?.enabled !== true)
+        throw new PanelError(
+          "Esta conta ainda não recebeu acesso ao Studio.",
+          403,
+        );
+      workspaceId = (
+        await db(
+          "rpc/studio_provision",
+          {},
+          {
+            method: "POST",
+            body: JSON.stringify({
+              p_actor: user.id,
+              p_name: String(
+                user.user_metadata?.studio_name || "Meu Studio",
+              ).slice(0, 100),
+              p_legacy: false,
+            }),
+          },
+        )
+      ).data;
+    }
+  }
+  return { id: user.id as string, email: user.email as string, workspaceId };
 }
 export async function requireUser() {
   const token = (await cookies()).get(cookieName)?.value;

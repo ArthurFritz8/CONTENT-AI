@@ -30,21 +30,37 @@ export function sceneIntermediatePath(
   return `episodes/${episodeId}/render/intermediate/${revision ? `${revision}/` : ""}scene_${padSceneOrder(sceneOrder)}_${orientation}.mp4`;
 }
 
-export function finalRenderPath(episodeId: string, orientation: Orientation, revision: string): string {
+export function finalRenderPath(
+  episodeId: string,
+  orientation: Orientation,
+  revision: string,
+): string {
   return `episodes/${episodeId}/render/final/${revision}/episode_${orientation}.mp4`;
 }
 
-export function conventionalSceneAudioPath(episodeId: string, sceneOrder: number): string {
+export function conventionalSceneAudioPath(
+  episodeId: string,
+  sceneOrder: number,
+): string {
   return `episodes/${episodeId}/audio/scene_${padSceneOrder(sceneOrder)}.mp3`;
 }
 
-export function conventionalWordBoundariesPath(episodeId: string, sceneOrder: number): string {
+export function conventionalWordBoundariesPath(
+  episodeId: string,
+  sceneOrder: number,
+): string {
   return `episodes/${episodeId}/audio/scene_${padSceneOrder(sceneOrder)}_word_boundaries.json`;
 }
 
-export function sceneProgress(completedScenes: number, totalScenes: number): number {
+export function sceneProgress(
+  completedScenes: number,
+  totalScenes: number,
+): number {
   if (totalScenes <= 0) return 0;
-  return Math.min(100, Math.max(0, Math.round((completedScenes / totalScenes) * 100)));
+  return Math.min(
+    100,
+    Math.max(0, Math.round((completedScenes / totalScenes) * 100)),
+  );
 }
 
 export function escapeConcatPath(filePath: string): string {
@@ -55,17 +71,27 @@ export function escapeFfmpegFilterPath(filePath: string): string {
   return filePath.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
 }
 
-export function storagePublicUrl(baseUrl: string, bucket: string, path: string): string {
+export function storagePublicUrl(
+  baseUrl: string,
+  bucket: string,
+  path: string,
+): string {
   const normalizedBase = baseUrl.replace(/\/+$/, "");
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  return `${normalizedBase}/storage/v1/object/public/${bucket}/${encodedPath}`;
+  return `${normalizedBase}/storage/v1/object/${bucket === "studio-private" ? "authenticated" : "public"}/${bucket}/${encodedPath}`;
 }
 
-export function isMissingOptionalStorageObject(status: number, body: string): boolean {
+export function isMissingOptionalStorageObject(
+  status: number,
+  body: string,
+): boolean {
   if (status === 404) return true;
   if (status !== 400) return false;
   try {
-    const error = JSON.parse(body) as { statusCode?: string | number; code?: string };
+    const error = JSON.parse(body) as {
+      statusCode?: string | number;
+      code?: string;
+    };
     return Number(error.statusCode) === 404 || error.code === "NoSuchKey";
   } catch {
     return false;
@@ -97,12 +123,19 @@ export function selectAssetUrlForScene(
   if (metadataMatch) return metadataMatch.url;
 
   const padded = padSceneOrder(sceneOrder);
-  const candidates = [`scene_${padded}`, `scene-${padded}`, `scene_${sceneOrder}`, `scene-${sceneOrder}`];
+  const candidates = [
+    `scene_${padded}`,
+    `scene-${padded}`,
+    `scene_${sceneOrder}`,
+    `scene-${sceneOrder}`,
+  ];
   const match = assets.find((asset) => {
     if (type && asset.type !== type) return false;
     const lower = asset.url.toLowerCase();
-    return candidates.some((candidate) => lower.includes(candidate)) &&
-      (!orientation || lower.includes(orientation));
+    return (
+      candidates.some((candidate) => lower.includes(candidate)) &&
+      (!orientation || lower.includes(orientation))
+    );
   });
   return match?.url ?? null;
 }

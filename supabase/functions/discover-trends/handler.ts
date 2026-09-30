@@ -58,6 +58,10 @@ interface Candidate {
   provider: "socialcrawl" | "trends_mcp" | "tavily" | "hackernews";
 }
 
+// The original scheduled discovery belongs to the operator's workspace. New
+// tenants use studio-discover, with their own profile, quotas and review queue.
+const LEGACY_WORKSPACE = "00000000-0000-4000-8000-000000000001";
+
 function dedupeKeyFrom(url: string): string {
   return url.trim().toLowerCase().replace(/[?#].*$/, "").replace(/\/$/, "");
 }
@@ -135,6 +139,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
       .from("idea_queue")
       .select("id", { count: "exact", head: true })
       .eq("source", "trend_discovery")
+      .eq("workspace_id", LEGACY_WORKSPACE)
       .eq("status", "pending")
       .gte("created_at", freshSince);
     if (countError) {
@@ -147,7 +152,8 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
     const alreadyPending = count ?? 0;
     const { count: totalPending, error: totalError } = await db.from("idea_queue")
       .select("id", { count: "exact", head: true })
-      .eq("source", "trend_discovery").eq("status", "pending");
+      .eq("source", "trend_discovery").eq("status", "pending")
+      .eq("workspace_id", LEGACY_WORKSPACE);
     if (totalError) throw new AppError("Erro ao contar fila total", 500, "DB_ERROR");
     if ((totalPending ?? 0) >= 20) return jsonResponse({
       created: 0, reason: "absolute_pending_cap_reached", pending: totalPending,
@@ -301,6 +307,7 @@ export async function handleDiscoverTrends(req: Request): Promise<Response> {
       if (created >= budget) break;
       const briefing = candidateBriefing(candidate, growth);
       const { error: insertError } = await db.from("idea_queue").insert({
+        workspace_id: LEGACY_WORKSPACE,
         briefing,
         niche: nicheName,
         category: "trend_discovery",

@@ -1,3 +1,7 @@
+import {
+  editorialInstruction,
+  editorialProfileSchema,
+} from "../editorial/profile.ts";
 // Fase 2 (ADR-008): Gemini Flash SEM grounding + responseSchema → script_json.
 // Constraints importados do contrato — uma fonte de verdade (ADR-005).
 
@@ -14,6 +18,7 @@ export const SCRIPT_PROMPT_NAME = "script_prompt";
 export interface ScriptPromptInput {
   briefing: string;
   productName?: string;
+  editorialProfile?: unknown;
   researchData: ResearchData;
   isCommercial: boolean;
   platformGrowth?: boolean;
@@ -37,8 +42,14 @@ const EDITORIAL_STYLE_CATALOG = `
 Você pode também propor uma variação própria e mais inovadora, desde que descreva um estilo coerente e mantenha as mesmas regras técnicas do contrato (roles, transitions, ken_burns, duração).`;
 
 export function buildScriptPrompt(input: ScriptPromptInput): string {
+  const profile = editorialProfileSchema.safeParse(input.editorialProfile);
+  const general =
+    profile.success && !["gadgets", "casa"].includes(profile.data.theme);
   const claims = input.researchData
-    .map((c, i) => `${i + 1}. ${c.claim} (fonte: ${c.source_url}, confiança: ${c.confidence})`)
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.claim} (fonte: ${c.source_url}, confiança: ${c.confidence})`,
+    )
     .join("\n");
   const commercialPlatforms = input.commercialPlatforms?.length
     ? input.commercialPlatforms.join(", ")
@@ -49,24 +60,24 @@ export function buildScriptPrompt(input: ScriptPromptInput): string {
 BRIEFING:
 ${input.briefing}
 
-${input.productName ? `PRODUTO CENTRAL OBRIGATÓRIO: ${input.productName}. Faça um vídeo sobre este único produto. O gancho, a demonstração, a limitação e o CTA devem se referir a ele. Concorrentes podem aparecer só como contexto factual; não transforme a pauta em lista de gadgets nem troque para outro modelo. Nomeie o produto de modo reconhecível na narração e nos metadados.` : ""}
+${general ? editorialInstruction(input.editorialProfile) + " Assunto central: " + (input.productName || input.briefing) + ". Estrutura: gancho factual → contexto → explicação → limites → pergunta ao público. Este vídeo é editorial, sem recomendação de compra." : input.productName ? `PRODUTO CENTRAL OBRIGATÓRIO: ${input.productName}. Faça um vídeo sobre este único produto. O gancho, a demonstração, a limitação e o CTA devem se referir a ele. Concorrentes podem aparecer só como contexto factual; não transforme a pauta em lista de gadgets nem troque para outro modelo. Nomeie o produto de modo reconhecível na narração e nos metadados.` : ""}
 
 ${input.platformGrowth ? "VERSÕES POR PLATAFORMA: o corpo do vídeo (hook/content), as imagens e a descrição TikTok devem ser estritamente editoriais: sem venda, link, comissão ou convite de compra. Demonstre somente o que as evidências e imagens autorizadas permitem; nunca finja experiência pessoal ou teste. O sistema substituirá o encerramento por dois CTAs: TikTok engajamento; YouTube link no perfil e disclosure somente após validação do link. Não coloque textos comerciais no visual compartilhado. Formato curto: mire a soma mínima de duração do contrato; não prometa lista de vários produtos quando a pesquisa só cobre um." : ""}
 
 FATOS PESQUISADOS (use APENAS estes — não invente fatos nem fontes):
 ${claims}
 
-ESTILO EDITORIAL (ADR-033): escolha o estilo que melhor se encaixa neste produto e briefing — e varie em relação aos vídeos anteriores deste canal; não repita sempre a mesma fórmula. Preencha editorial_style com o nome do estilo escolhido (use um dos rótulos abaixo, ex.: "${EDITORIAL_STYLES[0]}", ou descreva um novo em poucas palavras se for genuinamente melhor).
+ESTILO EDITORIAL (ADR-033): escolha o estilo que melhor se encaixa neste assunto e briefing — e varie em relação aos vídeos anteriores deste canal; não repita sempre a mesma fórmula. Preencha editorial_style com o nome do estilo escolhido (use um dos rótulos abaixo, ex.: "${EDITORIAL_STYLES[0]}", ou descreva um novo em poucas palavras se for genuinamente melhor).
 ${EDITORIAL_STYLE_CATALOG}
 
 O estilo escolhido deve se refletir nas cenas: ajuste transition, ken_burns e duration_seconds de cada cena para combinar com o estilo (ex.: estilo rápido = cenas mais curtas e cuts; estilo pausado = cenas mais longas e fades). Isso não é decorativo — é a diferença real entre os vídeos.
 
-ESTRUTURA OBRIGATÓRIA DO ROTEIRO ORIENTADA AO PRODUTO:
+ESTRUTURA OBRIGATÓRIA DO ROTEIRO ${general ? "EDITORIAL: os exemplos de produto abaixo só se aplicam se houver produto no assunto" : "ORIENTADA AO PRODUTO"}:
 - ${SCENE_COUNT.min} a ${SCENE_COUNT.max} cenas, cada uma com ${SCENE_DURATION_SECONDS.min} a ${SCENE_DURATION_SECONDS.max} segundos.
 - Soma dos duration_seconds entre ${TOTAL_DURATION_TARGET_SECONDS.min} e ${TOTAL_DURATION_TARGET_SECONDS.max} segundos.
-- Primeira cena: role="hook" (mostre o problema cotidiano e identifique o produto; sem clickbait mentiroso).
-- Cenas do meio: role="content" (explique como funciona, demonstre o uso e inclua ao menos uma limitação ou contexto de compatibilidade quando houver evidência).
-- Última cena: role="cta"${input.isCommercial ? " com disclosure comercial e convite claro para conferir o link do produto" : " com resumo para quem o produto pode fazer sentido"}.
+- Primeira cena: role="hook" (${general ? "apresente o acontecimento ou dúvida central, com contexto factual" : "mostre o problema cotidiano e identifique o produto"}; sem clickbait mentiroso).
+- Cenas do meio: role="content" (${general ? "explique o assunto, a cronologia e as evidências, distinguindo fatos, opiniões e incertezas" : "explique como funciona, demonstre o uso e inclua ao menos uma limitação ou contexto de compatibilidade quando houver evidência"}).
+- Última cena: role="cta"${input.isCommercial ? " com disclosure comercial e convite claro para conferir o link do produto" : general ? " com pergunta específica ao público, sem venda" : " com resumo para quem o produto pode fazer sentido"}.
 - scenes[].order começa em 0 e é contíguo, sem pulos.
 - Em sources, copie literalmente os pares claim/source_url dos FATOS PESQUISADOS usados. Não parafraseie o campo claim nem troque a URL. A narração pode explicar esses fatos, sem acrescentar promessas.
 - narration.full_text deve ser a concatenação exata de narration_text de todas as cenas em ordem, separadas por um espaço.
@@ -82,7 +93,10 @@ ${input.spokesmodel ? `- Personagem fixo disponível (opcional, ADR-030): "${inp
 Retorne APENAS o JSON no formato especificado.`;
 }
 
-export function buildRepairPrompt(invalidJson: string, errors: string[]): string {
+export function buildRepairPrompt(
+  invalidJson: string,
+  errors: string[],
+): string {
   return `O JSON abaixo falhou na validação. Corrija SOMENTE os erros listados, preservando todo o resto do conteúdo. Retorne APENAS o JSON corrigido.
 
 ERROS DE VALIDAÇÃO:

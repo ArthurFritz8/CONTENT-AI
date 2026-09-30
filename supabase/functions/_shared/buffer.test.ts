@@ -141,3 +141,8 @@ Deno.test("Buffer queues an automatic public YouTube Short with explicit metadat
       { title: "Título", categoryId: "27", madeForKids: false, privacy: "public", isAiGenerated: true });
   } finally { globalThis.fetch = previous; }
 });
+Deno.test("Buffer exact date preserves the requested UTC instant", async () => {
+ const previous=globalThis.fetch;
+ globalThis.fetch=(async(_url,init)=>{const body=JSON.parse(String(init?.body));assertEquals(body.variables.input.mode,"customScheduled");assertEquals(body.variables.input.dueAt,"2026-10-01T18:00:00.000Z");return Response.json({data:{createPost:{__typename:"PostActionSuccess",post:{id:"post",status:"scheduled",channelId:"channel",schedulingType:"automatic"}}}});}) as typeof fetch;
+ try{await createBufferTikTokPost("fixture","channel",{caption:"Organic",videoUrl:"https://example.test/video.mp4",isAiGenerated:true,dueAt:"2026-10-01T18:00:00.000Z"});}finally{globalThis.fetch=previous;}
+});

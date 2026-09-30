@@ -3,3 +3,6 @@ project_id = "content-ai"
 
 [functions.telegram-bot]
 verify_jwt = false # Telegram authenticates via secret header + chat/user allowlist (ADR-018).
+
+[functions.studio-telegram-hook]
+verify_jwt = false # Authenticated by per-workspace Telegram secret header.

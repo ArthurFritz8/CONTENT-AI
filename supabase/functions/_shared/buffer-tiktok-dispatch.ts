@@ -31,15 +31,16 @@ export async function dispatchApprovedBufferTikTok(
   const logger = new JobLogger(db, "buffer-tiktok-dispatch");
 
   // Read-only status checks can repeat. Creation below cannot: one durable reservation per episode.
-  const { data: pending, error: pendingError } = await db.from("publishes")
+  const { data: pending, error: pendingError } = await db
+    .from("publishes")
     .select("id,episode_id,external_id,channel_id")
-    .eq("platform", "tiktok").eq("variant", "portrait").eq(
-      "status",
-      "processing",
-    )
+    .eq("platform", "tiktok")
+    .eq("variant", "portrait")
+    .eq("status", "processing")
     .not("external_id", "is", null)
     .lt("provider_checked_at", new Date(Date.now() - 30 * 60_000).toISOString())
-    .order("provider_checked_at", { ascending: true }).limit(1);
+    .order("provider_checked_at", { ascending: true })
+    .limit(1);
   if (pendingError) {
     throw new AppError("Falha ao consultar envios Buffer", 500, "DB_ERROR");
   }
@@ -82,30 +83,37 @@ export async function dispatchApprovedBufferTikTok(
     }
   }
 
-  const { data: episodes, error } = await db.from("episodes")
+  const { data: episodes, error } = await db
+    .from("episodes")
     .select("id,approval_date,approval_fingerprint")
-    .eq("status", "review").not("approval_fingerprint", "is", null)
+    .eq("workspace_id", "00000000-0000-4000-8000-000000000001")
+    .eq("status", "review")
+    .not("approval_fingerprint", "is", null)
     .gte("approval_date", new Date(activation).toISOString())
-    .order("approval_date", { ascending: true }).limit(20);
+    .order("approval_date", { ascending: true })
+    .limit(20);
   if (error) {
     throw new AppError("Falha ao buscar TikToks aprovados", 500, "DB_ERROR");
   }
   for (const episode of episodes ?? []) {
-    const { data: existing, error: existingError } = await db.from("publishes")
-      .select("id").eq("episode_id", episode.id).eq("platform", "tiktok")
-      .eq("variant", "portrait").maybeSingle();
+    const { data: existing, error: existingError } = await db
+      .from("publishes")
+      .select("id")
+      .eq("episode_id", episode.id)
+      .eq("platform", "tiktok")
+      .eq("variant", "portrait")
+      .maybeSingle();
     if (existingError) {
       throw new AppError("Falha ao consultar ledger TikTok", 500, "DB_ERROR");
     }
     if (existing) continue;
-    const { data: review, error: reviewError } = await db.from(
-      "review_requests",
-    )
-      .select("id,snapshot").eq("episode_id", episode.id).eq(
-        "fingerprint",
-        episode.approval_fingerprint,
-      )
-      .eq("decision", "approved").eq("buffer_tiktok_consent", true)
+    const { data: review, error: reviewError } = await db
+      .from("review_requests")
+      .select("id,snapshot")
+      .eq("episode_id", episode.id)
+      .eq("fingerprint", episode.approval_fingerprint)
+      .eq("decision", "approved")
+      .eq("buffer_tiktok_consent", true)
       .maybeSingle();
     if (reviewError) {
       throw new AppError(

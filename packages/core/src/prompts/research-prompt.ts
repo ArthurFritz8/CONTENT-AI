@@ -11,11 +11,12 @@ export interface ResearchPromptInput {
   nicheName: string;
   focus: string;
   maxClaims: number;
+  editorial?: boolean;
   sources: ResearchSourceInput[];
 }
 
 export function buildResearchPrompt(input: ResearchPromptInput): string {
-  return `Você é um pesquisador de produtos para um canal de vídeos sobre ${input.nicheName}.
+  return `Você é um pesquisador editorial para um canal de vídeos sobre ${input.nicheName}.
 Foco editorial: ${input.focus}.
 
 BRIEFING DO EPISÓDIO:
@@ -24,9 +25,9 @@ ${input.briefing}
 FONTES ENCONTRADAS PELO MECANISMO DE BUSCA:
 ${input.sources.map((source, index) => `[${index + 1}] ${source.title}\nURL: ${source.url}\nTrecho: ${source.content}`).join("\n\n")}
 
-TAREFA: extraia das fontes acima fatos VERIFICÁVEIS sobre este produto/tema para uma recomendação de compra responsável:
-- funcionalidades concretas (specs, capacidades, medidas e compatibilidade)
-- como o produto é usado e para qual problema ele serve
+TAREFA: extraia das fontes acima fatos VERIFICÁVEIS sobre este produto/tema para uma explicação editorial responsável, respeitando o foco editorial:
+- fatos concretos, datas, envolvidos e contexto; para produtos, specs, capacidades, medidas e compatibilidade
+- ${input.editorial ? "quem, quando, onde e como o acontecimento foi confirmado; contexto e limitações" : "como o produto é usado e para qual problema ele serve"}
 - limitações, condições de uso, pontos negativos e comparações com concorrentes quando a fonte informar
 - preço, desconto, estoque, entrega e garantia SOMENTE quando a fonte for oficial e o dado estiver explícito; esses dados mudam rápido e devem ser tratados como temporários
 
