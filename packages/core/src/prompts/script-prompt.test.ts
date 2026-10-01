@@ -59,3 +59,9 @@ test("reportagem não deve virar confirmação atribuída ao fabricante", () => 
   assert.match(prompt, /Diferencie anúncio da fabricante de relato de imprensa/);
   assert.match(prompt, /Não diga "confirmado pela empresa"/);
 });
+
+test("busca stock não deve simular foto do produto narrado", () => {
+  const prompt = buildScriptPrompt(baseInput);
+  assert.match(prompt, /não peça close-up de chaveiros eletrônicos/);
+  assert.match(prompt, /Só mostre o produto real quando existir imagem autorizada/);
+});

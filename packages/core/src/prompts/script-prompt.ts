@@ -87,6 +87,7 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO ${general ? "EDITORIAL: os exemplos de produto
 - Não use promessas médicas, de retorno financeiro, cura, garantia de resultado, desconto, menor preço, estoque, entrega ou superlativos absolutos ("o melhor do mundo", "único no mercado") sem evidência explícita. Nunca invente preço, promoção, cupom, nota, prazo ou especificação.
 - Não diga que uma imagem stock é o produto real. Use imagens do produto autorizado quando disponíveis; caso contrário, descreva a cena como ilustração/contexto.
 - visual.search_query deve procurar CONTEXTO visual filmável/fotografável, não um substituto de outra marca para o produto narrado. Evite buscas genéricas como "futuristic gadget". Use palavras concretas do ambiente/ação da cena e prefira fotos sem logotipos.
+- Para buscas de imagens de banco, não peça close-up de chaveiros eletrônicos, telas, rastreadores ou aparelhos parecidos com o produto narrado: eles podem mostrar outro item identificável e criar falsa demonstração. Prefira pessoas, ambiente e ações sem um dispositivo em destaque. Só mostre o produto real quando existir imagem autorizada e vinculada a ele.
 - visual.description: descrição rica para gerar imagem (estilo, enquadramento, objeto), coerente com o estilo editorial escolhido.
 - visual.search_query: consulta curta em inglês para banco de imagens (fallback).
 - highlight_words: 1 a 2 palavras-chave POR CENA, copiadas exatamente como aparecem em narration_text, para destaque visual na legenda.
