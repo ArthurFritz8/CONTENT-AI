@@ -29,7 +29,7 @@ import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
 import { tavilySearch } from "../_shared/tavily.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { buildResearchPrompt } from "../../../packages/core/src/prompts/research-prompt.ts";
-import { mergeResearchSources, sourceDomains } from "../_shared/research-sources.ts";
+import { groundedClaims, mergeResearchSources, sourceDomains } from "../_shared/research-sources.ts";
 import {
   researchDataSchema,
   type ResearchData,
@@ -264,6 +264,19 @@ export async function handleResearch(req: Request): Promise<Response> {
       );
     }
 
+    const supported = groundedClaims(parsed.data, search.sources);
+    if (supported.length !== parsed.data.length) {
+      await logger.event({ episode_id: episode.id, event_type: "qa_failed", metadata: {
+        stage: "research_citations", discarded_claims: parsed.data.length - supported.length,
+        supported_claims: supported.length,
+      } });
+    }
+    if (supported.length < 3) {
+      await markEpisodeFailed(db, logger, episode.id, "research_evidence_failed",
+        "Menos de três afirmações com URL presente nos resultados Tavily", "idea");
+      throw new AppError("Pesquisa sem evidência suficiente", 502, "RESEARCH_EVIDENCE_FAILED");
+    }
+
     let evidence: ResearchEvidence;
     let grounded: ResearchData;
     try {
@@ -275,7 +288,7 @@ export async function handleResearch(req: Request): Promise<Response> {
         query: search.query,
         request_id: search.requestId,
         sources: search.sources,
-        research: parsed.data,
+        research: supported,
       });
       grounded = groundedResearch(evidence);
     } catch (err) {

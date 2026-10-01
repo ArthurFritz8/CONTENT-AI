@@ -1,4 +1,18 @@
 import type { TavilySource } from "./tavily.ts";
+import type { ResearchData } from "../../../packages/core/src/schemas/research.ts";
+
+/** Keep only claims citing an exact URL returned by the search provider. */
+export function groundedClaims(claims: ResearchData, sources: readonly Pick<TavilySource, "url">[]): ResearchData {
+  const urls = new Set(sources.map((source) => new URL(source.url).href));
+  return claims.filter((claim) => {
+    try {
+      const url = new URL(claim.source_url);
+      return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password && urls.has(url.href);
+    } catch {
+      return false;
+    }
+  });
+}
 
 export function sourceDomains(sources: readonly Pick<TavilySource, "url">[]): Set<string> {
   const twoLevelSuffixes = new Set(["com.br", "org.br", "gov.br", "net.br", "com.au", "co.uk", "gov.uk", "ac.uk"]);
