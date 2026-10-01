@@ -8,9 +8,27 @@ const deviceTypes = [
   "camera", "robot", "laptop", "computer", "monitor", "hub", "charger",
   "keyboard", "headphones", "earbuds", "tablet", "console", "drone",
 ] as const;
+const genericWords = new Set([
+  "person", "people", "woman", "man", "holding", "close", "background",
+  "modern", "photo", "image", "indoor", "outdoor", "concept", "studio",
+  "small", "with", "from", "showing", "illustration", "view",
+]);
+const unrelatedContexts = [
+  ["house", "home", "real estate", "moving"],
+  ["dental", "dentist", "clinic"],
+  ["health", "medical", "hospital"],
+  ["wedding", "party", "festive", "new year's eve"],
+] as const;
 
 function words(value: string): Set<string> {
-  return new Set(value.toLocaleLowerCase("en").match(/[a-z0-9]{4,}/g) ?? []);
+  return new Set((value.toLocaleLowerCase("en").match(/[a-z0-9]{4,}/g) ?? [])
+    .filter((term) => !genericWords.has(term)));
+}
+
+function relevance(alt: string, queryWords: Set<string>): number {
+  const altWords = [...words(alt)];
+  return [...queryWords].filter((term) => altWords.some((word) =>
+    word === term || (term.length >= 5 && word.includes(term)) || (word.length >= 5 && term.includes(word)))).length;
 }
 
 /** Stock is context, never evidence that a photographed device is the narrated product. */
@@ -36,13 +54,20 @@ export function selectPexelsPhotos(
         new RegExp(`\\b${name}\\b`, "i").test(alt) &&
         !new RegExp(`\\b${name}\\b`, "i").test(requested)
       );
-      return !otherBrand && !otherDevice;
+      const unrelated = unrelatedContexts.some((group) =>
+        group.some((term) => alt.includes(term)) &&
+        !group.some((term) => requested.includes(term))
+      );
+      const staleYear = (alt.match(/\b20\d{2}\b/g) ?? []).some((year) =>
+        Number(year) < new Date().getUTCFullYear() && !requested.includes(year));
+      return !otherBrand && !otherDevice && !unrelated && !staleYear;
     })
     .map((photo, index) => ({
       photo,
       index,
-      relevance: [...words(photo.alt)].filter((word) => queryWords.has(word)).length,
+      relevance: relevance(photo.alt, queryWords),
     }))
+    .filter((item) => item.relevance > 0)
     .sort((a, b) => b.relevance - a.relevance || a.index - b.index)
     .slice(0, Math.max(1, Math.min(3, count)))
     .map(({ photo }) => photo);

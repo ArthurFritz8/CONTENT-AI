@@ -21,3 +21,19 @@ Deno.test("seleção evita repetição e marcas não mencionadas, priorizando co
   assertEquals(selectPexelsPhotos([photo(5, "Compact USB-C hub on a desk")],
     "compact desk device", "Assistente de IA portátil Muse Charm", new Set()).length, 0);
 });
+
+Deno.test("descrição da foto não aprova tema estranho nem calendário vencido", () => {
+  const candidates = [
+    photo(1, "A modern dental equipment touchscreen control panel in a clinic"),
+    photo(2, "Hands interacting with a small touchscreen device"),
+    photo(3, "Close-up of a desk calendar for year 2025"),
+    photo(4, "Minimalist December desk calendar for planning"),
+    photo(5, "Smiling couple holding house keys while moving home"),
+  ];
+  assertEquals(selectPexelsPhotos(candidates, "small touch display screen", "Tela de dispositivo compacto", new Set())
+    .map((item) => item.id), [2]);
+  assertEquals(selectPexelsPhotos(candidates, "desk calendar end of year", "Ainda este ano", new Set())
+    .map((item) => item.id), [4]);
+  assertEquals(selectPexelsPhotos(candidates, "person holding keys", "Chaves no bolso", new Set())
+    .map((item) => item.id), []);
+});
