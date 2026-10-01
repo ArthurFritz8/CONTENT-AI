@@ -53,3 +53,9 @@ test("chosen trend product keeps the script centered on one item", () => {
   assert.match(prompt, /PRODUTO CENTRAL OBRIGATÓRIO: Anker MagGo UFO 3-in-1/);
   assert.match(prompt, /não transforme a pauta em lista de gadgets/);
 });
+
+test("reportagem não deve virar confirmação atribuída ao fabricante", () => {
+  const prompt = buildScriptPrompt(baseInput);
+  assert.match(prompt, /Diferencie anúncio da fabricante de relato de imprensa/);
+  assert.match(prompt, /Não diga "confirmado pela empresa"/);
+});

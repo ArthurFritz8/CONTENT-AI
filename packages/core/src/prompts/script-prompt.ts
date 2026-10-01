@@ -82,6 +82,7 @@ ESTRUTURA OBRIGATÓRIA DO ROTEIRO ${general ? "EDITORIAL: os exemplos de produto
 - Última cena: role="cta"${input.isCommercial ? " com disclosure comercial e convite claro para conferir o link do produto" : general ? " com pergunta específica ao público, sem venda" : " com resumo para quem o produto pode fazer sentido"}.
 - scenes[].order começa em 0 e é contíguo, sem pulos.
 - Em sources, copie literalmente os pares claim/source_url dos FATOS PESQUISADOS usados. Não parafraseie o campo claim nem troque a URL. A narração pode explicar esses fatos, sem acrescentar promessas.
+- Diferencie anúncio da fabricante de relato de imprensa: se uma especificação, data ou dimensão vier apenas de reportagem, atribua-a à publicação e indique a incerteza. Não diga "confirmado pela empresa" ou "a própria fabricante informou" sem fonte primária da fabricante para esse fato. A presença de uma URL na pesquisa não comprova por si só a afirmação.
 - narration.full_text deve ser a concatenação exata de narration_text de todas as cenas em ordem, separadas por um espaço.
 - Não use promessas médicas, de retorno financeiro, cura, garantia de resultado, desconto, menor preço, estoque, entrega ou superlativos absolutos ("o melhor do mundo", "único no mercado") sem evidência explícita. Nunca invente preço, promoção, cupom, nota, prazo ou especificação.
 - Não diga que uma imagem stock é o produto real. Use imagens do produto autorizado quando disponíveis; caso contrário, descreva a cena como ilustração/contexto.
