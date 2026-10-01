@@ -1,6 +1,12 @@
 import type { TavilySource } from "./tavily.ts";
 import type { ResearchData } from "../../../packages/core/src/schemas/research.ts";
 
+function explicitReferenceUrl(briefing: string): string | null {
+  const raw = briefing.match(/(?:fonte|refer[eê]ncia|source)[^.!?\n]{0,80}?(https?:\/\/[^\s)]+)/i)?.[1]
+    ?.replace(/[.,;]+$/, "");
+  return raw ?? null;
+}
+
 /** Keep only claims citing an exact URL returned by the search provider. */
 export function groundedClaims(claims: ResearchData, sources: readonly Pick<TavilySource, "url">[]): ResearchData {
   const urls = new Set(sources.map((source) => new URL(source.url).href));
@@ -16,7 +22,7 @@ export function groundedClaims(claims: ResearchData, sources: readonly Pick<Tavi
 
 /** A briefing URL is a search hint, not evidence until Tavily returns it. */
 export function briefingReferenceSearch(briefing: string, sources: readonly Pick<TavilySource, "url">[]): string | null {
-  const raw = briefing.match(/https?:\/\/[^\s)]+/i)?.[0]?.replace(/[.,;]+$/, "");
+  const raw = explicitReferenceUrl(briefing);
   if (!raw) return null;
   let host: string;
   try {
@@ -39,7 +45,7 @@ function referencePath(value: string): string {
 export function prioritizeBriefingReference<T extends Pick<TavilySource, "url">>(
   briefing: string, sources: T[],
 ): { sources: T[]; referenceUrl: string | null } {
-  const raw = briefing.match(/https?:\/\/[^\s)]+/i)?.[0]?.replace(/[.,;]+$/, "");
+  const raw = explicitReferenceUrl(briefing);
   if (!raw) return { sources, referenceUrl: null };
   let target: string;
   try { target = referencePath(raw); } catch { return { sources, referenceUrl: null }; }

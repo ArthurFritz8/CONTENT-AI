@@ -23,19 +23,20 @@ Deno.test("pesquisa conserva apenas afirmações com URL exata presente no Tavil
 });
 
 Deno.test("URL informada na pauta vira busca complementar, nunca evidência automática", () => {
-  const briefing = "Muse Charm anunciado pela Meta https://about.fb.com/news/connect/ Verificar dados.";
+  const briefing = "Muse Charm anunciado pela Meta. Fonte: https://about.fb.com/news/connect/ Verificar dados.";
   assertEquals(briefingReferenceSearch(briefing, [source("https://example.com/a")]),
-    "site:about.fb.com Muse Charm anunciado pela Meta  Verificar dados.");
+    "site:about.fb.com Muse Charm anunciado pela Meta. Fonte:  Verificar dados.");
   assertEquals(briefingReferenceSearch(briefing, [source("https://about.fb.com/news/outra/")]), null);
   assertEquals(briefingReferenceSearch("Pauta sem URL", [source("https://example.com/a")]), null);
 });
 
 Deno.test("fonte exata da pauta fica em primeiro lugar e precisa ser citada", () => {
-  const briefing = "Muse Charm https://about.fb.com/news/connect/";
+  const briefing = "Muse Charm. Referência primária: https://about.fb.com/news/connect/";
   const found = prioritizeBriefingReference(briefing, [source("https://other.test/a"), source("https://about.fb.com/news/connect")]);
   assertEquals(found.referenceUrl, "https://about.fb.com/news/connect");
   assertEquals(found.sources[0]!.url, found.referenceUrl);
   const claims = [{ claim: "Anúncio", source_url: found.referenceUrl!, confidence: 0.9, query_used: "Muse" }];
   assertEquals(citesReference(claims, found.referenceUrl!), true);
   assertEquals(citesReference(claims, "https://other.test/a"), false);
+  assertEquals(prioritizeBriefingReference("Afiliado: https://loja.test/produto", found.sources).referenceUrl, null);
 });
