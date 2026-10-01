@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { briefingReferenceSearch, groundedClaims, mergeResearchSources, sourceDomains } from "./research-sources.ts";
+import { briefingReferenceSearch, citesReference, groundedClaims, mergeResearchSources, prioritizeBriefingReference, sourceDomains } from "./research-sources.ts";
 import type { TavilySource } from "./tavily.ts";
 
 const source = (url: string): TavilySource => ({ title: "Fonte", url, content: "Conteúdo factual verificável com mais de vinte caracteres.", score: 0.8 });
@@ -28,4 +28,14 @@ Deno.test("URL informada na pauta vira busca complementar, nunca evidência auto
     "site:about.fb.com Muse Charm anunciado pela Meta  Verificar dados.");
   assertEquals(briefingReferenceSearch(briefing, [source("https://about.fb.com/news/outra/")]), null);
   assertEquals(briefingReferenceSearch("Pauta sem URL", [source("https://example.com/a")]), null);
+});
+
+Deno.test("fonte exata da pauta fica em primeiro lugar e precisa ser citada", () => {
+  const briefing = "Muse Charm https://about.fb.com/news/connect/";
+  const found = prioritizeBriefingReference(briefing, [source("https://other.test/a"), source("https://about.fb.com/news/connect")]);
+  assertEquals(found.referenceUrl, "https://about.fb.com/news/connect");
+  assertEquals(found.sources[0]!.url, found.referenceUrl);
+  const claims = [{ claim: "Anúncio", source_url: found.referenceUrl!, confidence: 0.9, query_used: "Muse" }];
+  assertEquals(citesReference(claims, found.referenceUrl!), true);
+  assertEquals(citesReference(claims, "https://other.test/a"), false);
 });

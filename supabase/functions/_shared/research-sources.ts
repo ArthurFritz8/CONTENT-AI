@@ -31,6 +31,29 @@ export function briefingReferenceSearch(briefing: string, sources: readonly Pick
   return `site:${host} ${topic}`.slice(0, 200);
 }
 
+function referencePath(value: string): string {
+  const url = new URL(value);
+  return `${url.hostname.replace(/^www\./i, "")}${url.pathname.replace(/\/$/, "")}`;
+}
+
+export function prioritizeBriefingReference<T extends Pick<TavilySource, "url">>(
+  briefing: string, sources: T[],
+): { sources: T[]; referenceUrl: string | null } {
+  const raw = briefing.match(/https?:\/\/[^\s)]+/i)?.[0]?.replace(/[.,;]+$/, "");
+  if (!raw) return { sources, referenceUrl: null };
+  let target: string;
+  try { target = referencePath(raw); } catch { return { sources, referenceUrl: null }; }
+  const index = sources.findIndex((source) => referencePath(source.url) === target);
+  if (index < 0) return { sources, referenceUrl: null };
+  const reference = sources[index]!;
+  return { sources: [reference, ...sources.filter((_, i) => i !== index)], referenceUrl: reference.url };
+}
+
+export function citesReference(claims: ResearchData, referenceUrl: string): boolean {
+  const target = new URL(referenceUrl).href;
+  return claims.some((claim) => new URL(claim.source_url).href === target);
+}
+
 export function sourceDomains(sources: readonly Pick<TavilySource, "url">[]): Set<string> {
   const twoLevelSuffixes = new Set(["com.br", "org.br", "gov.br", "net.br", "com.au", "co.uk", "gov.uk", "ac.uk"]);
   return new Set(sources.map((source) => {

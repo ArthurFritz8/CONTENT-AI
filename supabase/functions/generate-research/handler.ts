@@ -29,7 +29,7 @@ import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
 import { tavilySearch } from "../_shared/tavily.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { buildResearchPrompt } from "../../../packages/core/src/prompts/research-prompt.ts";
-import { briefingReferenceSearch, groundedClaims, mergeResearchSources, sourceDomains } from "../_shared/research-sources.ts";
+import { briefingReferenceSearch, citesReference, groundedClaims, mergeResearchSources, prioritizeBriefingReference, sourceDomains } from "../_shared/research-sources.ts";
 import {
   researchDataSchema,
   type ResearchData,
@@ -176,6 +176,18 @@ export async function handleResearch(req: Request): Promise<Response> {
       }
     }
 
+    const prioritized = prioritizeBriefingReference(briefingText, search.sources);
+    search = { ...search, sources: prioritized.sources };
+    const researchPrompt = buildResearchPrompt({
+      briefing: briefingText,
+      nicheName: niche.name ?? "gadgets e produtos inovadores",
+      focus: niche.focus ?? "produtos que resolvem um problema real de forma criativa",
+      maxClaims,
+      editorial: profile.success && !["gadgets", "casa"].includes(profile.data.theme),
+      sources: search.sources,
+      preferredSourceUrl: prioritized.referenceUrl ?? undefined,
+    });
+
     const models = [
       ...new Set([
         configuredModel,
@@ -193,18 +205,7 @@ export async function handleResearch(req: Request): Promise<Response> {
           beforeRequest: () =>
             assertGeminiBudget(db, logger!, episode.id, "research", candidate),
           model: candidate,
-          prompt: buildResearchPrompt({
-            briefing: briefingText,
-            nicheName: niche.name ?? "gadgets e produtos inovadores",
-            focus:
-              niche.focus ??
-              "produtos que resolvem um problema real de forma criativa",
-            maxClaims,
-            editorial:
-              profile.success &&
-              !["gadgets", "casa"].includes(profile.data.theme),
-            sources: search.sources,
-          }),
+          prompt: researchPrompt,
           responseSchema: researchResponseSchema(maxClaims),
           temperature: 0.3,
         });
@@ -266,12 +267,38 @@ export async function handleResearch(req: Request): Promise<Response> {
       );
     }
 
-    const supported = groundedClaims(parsed.data, search.sources);
+    let supported = groundedClaims(parsed.data, search.sources);
     if (supported.length !== parsed.data.length) {
       await logger.event({ episode_id: episode.id, event_type: "qa_failed", metadata: {
         stage: "research_citations", discarded_claims: parsed.data.length - supported.length,
         supported_claims: supported.length,
       } });
+    }
+    if (prioritized.referenceUrl && !citesReference(supported, prioritized.referenceUrl)) {
+      await logger.event({ episode_id: episode.id, event_type: "qa_failed", metadata: {
+        stage: "research_primary_reference", retry: true,
+      } });
+      try {
+        const retry = await geminiGenerate({
+          beforeRequest: () => assertGeminiBudget(db, logger!, episode.id, "research", model),
+          model,
+          prompt: `${researchPrompt}\n\nCORREÇÃO OBRIGATÓRIA: sua resposta anterior ignorou a primeira fonte da pauta. Inclua ao menos um fato explícito dela com URL copiada exatamente; omita detalhes não sustentados.`,
+          responseSchema: researchResponseSchema(maxClaims),
+          temperature: 0.1,
+        });
+        await recordGeminiCall(logger, episode.id, "research", model, retry.usage);
+        const reparsed = researchDataSchema.safeParse(extractJson(retry.text));
+        if (reparsed.success) supported = groundedClaims(reparsed.data, search.sources);
+      } catch (error) {
+        logger.info("reparo de referência indisponível", {
+          reason: error instanceof AppError ? error.code : "invalid_response",
+        });
+      }
+      if (!citesReference(supported, prioritized.referenceUrl)) {
+        await markEpisodeFailed(db, logger, episode.id, "research_primary_reference_missing",
+          "Fonte de referência retornada pelo Tavily não foi citada na pesquisa", "idea");
+        throw new AppError("Pesquisa ignorou fonte da pauta", 502, "RESEARCH_PRIMARY_REFERENCE_MISSING");
+      }
     }
     if (supported.length < 3) {
       await markEpisodeFailed(db, logger, episode.id, "research_evidence_failed",

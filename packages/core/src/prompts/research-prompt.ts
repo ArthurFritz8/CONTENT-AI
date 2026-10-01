@@ -12,6 +12,7 @@ export interface ResearchPromptInput {
   focus: string;
   maxClaims: number;
   editorial?: boolean;
+  preferredSourceUrl?: string;
   sources: ResearchSourceInput[];
 }
 
@@ -24,6 +25,8 @@ ${input.briefing}
 
 FONTES ENCONTRADAS PELO MECANISMO DE BUSCA:
 ${input.sources.map((source, index) => `[${index + 1}] ${source.title}\nURL: ${source.url}\nTrecho: ${source.content}`).join("\n\n")}
+
+${input.preferredSourceUrl ? `A pauta indicou ${input.preferredSourceUrl}, e essa página apareceu nos resultados. Inclua pelo menos um fato explícito do trecho dessa fonte com a URL exata. Para detalhes que ela não afirma, use atribuição clara a outra fonte e não diga que a fabricante confirmou.` : ""}
 
 TAREFA: extraia das fontes acima fatos VERIFICÁVEIS sobre este produto/tema para uma explicação editorial responsável, respeitando o foco editorial:
 - fatos concretos, datas, envolvidos e contexto; para produtos, specs, capacidades, medidas e compatibilidade
