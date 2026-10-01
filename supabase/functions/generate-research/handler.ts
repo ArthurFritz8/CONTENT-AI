@@ -29,7 +29,7 @@ import { extractJson, geminiGenerate } from "../_shared/gemini.ts";
 import { tavilySearch } from "../_shared/tavily.ts";
 import { markEpisodeFailed } from "../_shared/episode-utils.ts";
 import { buildResearchPrompt } from "../../../packages/core/src/prompts/research-prompt.ts";
-import { groundedClaims, mergeResearchSources, sourceDomains } from "../_shared/research-sources.ts";
+import { briefingReferenceSearch, groundedClaims, mergeResearchSources, sourceDomains } from "../_shared/research-sources.ts";
 import {
   researchDataSchema,
   type ResearchData,
@@ -150,8 +150,10 @@ export async function handleResearch(req: Request): Promise<Response> {
         request_id: search.requestId,
       },
     });
-    if (gemini.research_second_search_enabled !== false && sourceDomains(search.sources).size < 2) {
-      const query = `${briefingText.slice(0, 180)} fonte oficial detalhes limitações`.slice(0, 250);
+    const referenceQuery = briefingReferenceSearch(briefingText, search.sources);
+    if (gemini.research_second_search_enabled !== false &&
+      (sourceDomains(search.sources).size < 2 || referenceQuery)) {
+      const query = referenceQuery ?? `${briefingText.slice(0, 180)} fonte oficial detalhes limitações`.slice(0, 250);
       try {
         const complementary = await tavilySearch({
           query,
@@ -160,7 +162,7 @@ export async function handleResearch(req: Request): Promise<Response> {
         });
         await logger.event({ episode_id: episode.id, event_type: "tavily_call", cost_estimate: 0,
           metadata: { credits: complementary.credits, sources: complementary.sources.length,
-            request_id: complementary.requestId, purpose: "independent_source" } });
+            request_id: complementary.requestId, purpose: referenceQuery ? "briefing_reference" : "independent_source" } });
         search = {
           ...search,
           query: `${search.query} | ${complementary.query}`,

@@ -14,6 +14,23 @@ export function groundedClaims(claims: ResearchData, sources: readonly Pick<Tavi
   });
 }
 
+/** A briefing URL is a search hint, not evidence until Tavily returns it. */
+export function briefingReferenceSearch(briefing: string, sources: readonly Pick<TavilySource, "url">[]): string | null {
+  const raw = briefing.match(/https?:\/\/[^\s)]+/i)?.[0]?.replace(/[.,;]+$/, "");
+  if (!raw) return null;
+  let host: string;
+  try {
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
+    host = url.hostname.replace(/^www\./i, "");
+  } catch {
+    return null;
+  }
+  if (sources.some((source) => new URL(source.url).hostname.replace(/^www\./i, "") === host)) return null;
+  const topic = briefing.replace(raw, "").replace(/https?:\/\/[^\s)]+/gi, "").slice(0, 110).trim();
+  return `site:${host} ${topic}`.slice(0, 200);
+}
+
 export function sourceDomains(sources: readonly Pick<TavilySource, "url">[]): Set<string> {
   const twoLevelSuffixes = new Set(["com.br", "org.br", "gov.br", "net.br", "com.au", "co.uk", "gov.uk", "ac.uk"]);
   return new Set(sources.map((source) => {
