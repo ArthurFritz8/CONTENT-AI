@@ -4,7 +4,7 @@ Data: 2026-10-05. Status: decisão de pesquisa e sequência de validação; impl
 
 Complementado pelo [ADR-047](ADR-047-producao-nuvem-e-computador-opcional.md): a execução padrão do produto será remota, sujeita a validação de capacidade; o teste local não estabelece requisito de hardware para o cliente.
 
-Atualização de desenvolvimento visual de 05/10/2026: após nova rejeição dos mascotes, foi criada uma imagem conceitual de Malu e Laranjito humanizados, com figurino, cabelo e rua brasileira detalhados. Evidência local: `output/humanized-fruit-concept/malu-laranjito-concept-v1.png`, com prompt e O.C.S.P. na mesma pasta. É bitmap gerado pela ferramenta de imagens da sessão, não render da cena Blender nem recurso implantado. A proposta aguarda avaliação do operador; continuidade e animação desse visual não foram comprovadas. O teste remoto do ADR-048 permanece uma prova técnica separada.
+Atualização de desenvolvimento visual de 05/10/2026: após nova rejeição dos mascotes, foi criada uma imagem conceitual de Malu e Laranjito humanizados, com figurino, cabelo e rua brasileira detalhados. Evidência local: `output/humanized-fruit-concept/malu-laranjito-concept-v1.png`, com prompt e O.C.S.P. na mesma pasta. É bitmap gerado pela ferramenta de imagens da sessão, não render da cena Blender nem recurso implantado. O operador aprovou essa aparência como base; a identidade e os critérios estão na [referência visual v1](../stories/novela-frutas-visual-v1.md). Continuidade, animação e sincronização labial desse visual não foram comprovadas. O teste remoto do ADR-048 permanece uma prova técnica separada.
 
 ## O — Objetivo
 
