@@ -2,6 +2,8 @@
 
 Data: 2026-10-05. Status: direção arquitetural definida; implementação e validação remota pendentes.
 
+Atualização de 05/10/2026: o [ADR-048](ADR-048-prova-render-modal.md) registra autenticação e prova curta de render/transporte na Modal concluídas. A integração durável de produção e o benchmark de cena humanizada continuam pendentes. O contexto abaixo preserva a pesquisa anterior à configuração da conta.
+
 ## O — Objetivo
 
 Permitir criar e revisar vídeos pelo celular ou navegador sem exigir GPU do cliente. Preservar qualidade por estilo, histórias opcionais, orçamento gratuito e aprovação humana.
