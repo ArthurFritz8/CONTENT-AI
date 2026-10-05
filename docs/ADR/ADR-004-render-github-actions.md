@@ -1,5 +1,7 @@
 # ADR-004 — GitHub Actions como Renderer Primário
 
+> Revisão de direção em 2026-10-05: o [ADR-047](ADR-047-producao-nuvem-e-computador-opcional.md) recomenda migrar render de produção para executor remoto apropriado, considerando os termos atuais de Actions e o atendimento a múltiplos clientes. O workflow existente ainda não foi alterado. Números de planos/cotas abaixo são registro histórico, não capacidade atual confirmada.
+
 ## Objetivo
 Eliminar a dependência do PC ligado para o pipeline "tudo automático", resolvendo o problema de NAT (Supabase na nuvem não alcança `localhost:3456`) sem adicionar túnel ou serviço externo.
 

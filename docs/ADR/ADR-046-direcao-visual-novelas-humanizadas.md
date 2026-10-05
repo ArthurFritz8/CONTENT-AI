@@ -2,6 +2,8 @@
 
 Data: 2026-10-05. Status: decisão de pesquisa e sequência de validação; implementação visual e integração pendentes.
 
+Complementado pelo [ADR-047](ADR-047-producao-nuvem-e-computador-opcional.md): a execução padrão do produto será remota, sujeita a validação de capacidade; o teste local não estabelece requisito de hardware para o cliente.
+
 ## O — Objetivo
 
 Evoluir a ficção opcional do ADR-045 para personagens de frutas humanizados, com roupas, cabelo, cenário e atuação compatíveis com a direção visual apresentada pelo operador. Preservar produção factual, gratuidade de serviços e revisão humana.
