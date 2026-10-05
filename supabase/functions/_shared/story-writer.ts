@@ -8,9 +8,10 @@ import type { JobLogger } from "./logger.ts";
 export async function writeStory(db: ReturnType<typeof createServiceClient>, logger: JobLogger,
   prompt: string, episodeId?: string): Promise<{ text: string; model: string }> {
   const cfg = await getSystemConfig<{ text_model?: string }>(db, "gemini", {});
+  const storyCfg = await getSystemConfig<{ gemini_model?: string; openrouter_models?: string[] }>(db, "story_production", {});
   let lastError: unknown;
   if (Deno.env.get("GEMINI_API_KEY")) {
-    const model = cfg.text_model ?? "gemini-3.6-flash";
+    const model = storyCfg.gemini_model ?? cfg.text_model ?? "gemini-3.6-flash";
     try {
       const result = await geminiGenerate({ model, prompt, temperature: 0.7,
         beforeRequest: () => assertGeminiBudget(db, logger, episodeId, "text", model) });
@@ -19,13 +20,14 @@ export async function writeStory(db: ReturnType<typeof createServiceClient>, log
     } catch (error) {
       if (error instanceof AppError && !["BUDGET_EXCEEDED", "GEMINI_CALL_FAILED", "GEMINI_EMPTY_RESPONSE"].includes(error.code)) throw error;
       lastError = error;
+      await logger.event({ ...(episodeId ? { episode_id: episodeId } : {}), event_type: "ai_provider_call",
+        model_used: model, cost_estimate: 0, metadata: { provider: "gemini", outcome: "unavailable" } });
       logger.info("Roteirista primário indisponível; consultando alternativa gratuita", { provider: "gemini" });
     }
   }
   const key = Deno.env.get("OPENROUTER_API_KEY");
   if (key) {
-    const config = await getSystemConfig<{ openrouter_models?: string[] }>(db, "story_production", {});
-    const models = [...new Set(config.openrouter_models ?? [])].filter(m => m.endsWith(":free")).slice(0, 2);
+    const models = [...new Set(storyCfg.openrouter_models ?? [])].filter(m => m.endsWith(":free")).slice(0, 2);
     // Verify current prices; a renamed or removed model cannot silently cost money.
     const catalogResponse = await fetch("https://openrouter.ai/api/v1/models", { signal: AbortSignal.timeout(10000) });
     if (!catalogResponse.ok) throw new AppError("Não foi possível verificar modelos gratuitos", 502, "STORY_PROVIDER_UNAVAILABLE");
@@ -61,5 +63,7 @@ export async function writeStory(db: ReturnType<typeof createServiceClient>, log
       }
     }
   }
-  throw lastError ?? new AppError("Nenhum roteirista gratuito disponível", 429, "BUDGET_EXCEEDED");
+  if (lastError instanceof AppError && lastError.code === "BUDGET_EXCEEDED") throw lastError;
+  throw new AppError("O roteirista gratuito está temporariamente indisponível. Sua proposta foi preservada; tente novamente mais tarde.",
+    lastError ? 503 : 429, lastError ? "STORY_PROVIDER_UNAVAILABLE" : "BUDGET_EXCEEDED");
 }

@@ -6,6 +6,7 @@ import {handleAssets} from "../generate-assets/handler.ts";
 import {writeStory} from "./story-writer.ts";
 import {createServiceClient} from "./supabase-client.ts";
 import {JobLogger} from "./logger.ts";
+import {AppError} from "./error-handler.ts";
 const policy={blocked_patterns:{medical:["\\mcura\\M"]},require_source_per_claim:true};
 async function envTest(run:()=>Promise<void>) {
  const names=["SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","GEMINI_API_KEY","OPENROUTER_API_KEY"],previous=names.map(n=>Deno.env.get(n)),fetch=globalThis.fetch;
@@ -50,4 +51,24 @@ Deno.test("writer refuses paid/unknown models and pauses on OpenRouter account l
  const db=createServiceClient(),logger=new JobLogger(db,"test");
  await assertRejects(()=>writeStory(db,logger,"A story"));assertEquals(apiCalls,0);assertEquals(reservations,0);
  model="valid/model:free";await assertRejects(()=>writeStory(db,logger,"A story"));assertEquals(apiCalls,1);assertEquals(reservations,1);
+}));
+Deno.test("fiction has its own budgeted text model and reports provider timeouts clearly",async()=>await envTest(async()=>{
+ const models:string[]=[],events:Record<string,any>[]=[];let timeout=false;
+ globalThis.fetch=(async(input,init)=>{
+  const u=new URL(input instanceof Request?input.url:String(input));
+  if(u.pathname.endsWith("/system_config"))return json({value:u.searchParams.get("key")==="eq.story_production"?{gemini_model:"gemini-3.1-flash-lite"}:{text_model:"gemini-3.6-flash"}});
+  if(u.pathname.endsWith("/rpc/reserve_gemini_call"))return json(true);
+  if(u.hostname==="generativelanguage.googleapis.com"){
+   models.push(u.pathname);if(timeout)throw new DOMException("Signal timed out.","TimeoutError");
+   return json({candidates:[{content:{parts:[{text:'{"title":"A história"}'}]}}]});
+  }
+  if(u.pathname.endsWith("/job_events")){events.push(JSON.parse(String(init?.body)));return new Response(null,{status:201});}
+  throw Error(`Unexpected ${u.pathname}`);
+ }) as typeof fetch;
+ const db=createServiceClient(),logger=new JobLogger(db,"test");
+ assertEquals((await writeStory(db,logger,"A story")).model,"gemini-3.1-flash-lite");
+ assertEquals(models.every(m=>m.includes("gemini-3.1-flash-lite")),true);
+ timeout=true;
+ await assertRejects(()=>writeStory(db,logger,"A story"),AppError,"temporariamente indisponível");
+ assertEquals(events.some(e=>e.event_type==="ai_provider_call"&&e.metadata?.outcome==="unavailable"),true);
 }));

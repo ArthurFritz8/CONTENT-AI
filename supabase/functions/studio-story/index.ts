@@ -23,7 +23,9 @@ Deno.serve(async req => {
     const { error: auth } = await db.rpc("studio_assert_member", { p_workspace: input.workspace, p_actor: input.actor });
     if (auth) throw new AppError("Acesso negado", 403, "FORBIDDEN");
     if (input.action === "capacity") {
-      const cfg = await getSystemConfig<{ text_model?: string }>(db, "gemini", {}), model = cfg.text_model ?? "gemini-3.6-flash";
+      const cfg = await getSystemConfig<{ text_model?: string }>(db, "gemini", {});
+      const storyCfg = await getSystemConfig<{ gemini_model?: string }>(db, "story_production", {});
+      const model = storyCfg.gemini_model ?? cfg.text_model ?? "gemini-3.6-flash";
       const budget = await getSystemConfig<{ gemini_models?: Record<string, { rpd?: number }> }>(db, "budget", {});
       const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
       const { data: modelUsage, error } = await db.from("api_budget_usage").select("used").eq("scope", `gemini:model:${model}`).eq("period", day).maybeSingle();
