@@ -1,4 +1,5 @@
 import { claimEpisode } from "../_shared/episode-lease.ts";
+import { generateStoryScript } from "../_shared/story-script.ts";
 import {
   applyGrowthStrategy,
   growthStrategySchema,
@@ -204,6 +205,7 @@ function normalizeSystemFields(
   const withoutAssets = Array.isArray(raw.scenes)
     ? raw.scenes.map((s) => ({
         ...(s as Record<string, unknown>),
+        story_visual: undefined,
         asset_landscape: null,
         asset_portrait: null,
       }))
@@ -224,6 +226,7 @@ function normalizeSystemFields(
   ) as Record<string, unknown>;
   return {
     ...withAffiliate,
+    fiction: undefined,
     episode_id: episodeId,
     prompt_version: promptVersion,
     music: null,
@@ -286,6 +289,7 @@ export async function handleScript(req: Request): Promise<Response> {
       );
     }
 
+    if (episode.briefing?.story_context) return await generateStoryScript(db, logger, episode);
     const research = researchDataSchema.safeParse(episode.research_data);
     if (!research.success) {
       throw new AppError(

@@ -1,0 +1,46 @@
+\set ON_ERROR_STOP on
+begin;
+create function pg_temp.story_assert(v boolean,label text) returns void language plpgsql as $$ begin if v is distinct from true then raise exception 'Story assertion: %',label;end if;end $$;
+do $$
+declare actor uuid:=gen_random_uuid();foreign_actor uuid:=gen_random_uuid();w uuid;fw uuid;req uuid:=gen_random_uuid();sid uuid;idea uuid;eid uuid;reply jsonb;bible jsonb;input jsonb;r public.review_requests;
+begin
+ w:=public.studio_provision(actor,'Stories test',false);fw:=public.studio_provision(foreign_actor,'Other stories',false);
+ input:='{"kind":"fruits","genre":"mystery","chapters":2,"premise":"Duas frutas encontram uma chave misteriosa na feira."}';
+ bible:='{"kind":"fruits","genre":"mystery","title":"A chave da feira","premise":"Duas frutas encontram uma chave misteriosa na feira.","cast":[{"id":"lia","name":"Lia","appearance":"apple","color":"#ef1234","personality":"Curiosa e amiga de todos.","voice":"female"},{"id":"rui","name":"Rui","appearance":"orange","color":"#fab123","personality":"Impulsivo e muito curioso.","voice":"male"}],"chapters":[{"title":"A chave misteriosa","arc":"Encontram a chave dourada e descobrem quem poderia ter perdido aquele objeto na feira."},{"title":"A porta escondida","arc":"Abrem a porta escondida atrás do portão e descobrem o segredo da feira."}]}';
+ perform pg_temp.story_assert(public.studio_story_claim(w,actor,req,input)->>'code'='claimed','claim proposal');
+ perform pg_temp.story_assert(public.studio_story_claim(w,actor,req,input)->>'code'='busy','concurrent retry does not duplicate API call');
+ begin perform public.studio_story_claim(w,foreign_actor,req,input);raise exception 'Foreign actor accepted';exception when insufficient_privilege then null;end;
+ begin perform public.studio_story_claim(w,actor,req,input||'{"chapters":3}');raise exception 'Replayed changed input';exception when insufficient_privilege then null;end;
+ sid:=public.studio_story_save(w,actor,req,bible);
+ perform pg_temp.story_assert(public.studio_story_save(w,actor,req,bible)=sid,'save replay idempotent');
+ perform pg_temp.story_assert(public.studio_story_claim(w,actor,req,input)->>'series_id'=sid::text,'completed retry returns cached series');
+ begin perform public.studio_story_next(fw,foreign_actor,sid);raise exception 'Foreign series accepted';exception when insufficient_privilege then null;end;
+ reply:=public.studio_story_next(w,actor,sid);idea:=(reply->>'idea_id')::uuid;
+ perform pg_temp.story_assert(reply->>'code'='queued','first chapter ready');
+ perform pg_temp.story_assert(public.studio_story_next(w,actor,sid)->>'idea_id'=idea::text,'same chapter not duplicated');
+ perform pg_temp.story_assert(not exists(select 1 from public.consume_idea_unchecked(idea)),'automatic mode cannot consume story');
+ perform pg_temp.story_assert(public.studio_command(w,actor,gen_random_uuid(),'edit',jsonb_build_object('id',idea,'briefing','Changed briefing enough characters','revision',0))->>'code'='story_locked','bible cannot be corrupted by ordinary editing');
+ reply:=public.studio_command(w,actor,gen_random_uuid(),'generate_video',jsonb_build_object('id',idea,'revision',(select revision from public.idea_queue where id=idea)));
+ perform pg_temp.story_assert(reply->>'code'='started','explicit start');eid:=(reply->>'episode_id')::uuid;
+ perform pg_temp.story_assert((select briefing->'story_context'=(select story_context from public.idea_queue where id=idea) from public.episodes where id=eid),'context carried to episode');
+ perform pg_temp.story_assert(public.studio_story_next(w,actor,sid)->>'code'='review_required','unfinished chapter blocks continuation');
+ update public.episodes set status='research',research_data='[]',research_evidence=jsonb_build_object('type','fiction_plan','context',briefing->'story_context') where id=eid;
+ update public.episodes set status='script',script_json=jsonb_build_object('fiction',jsonb_build_object('context',briefing->'story_context','summary','Lia e Rui encontraram a chave dourada e uma pista indicando a porta escondida atrás do portão da feira.'),'disclosures',jsonb_build_object('contains_synthetic_media',true,'commercial_content',false)) where id=eid;
+ update public.episodes set status='assets' where id=eid;
+ update public.episodes set status='rendered',render_url='https://example.test/story.mp4' where id=eid;
+ update public.episodes set status='review' where id=eid;
+ r:=public.studio_ensure_review(eid);
+ perform pg_temp.story_assert(r.snapshot#>'{episode,briefing,story_context}' is not null,'review binds original story context');
+ perform pg_temp.story_assert(public.studio_review_action(w,actor,gen_random_uuid(),r.id,r.fingerprint,'approve')->>'code'='approved','approval without publication');
+ update public.episodes set script_json=jsonb_set(script_json,'{fiction,summary}','"Resumo alterado após a aprovação e portanto ainda não pode ser usado para continuar a história."') where id=eid;
+ perform pg_temp.story_assert(public.studio_story_next(w,actor,sid)->>'code'='review_required','old approval cannot authorize changed summary');
+ r:=public.studio_ensure_review(eid);
+ perform public.studio_review_action(w,actor,gen_random_uuid(),r.id,r.fingerprint,'approve');
+ reply:=public.studio_story_next(w,actor,sid);
+ perform pg_temp.story_assert(reply->>'chapter_number'='2','approved chapter permits next');
+ perform pg_temp.story_assert((select story_context#>>'{previous_summaries,0}'=(select script_json#>>'{fiction,summary}' from public.episodes where id=eid) from public.idea_queue where id=(reply->>'idea_id')::uuid),'only current approved summary persisted');
+ perform pg_temp.story_assert(not exists(select 1 from public.studio_outbox where episode_id=eid),'no publication on chapter preparation');
+ perform pg_temp.story_assert((public.studio_story_overview(w,actor)->>'generated_today')::int=1,'capacity counts actual created episodes');
+ perform pg_temp.story_assert(not has_function_privilege('authenticated','public.studio_story_next(uuid,uuid,uuid)','execute'),'browser cannot assert arbitrary actor');
+end $$;
+rollback;

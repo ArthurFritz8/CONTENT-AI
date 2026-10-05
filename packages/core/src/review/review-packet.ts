@@ -4,6 +4,8 @@ import { researchDataSchema } from "../schemas/research.ts";
 import { researchEvidenceSchema, researchMatchesEvidence } from "../validators/research-evidence.ts";
 import { createScriptQualityChecker } from "../validators/script-quality.ts";
 import { affiliateLinksFromCompliance, affiliateLinkForPlatform } from "../publish/affiliate-metadata.ts";
+import { fictionPlanMatches } from "../stories/script.ts";
+import { canonicalStringify } from "../validators/hash-utils.ts";
 
 const webUrl = z.string().url().refine(value => {
   const url = new URL(value);
@@ -16,7 +18,8 @@ const affiliateWebUrl = z.string().max(2048).url().refine(value => {
 const snapshotSchema = z.object({
   episode: z.object({
     id: z.string().uuid(), script_json: scriptJsonSchema, render_url: webUrl,
-    research_data: researchDataSchema, research_evidence: z.unknown(),
+    research_data: z.union([researchDataSchema, z.array(z.never()).length(0)]), research_evidence: z.unknown(),
+    briefing: z.object({ story_context: z.unknown() }).optional(),
     product_compliance: z.object({
       commercial_content: z.boolean().optional(),
       affiliate_link: affiliateWebUrl.optional(),
@@ -62,7 +65,12 @@ export function validateReviewSnapshot(snapshot: unknown) {
   const script = episode.script_json;
   if (episode.render_url !== episode.metadata.render_outputs.portrait) throw new Error("Vídeo principal diverge da versão apresentada");
   if (script.episode_id !== episode.id || !isRenderReady(script)) throw new Error("Roteiro/render inválido para revisão");
-  if (!researchMatchesEvidence(episode.research_data, episode.research_evidence)) throw new Error("Evidência de pesquisa inválida");
+  if (script.fiction) {
+    if (!fictionPlanMatches(episode.briefing?.story_context, episode.research_evidence) ||
+      canonicalStringify(episode.briefing?.story_context) !== canonicalStringify(script.fiction.context) || episode.research_data.length)
+      throw new Error("Plano de ficção inválido ou alterado");
+  } else if (!researchDataSchema.safeParse(episode.research_data).success ||
+    !researchMatchesEvidence(episode.research_data, episode.research_evidence)) throw new Error("Evidência de pesquisa inválida");
   if (script.platform_ctas && !episode.metadata.render_outputs.platforms?.tiktok) throw new Error("Render TikTok com CTA orgânico ausente");
   if (script.platform_ctas) mediaReportSchema.parse(episode.metadata.render_outputs.platforms!.tiktok.quality);
   const report = createScriptQualityChecker(fact_check)(script, episode.research_data, script.platform_ctas
@@ -81,7 +89,7 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
     episode.product_compliance,
   );
   const scenes = [...script.scenes].sort((a, b) => a.order - b.order);
-  const evidence = researchEvidenceSchema.parse(episode.research_evidence);
+  const evidence = script.fiction ? null : researchEvidenceSchema.parse(episode.research_evidence);
   const youtubeLabel = autoPublishBufferYoutube ? "Short público no YouTube via Buffer"
     : autoPublishYoutube ? "Short público no YouTube" : "";
   const hasYoutube = Boolean(youtubeLabel);
@@ -92,7 +100,7 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
     `${scenes.length} cenas • Português • ${script.disclosures.commercial_content ? "Com link de afiliado" : "Sem conteúdo comercial"}`,
     "Voz/conteúdo sintético: sim", "",
     "Assista às duas versões e confira o roteiro, descrições, fontes e licenças no anexo.",
-    "QA automático passou. Veracidade, direitos e qualidade audiovisual exigem sua revisão.",
+    script.fiction ? "Ficção original. Revise continuidade, falas, ilustrações e qualidade audiovisual." : "QA automático passou. Veracidade, direitos e qualidade audiovisual exigem sua revisão.",
     hasYoutube && autoPublishTikTok
       ? "Escolha abaixo se autoriza TikTok via Buffer, YouTube via Buffer ou ambos. Confira os vídeos antes de confirmar."
       : hasYoutube || autoPublishTikTok
@@ -106,7 +114,7 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
   const lines = [
     "CONTENT AI — REVISÃO EDITORIAL", `Episódio: ${episode.id}`, `Revisão: ${requestId}`, "",
     "ANTES DE APROVAR", "[ ] Vídeo e áudio corretos nas duas orientações; legendas legíveis e sincronizadas.",
-    "[ ] Afirmações conferidas nas fontes; produto e contexto correspondem.",
+    script.fiction ? "[ ] Continuidade, personagens e identificação como ficção conferidos." : "[ ] Afirmações conferidas nas fontes; produto e contexto correspondem.",
     "[ ] Uso das imagens/música autorizado e atribuições suficientes.",
     "[ ] Títulos/descrições fiéis; divulgação comercial clara quando aplicável.", "",
     "VÍDEOS", `Vertical: ${episode.metadata.render_outputs.portrait}`, `Horizontal: ${episode.metadata.render_outputs.landscape}`, "",
@@ -128,9 +136,12 @@ export function buildReviewPacket(snapshot: unknown, requestId: string, autoPubl
       `Visual planejado: ${scene.visual.description}`, "",
     ]), "FONTES E EVIDÊNCIAS", ...script.sources.flatMap((source, index) => [
       `${index + 1}. ${source.claim}`, source.source_url,
-    ]), `Busca: ${evidence.provider === "tavily_search" ? "Tavily" : "Google Search via Gemini"} • coleta: ${evidence.captured_at}`,
-    "Citações e confiança estimada pelo modelo não constituem verificação independente. Confira fontes primárias antes de aprovar afirmações sobre saúde, desempenho ou benefícios do produto.",
-    ...(evidence.provider === "tavily_search" ? ["", "TRECHOS RECUPERADOS NA BUSCA (podem estar incompletos)",
+    ]), ...(script.fiction ? ["Plano de ficção original; não apresenta fatos ou tendências como evidência.",
+      `Série: ${script.fiction.context.bible.title} • capítulo ${script.fiction.context.chapter_number}`,
+      `Resumo para continuidade: ${script.fiction.summary}`] : [
+      `Busca: ${evidence!.provider === "tavily_search" ? "Tavily" : "Google Search via Gemini"} • coleta: ${evidence!.captured_at}`,
+      "Citações e confiança estimada pelo modelo não constituem verificação independente. Confira fontes primárias antes de aprovar afirmações sobre saúde, desempenho ou benefícios do produto."]),
+    ...(evidence?.provider === "tavily_search" ? ["", "TRECHOS RECUPERADOS NA BUSCA (podem estar incompletos)",
       ...evidence.sources.filter(source => script.sources.some(citation => new URL(citation.source_url).href === new URL(source.url).href)).flatMap(source => [
         clip(source.title, 500), source.url, clip(source.content, 1200), "",
       ])] : []), "",

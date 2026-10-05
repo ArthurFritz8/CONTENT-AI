@@ -4,6 +4,7 @@ import {
   themes,
 } from "../../../packages/core/src/editorial/profile.ts";
 import { claimEpisode } from "../_shared/episode-lease.ts";
+import { storyContextSchema } from "../../../packages/core/src/stories/schema.ts";
 import { requireServiceRole } from "../_shared/auth.ts";
 // generate-research — Fase 1 (ADR-023): Tavily Search + Gemini Flash.
 // idea → research. Salva resultados e claims juntos para revisão humana.
@@ -110,6 +111,15 @@ export async function handleResearch(req: Request): Promise<Response> {
         409,
         "INVALID_STATE",
       );
+    }
+    if (episode.briefing?.story_context) {
+      const context = storyContextSchema.parse(episode.briefing.story_context);
+      const { error: saveError } = await db.from("episodes").update({ status: "research", research_data: [],
+        research_evidence: { type: "fiction_plan", context } }).eq("id", episode.id).eq("status", "idea");
+      if (saveError) throw new AppError("Falha ao salvar plano narrativo", 500, "DB_ERROR");
+      await logger.event({ episode_id: episode.id, event_type: "research_completed", cost_estimate: 0,
+        metadata: { type: "fiction_plan", series_id: context.series_id, chapter_number: context.chapter_number } });
+      return jsonResponse({ episode_id: episode.id, type: "fiction_plan" });
     }
     const briefingText = (episode.briefing as { text?: string } | null)?.text;
     if (!briefingText) {

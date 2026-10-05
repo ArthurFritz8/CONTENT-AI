@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { rasterizeArtwork } from "./artwork.ts";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
@@ -399,7 +400,7 @@ async function prepareSceneFiles(
       `${orientation}_${basename(new URL(sceneAssetUrl(scene, orientation)).pathname) || "image"}`,
     );
     await downloadUrl(sceneAssetUrl(scene, orientation), imagePath);
-    const imagePaths = [imagePath];
+    const imagePaths = [await rasterizeArtwork(imagePath)];
     const extraImages = ctx.assets.filter((asset) =>
       asset.type === "image" && asset.metadata?.scene_order === scene.order &&
       asset.metadata?.orientation === orientation &&
@@ -408,7 +409,7 @@ async function prepareSceneFiles(
     for (const [index, extra] of extraImages.entries()) {
       const extraPath = join(sceneDir, `${orientation}_shot_${index + 1}_${basename(new URL(extra.url).pathname) || "image"}`);
       await downloadUrl(extra.url, extraPath);
-      imagePaths.push(extraPath);
+      imagePaths.push(await rasterizeArtwork(extraPath));
     }
     imageByOrientation[orientation] = imagePaths;
 
@@ -817,7 +818,9 @@ async function renderEpisode(episodeId: string): Promise<void> {
     const portraitUrl = await uploadFinal(ctx, "portrait", portrait.value.path);
     let tiktokOutput:
       { portrait: string; quality: unknown; commercial: false } | undefined;
-    if (script.platform_ctas) {
+    if (script.platform_ctas && script.platform_ctas.tiktok.narration_text === [...script.scenes].sort((a,b)=>a.order-b.order).at(-1)!.narration_text) {
+      tiktokOutput = { portrait: portraitUrl, quality: portrait.value.report, commercial: false };
+    } else if (script.platform_ctas) {
       // Only the ending changes. All preceding portrait checkpoints are reused.
       const tiktokCta = platformMediaScenes(script).at(-1)!;
       const tiktokCtx: RenderContext = {

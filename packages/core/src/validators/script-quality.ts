@@ -86,6 +86,15 @@ export function createScriptQualityChecker(rawConfig: unknown) {
       error("NARRATION_TOO_SHORT", "narration.full_text",
         `Narração com ${spokenWords} palavras; escreva pelo menos ${MIN_NARRATION_WORDS} palavras substantivas para sustentar 60s reais`);
     }
+    if (script.fiction) {
+      const cast = new Set(script.fiction.context.bible.cast.map(c => c.id));
+      for (const scene of scenes) {
+        const visual = scene.story_visual;
+        if (!visual || visual.on_stage.some(id => !cast.has(id)) ||
+          (visual.speaker_id !== "narrator" && !cast.has(visual.speaker_id)))
+          error("FICTION_CAST_MISMATCH", `scenes.${scene.order}`, "Cena precisa usar o elenco persistente da história");
+      }
+    }
     for (const [index, source] of script.sources.entries()) {
       const url = sourceUrl(source.source_url);
       if (!url || !research.some(item => normalize(item.claim) === normalize(source.claim) && sourceUrl(item.source_url) === url)) {
@@ -144,8 +153,8 @@ export function createScriptQualityChecker(rawConfig: unknown) {
         error("HIGHLIGHT_NOT_NARRATED", `scenes.${scene.order}.highlight_words`, "Destaques devem ser copiados da narração da cena");
       }
     }
-    findings.push({ code: "HUMAN_FACT_REVIEW_REQUIRED", path: "sources", severity: "warning",
-      message: "Vínculo com a pesquisa não comprova veracidade nem cobertura de todos os fatos narrados; revise fontes, contexto e direitos antes de aprovar" });
+    findings.push({ code: script.fiction ? "HUMAN_STORY_REVIEW_REQUIRED" : "HUMAN_FACT_REVIEW_REQUIRED", path: "sources", severity: "warning",
+      message: script.fiction ? "Revise continuidade, falas, ilustrações e identificação como ficção antes de aprovar" : "Vínculo com a pesquisa não comprova veracidade nem cobertura de todos os fatos narrados; revise fontes, contexto e direitos antes de aprovar" });
     return { version: SCRIPT_QUALITY_VERSION, passed: !findings.some(f => f.severity === "error"),
       factual_verification: "requires_human_review", findings };
   };

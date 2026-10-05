@@ -110,7 +110,7 @@ export async function GET(request: Request) {
       const p = pagination(params),
         filters: Record<string, string> = {
           select:
-            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision,source,validated_at,recommendations,recommendation_checked_at,selected_product,selected_hook,selected_evidence_url",
+            "id,briefing,niche,product_url,affiliate_links,priority,status,episode_id,created_at,revision,source,validated_at,recommendations,recommendation_checked_at,selected_product,selected_hook,selected_evidence_url,story_context",
           status: "eq.pending",
           order: "priority.asc,created_at.asc,id.asc",
           limit: String(p.limit),
@@ -296,6 +296,7 @@ export async function POST(request: Request) {
       }),
     };
     const errors: Record<string, string> = {
+      story_locked: "O plano desta história está guardado na série. Crie outra proposta para mudar o elenco ou o enredo.",
       conflict:
         "Esta pauta ou configuração mudou. Atualize a página antes de editar.",
       queue_full: "A fila atingiu o limite configurado.",

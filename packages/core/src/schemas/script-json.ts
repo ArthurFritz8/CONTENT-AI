@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { platformCtasSchema } from "../publish/growth-strategy.ts";
+import { storyContextSchema, storyVisualSchema } from "../stories/schema.ts";
 
 // Constraints citados também no prompt do Gemini — fonte única (ADR-005).
 export const SCENE_COUNT = { min: 3, max: 8 } as const;
@@ -40,6 +41,7 @@ export const sceneSchema = z.object({
   highlight_words: z.array(z.string().min(1)).max(3).default([]),
   // true = usar o personagem/apresentador fixo nesta cena (ADR-030); decisão do próprio roteiro, opt-in e raro
   presenter: z.boolean().default(false),
+  story_visual: storyVisualSchema.optional(),
   // null até o estado 'assets' (contrato estagiado — ADR-005)
   asset_landscape: assetRefSchema.nullable(),
   asset_portrait: assetRefSchema.nullable(),
@@ -62,6 +64,7 @@ export const scriptJsonSchema = z
     // Rótulo do estilo editorial escolhido pelo roteirista (ADR-033) — varia por vídeo, usado em analytics.
     editorial_style: z.string().min(1).max(80),
     platform_ctas: platformCtasSchema.optional(),
+    fiction: z.object({ context: storyContextSchema, summary: z.string().min(30).max(1200) }).optional(),
     metadata: z.object({
       youtube: z.object({
         title: z.string().min(1).max(YOUTUBE_TITLE_MAX),
@@ -94,7 +97,7 @@ export const scriptJsonSchema = z
     // formato exige claims com evidência — mínimo 1 fonte
     sources: z
       .array(z.object({ claim: z.string().min(1), source_url: z.string().url() }))
-      .min(1),
+      .max(20),
     disclosures: z.object({
       contains_synthetic_media: z.literal(true),
       commercial_content: z.boolean(),
@@ -102,6 +105,10 @@ export const scriptJsonSchema = z
     }),
   })
   .superRefine((script, ctx) => {
+    if (!script.fiction && script.sources.length === 0)
+      ctx.addIssue({ code: "custom", path: ["sources"], message: "Vídeo factual exige fontes" });
+    if (script.fiction && (script.sources.length > 0 || script.disclosures.commercial_content || script.scenes.some(s => !s.story_visual)))
+      ctx.addIssue({ code: "custom", path: ["fiction"], message: "Ficção exige cenas do elenco, sem fontes factuais ou conteúdo comercial" });
     if (new Set(script.scenes.map(scene => scene.id)).size !== script.scenes.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scenes"], message: "scenes[].id deve ser único" });
     }

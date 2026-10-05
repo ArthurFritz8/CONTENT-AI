@@ -21,6 +21,7 @@ test("growth uses commercial YouTube ending only with validated destination link
   const organic = make();
   strictEqual(organic.platform_ctas!.youtube.commercial, false);
   strictEqual(organic.platform_ctas!.youtube.narration_text, organic.platform_ctas!.tiktok.narration_text);
+  strictEqual(platformMediaScenes(organic).length,organic.scenes.length);
   const script = make("https://amazon.example/product?tag=validated");
   ok(script.metadata.youtube.description.includes("tag=validated"));
   strictEqual(script.metadata.tiktok.description, "Descrição TikTok");

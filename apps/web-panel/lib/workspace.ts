@@ -15,6 +15,8 @@ const tables = new Set([
   "studio_connections",
   "studio_outbox",
   "studio_discoveries",
+  "studio_series",
+  "studio_story_chapters",
 ]);
 /** Filters cannot override the verified session's workspace. Never expose raw RPCs here. */
 export function workspaceDb(user: StudioUser) {

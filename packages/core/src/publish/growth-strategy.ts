@@ -22,6 +22,7 @@ export const platformCtasSchema = z.object({
 export function platformMediaScenes(script: ScriptJson): Scene[] {
   if (!script.platform_ctas) return script.scenes;
   const cta = [...script.scenes].sort((a, b) => a.order - b.order).at(-1)!;
+  if (script.platform_ctas.tiktok.narration_text === cta.narration_text) return script.scenes;
   return [...script.scenes, {
     ...cta, id: `${cta.id}-tiktok`, order: script.scenes.length,
     narration_text: script.platform_ctas.tiktok.narration_text, highlight_words: [],

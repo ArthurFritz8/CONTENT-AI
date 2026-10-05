@@ -1962,3 +1962,21 @@ blockquote {
 .fia-panel input { width:100%; padding:12px; margin:8px 0; background:var(--bg); color:inherit; border:1px solid var(--line); border-radius:8px; }
 .fia-topics { display:flex; flex-wrap:wrap; gap:7px; margin:18px 0; }
 @media(max-width:650px){.studio-form-grid{grid-template-columns:1fr}.studio-feature{padding:18px}.fia{right:12px;bottom:12px}}
+.content-type-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:20px; }
+.content-type-card { display:flex; flex-direction:column; gap:12px; text-align:left; padding:20px; border:1px solid var(--line); border-radius:12px; background:var(--bg); color:var(--ink); cursor:pointer; }
+.content-type-card.selected { border-color:#a9c940; box-shadow:inset 0 0 0 1px #a9c940; }
+.content-type-card span,.content-type-card small { font-size:12px; line-height:1.6; }
+.content-type-card small { color:var(--muted); margin-top:auto; }
+.story-capacity { display:flex; flex-direction:column; gap:8px; padding:16px; border:1px solid var(--line); border-radius:12px; margin:20px 0 10px; }
+.story-capacity span { font-size:12px; line-height:1.6; }
+.story-proposal-layout { display:grid; grid-template-columns:190px minmax(0,1fr); gap:26px; align-items:start; }
+.story-art-preview { display:block; width:100%; height:auto; border-radius:12px; border:1px solid var(--line); }
+.story-cast { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:14px 0 22px; }
+.story-cast>div { display:flex; flex-direction:column; gap:10px; padding:14px; background:var(--bg); border-radius:10px; }
+.story-cast span,.story-cast small { font-size:12px; line-height:1.5; }
+.story-cast i { display:inline-block; height:12px; width:12px; border-radius:50%; margin-right:8px; }
+.story-series details { margin:16px 0; }.story-series summary { cursor:pointer; font-size:14px; }.story-series li { margin:18px 0; }.story-series li p { font-size:13px; }
+.story-chapters { display:grid; gap:12px; margin:22px 0; }
+.story-chapters>div { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:14px; font-size:13px; }
+.story-chapters .button { margin-left:auto; }
+@media(max-width:760px){.content-type-options{grid-template-columns:1fr}.story-proposal-layout{grid-template-columns:1fr}.story-art-preview{width:150px}.content-type-card{padding:16px}}

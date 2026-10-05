@@ -10,6 +10,7 @@ export interface TtsWordBoundary {
 }
 
 export interface TtsConfig {
+  scene_voices?: Record<number, string>;
   chain?: TtsEngine[];
   voice_pt_br?: string;
   gemini_tts_model?: string;

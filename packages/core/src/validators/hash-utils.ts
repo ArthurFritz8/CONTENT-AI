@@ -26,6 +26,10 @@ export async function sha256Hex(input: string): Promise<string> {
  */
 export async function computeScriptHash(script: ScriptJson): Promise<string> {
   const editorial = {
+    ...(script.fiction ? { fiction: { ...script.fiction, context: {
+      bible: script.fiction.context.bible, chapter_number: script.fiction.context.chapter_number,
+      previous_summaries: script.fiction.context.previous_summaries,
+    } } } : {}),
     ...(script.platform_ctas ? { platform_ctas: script.platform_ctas } : {}),
     metadata: script.metadata,
     narration: script.narration,

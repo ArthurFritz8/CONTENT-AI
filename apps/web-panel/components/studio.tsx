@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ScheduledPosts } from "./scheduled-posts";
 import { Connections } from "./connections";
 import { Fia } from "./fia";
-import { Discovery } from "./discovery";
+import { StoryDiscovery } from "./story-discovery";
 import { ReviewActions } from "./review-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -793,7 +793,7 @@ export default function Studio({
                 )}
                 {section === "queue" && (
                   <>
-                    <Discovery onSaved={() => setRefresh((v) => v + 1)} />
+                    <StoryDiscovery refresh={refresh} onSaved={() => setRefresh((v) => v + 1)} />
                     <section className="panel">
                       <Toolbar
                         searchRef={searchRef}
@@ -880,7 +880,7 @@ export default function Studio({
                                           {t("generateVideo")}
                                         </button>
                                       )}
-                                      <button
+                                      {!r.story_context && <button
                                         className="button small secondary"
                                         onClick={() => {
                                           setMutationError("");
@@ -899,7 +899,7 @@ export default function Studio({
                                         }}
                                       >
                                         {t("edit")}
-                                      </button>
+                                      </button>}
                                       <button
                                         className="icon-button danger-text"
                                         title={t("cancelIdea")}

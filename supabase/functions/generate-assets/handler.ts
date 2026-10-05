@@ -36,6 +36,10 @@ import {
   recordScriptQuality,
 } from "../_shared/script-quality.ts";
 import { researchDataSchema } from "../../../packages/core/src/schemas/research.ts";
+import { storyArtwork } from "../../../packages/core/src/stories/art.ts";
+import { storyVoice } from "../../../packages/core/src/stories/schema.ts";
+import { fictionPlanMatches } from "../../../packages/core/src/stories/script.ts";
+import { canonicalStringify } from "../../../packages/core/src/validators/hash-utils.ts";
 import { researchMatchesEvidence } from "../../../packages/core/src/validators/research-evidence.ts";
 import { computeScriptHash } from "../../../packages/core/src/validators/hash-utils.ts";
 import {
@@ -316,6 +320,31 @@ async function stageImages(args: {
       script: scriptJsonSchema.parse({ ...script, scenes }),
       counts: { ...counts, skipped: script.scenes.length },
     };
+  }
+
+  if (script.fiction) {
+    const context = script.fiction.context;
+    for (const scene of script.scenes) {
+      const rows: AssetRowInsert[] = [];
+      for (const orientation of ORIENTATIONS) {
+        for (const shot of [0, 1]) {
+          if (assets.some(a => a.type === "image" && a.metadata?.scene_order === scene.order &&
+            a.metadata?.orientation === orientation && a.metadata?.shot_index === shot)) continue;
+          const svg = storyArtwork(context, scene.story_visual!, orientation, shot === 1);
+          const url = await uploadToStorage(db, bucket,
+            `episodes/${episode.id}/images/story_${padSceneOrder(scene.order)}_${orientation}_${shot}.svg`,
+            new TextEncoder().encode(svg), "image/svg+xml");
+          rows.push({ episode_id: episode.id, type: "image", url, license: "own", source: "system", author: null,
+            metadata: { scene_order: scene.order, orientation, shot_index: shot, source_plan: "own_story_illustration",
+              series_id: context.series_id, character_ids: scene.story_visual!.on_stage, role: scene.role } });
+        }
+      }
+      if (rows.length) {
+        await insertAssetRows(db, rows);
+        throw new AppError("Checkpoint de ilustração salvo", 202, "CHECKPOINT_PENDING");
+      }
+    }
+    throw new AppError("Ilustrações inconsistentes", 500, "INVARIANT_VIOLATION");
   }
 
   const imageModel = cfg.image_model ?? "gemini-2.5-flash-image";
@@ -729,7 +758,7 @@ async function generateAudioSet(args: {
       episodeId: args.episode.id,
       engine: args.engine,
       text: scene.narration_text,
-      cfg: args.cfg,
+      cfg: { ...args.cfg, voice_pt_br: args.cfg.scene_voices?.[scene.order] ?? args.cfg.voice_pt_br },
     });
     const path = `episodes/${args.episode.id}/audio/scene_${padSceneOrder(scene.order)}.${tts.extension}`;
     const url = await uploadToStorage(
@@ -769,6 +798,7 @@ async function generateAudioSet(args: {
       author: null,
       metadata: {
         ...info,
+        voice: args.cfg.scene_voices?.[scene.order] ?? args.cfg.voice_pt_br,
         deviation_warn: deviations.some((d) => d.scene === scene.order),
       },
     });
@@ -1010,7 +1040,7 @@ export async function handleAssets(req: Request): Promise<Response> {
     const { data: episode, error } = await db
       .from("episodes")
       .select(
-        "id, status, script_json, research_data, research_evidence, product_image_url, product_compliance, tts_engine, workspace_id",
+        "id, status, briefing, script_json, research_data, research_evidence, product_image_url, product_compliance, tts_engine, workspace_id",
       )
       .eq("id", input.episode_id)
       .maybeSingle();
@@ -1033,14 +1063,18 @@ export async function handleAssets(req: Request): Promise<Response> {
 
     const script = scriptJsonSchema.parse(episode.script_json);
     const quality = await loadScriptQualityChecker(db);
-    const research = researchDataSchema.safeParse(episode.research_data);
+    const isStory = Boolean(script.fiction);
+    if (isStory && (!fictionPlanMatches(episode.briefing?.story_context, episode.research_evidence) ||
+      canonicalStringify(script.fiction!.context) !== canonicalStringify(episode.briefing?.story_context)))
+      throw new AppError("Contexto narrativo alterado", 422, "RESEARCH_EVIDENCE_INVALID");
+    const research = isStory ? { success: true as const, data: [] } : researchDataSchema.safeParse(episode.research_data);
     if (!research.success)
       throw new AppError(
         "Pesquisa ausente ou inválida para checagem do roteiro",
         422,
         "SCRIPT_RESEARCH_INVALID",
       );
-    if (!researchMatchesEvidence(research.data, episode.research_evidence)) {
+    if (!isStory && !researchMatchesEvidence(research.data, episode.research_evidence)) {
       throw new AppError(
         "Pesquisa sem evidência válida ou alterada após grounding",
         422,
@@ -1075,6 +1109,8 @@ export async function handleAssets(req: Request): Promise<Response> {
       ...baseTtsCfg,
       delivery_style: baseTtsCfg.delivery_style ?? voiceDirection.delivery,
       edge_rate: baseTtsCfg.edge_rate ?? voiceDirection.edgeRate,
+      ...(script.fiction ? { chain: ["edge"], preflight_enabled: false,
+        scene_voices: Object.fromEntries(script.scenes.map(s => [s.order, storyVoice(script.fiction!.context, s.story_visual!.speaker_id)])) } : {}),
     };
     const spokesmodelCfg: SpokesmodelConfig =
       episode.workspace_id &&
