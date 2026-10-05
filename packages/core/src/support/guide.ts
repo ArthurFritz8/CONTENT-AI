@@ -2,7 +2,7 @@ export const studioGuide = [
   {
     id: "queue",
     title: "Criar uma pauta",
-    text: "Em Pautas e produtos, abra Encontrar pautas, selecione tema e recorte e pesquise. Confira fonte, gancho e limitação. Escolher e adicionar à fila não gera um vídeo. Use Gerar vídeo na pauta escolhida. Nova pauta permite escrever manualmente. Listas genéricas precisam de um assunto específico antes de gerar.",
+    text: "Para gadgets e temas normais, mantenha Vídeo de assunto em Pautas e produtos. Abra Encontrar pautas, selecione tema e recorte e pesquise. Confira fonte, gancho e limitação. Escolher e adicionar à fila não gera um vídeo. Use Gerar vídeo na pauta escolhida. Nova pauta permite escrever manualmente. Listas genéricas precisam de um assunto específico antes de gerar. História original e Novela de frutas são opcionais: escolha tom e quantidade de capítulos, descreva sua ideia e use Criar proposta. Confira elenco e plano antes de Gerar capítulo. Depois de revisar e aprovar a versão atual, use Continuar história para o próximo. Um capítulo faz uma história independente. O modo disponível é ilustrado, sem animação labial. O contador é uma estimativa das cotas compartilhadas, não uma garantia. Criar proposta ou continuar não publica automaticamente.",
     href: "/studio/queue",
   },
   {
