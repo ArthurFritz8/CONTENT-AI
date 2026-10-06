@@ -94,3 +94,15 @@ O resultado não demonstra boca sincronizada. Diálogo em duas vozes, legibilida
 O audit registra quadros decodificados/distintos e início/meio/fim de cada tomada. Quadros distintos descartam um arquivo inteiramente estático; não comprovam atuação natural ou ausência de defeitos visuais. O assembler verifica hash, cobertura medida da fala, legendas e o QA final. `preview-script.json` organiza sete blocos editoriais locais; não é um episódio com assets pronto para submissão ao renderer de produção.
 
 Resultado de 06/10: 19 tomadas geradas; capítulo final de 88,552 s passou no QA audiovisual e decode integral. O assembler removeu apenas caudas silenciosas medidas, preservando palavras/pausas internas, e recalculou a trilha original. Relatórios: `episode-qa.json`, `audio-qa.json`, `editing-cuts.json`, `shot-audit.json` e `modal-final-state.json`. Apps encerrados com zero tarefas. A escuta completa e aprovação artística do operador permanecem pendentes; não houve publicação.
+
+O operador posteriormente reprovou boca/fala e fluidez. O [ADR-052](ADR/ADR-052-fala-condicionada-e-interpolacao-de-quadros.md) testa uma única fala usando áudio como entrada real da animação, com uma versão nativa e outra interpolada por RIFE. Não repetir TI2V esperando que adicionar áudio depois sincronize a boca.
+
+```powershell
+python scripts/modal-speech-motion-probe.py --prepare
+python scripts/test_story_motion_contract.py
+python scripts/modal-speech-motion-probe.py --build-only
+python scripts/modal-speech-motion-probe.py --run
+python scripts/audit-speech-motion-probe.py
+```
+
+Reutiliza o close aprovado e a fala 07 do piloto, verificando integridade antes de criar o app. Wan S2V requer GPU de 80 GB: esta amostra usa H100, até 1.800 s, 64 GiB de RAM, sem retries/volumes. Instalação/pesos/imports em CPU; inferência sem rede. Uma chamada, não um lote de capítulo. Ao atingir limites/erro do provedor, parar e conferir consumo, sem revezamento automático de contas. Os resultados ficam em `output/audio-driven-motion-probe/`; `qa.json` não presume validação fonética pelo simples fato de receber áudio.

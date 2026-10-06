@@ -1,6 +1,6 @@
 # ADR-051 — Piloto humanizado com diálogo e várias tomadas
 
-Data: 06/10/2026. Status: capítulo local gerado, QA técnico aprovado; revisão artística do operador pendente. Recurso de animação do Studio continua sem habilitação.
+Data: 06/10/2026. Status: capítulo local gerado, QA técnico aprovado; operador reprovou sincronização de fala/boca e fluidez. Correção em validação no ADR-052. Recurso de animação do Studio continua sem habilitação.
 
 ## O — Objetivo
 
