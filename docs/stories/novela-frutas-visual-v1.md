@@ -1,6 +1,6 @@
 # Novela de frutas — referência visual aprovada v1
 
-Data: 05/10/2026. Aprovação do operador: "se for baseada nessa imagem que você gerou está ótima". Aprovação da aparência; continuidade, animação e sincronização labial ainda não aprovadas nem demonstradas.
+Data: 05/10/2026. Aprovação do operador: "se for baseada nessa imagem que você gerou está ótima". Aparência aprovada. Em 06/10, o operador considerou aceitável o movimento de dois segundos e pediu um capítulo completo; essa aprovação curta não valida automaticamente continuidade longa ou sincronização labial.
 
 Referência local: `output/humanized-fruit-concept/malu-laranjito-concept-v1.png`.
 
@@ -39,3 +39,5 @@ Primeira execução futura: uma tomada curta, um único worker, sem publicação
 Fontes: [modelo e licença](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B), [receitas TI2V e S2V](https://github.com/Wan-Video/Wan2.2), [pipelines oficiais Diffusers](https://huggingface.co/docs/diffusers/api/pipelines/wan).
 
 Atualização de 06/10/2026: a primeira tomada de movimento foi gerada na Modal, partindo deste SHA-256: `output/humanized-motion-probe/malu-laranjito-motion-v1.mp4`, 49 quadros, 2,042 s, 704 × 1248. Inspeção temporal e QA técnico documentados no [ADR-049](../ADR/ADR-049-teste-movimento-imagem-aprovada.md). A amostra preservou predominantemente aparência e ambiente, com atuação discreta. Ainda não valida três tomadas consistentes, fala sincronizada ou produção automática de capítulos. O suporte a montar clipes no código do renderer está no [ADR-050](../ADR/ADR-050-render-de-clipes-por-cena.md).
+
+Após aprovação desse movimento, o [ADR-051](../ADR/ADR-051-piloto-humanizado-multiplas-tomadas.md) registra o capítulo local com plano geral e dois closes derivados. Os prompts e hashes desses closes constam em `output/humanized-story-pilot/references/provenance-and-prompts.json`. Nenhuma dessas referências constitui rig 3D ou modelo de boca condicionado ao áudio.

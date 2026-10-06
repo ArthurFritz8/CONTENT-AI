@@ -68,3 +68,29 @@ Resultado: `output/humanized-motion-probe/malu-laranjito-motion-v1.mp4`, 2,042 s
 Antes do arquivo entregável houve uma falha de dependências e duas inferências sem exportação. O exportador agora usa FFmpeg, solicita quadros PIL explicitamente e passa por teste preliminar. Todas as tentativas contam para o consumo de compute; não prometer que a franquia produz uma quantidade mensal fixa. Os resultados e limites estão no [ADR-049](ADR/ADR-049-teste-movimento-imagem-aprovada.md).
 
 O renderer recebeu suporte real a clipes de cena no [ADR-050](ADR/ADR-050-render-de-clipes-por-cena.md), com 30 testes e TypeScript passando. Faltam produtor integrado, referências automatizadas, jobs duráveis e reserva de orçamento para habilitar a animação no painel. O usuário final continuará usando apenas o navegador.
+
+## Capítulo local com várias tomadas
+
+O [ADR-051](ADR/ADR-051-piloto-humanizado-multiplas-tomadas.md) amplia o teste para um capítulo isolado, após aprovação da aparência em movimento. O roteiro é versionado; os dois closes estão em `output/humanized-story-pilot/references/`. A ferramenta de imagens da sessão criou esses closes; não existe chamada dessa ferramenta pela aplicação.
+
+Pré-requisitos locais medidos: FFmpeg/ffprobe no PATH, dependências Node do repositório, Python com Modal 1.6.1, edge-tts 7.2.8 e NumPy 2.2.6. Preservar os três PNGs aprovados e o arquivo de proveniência: são artefatos locais ignorados pelo Git e não podem ser reconstruídos com o mesmo hash apenas repetindo o prompt.
+
+```powershell
+python scripts/prepare-story-pilot.py
+python scripts/score-story-pilot.py
+python scripts/render-story-pilot.py --run --shots 01
+# Conferir a primeira tomada e depois gerar as restantes; a íntegra do checkpoint é verificada.
+python scripts/render-story-pilot.py --run
+node --experimental-strip-types scripts/assemble-story-pilot.mts
+python scripts/audit-story-pilot.py
+# Depois da montagem final, medir níveis de áudio e silêncio do diálogo:
+python scripts/audit-story-pilot.py --final
+```
+
+O modo `--available` do assembler confere e monta só as tomadas já recebidas, sem produzir um final incompleto. A geração usa H100 pela opção do caller; o worker padrão permanece L40S. O mesmo modelo fica em memória entre entradas, um contêiner ativo, idle máximo 30 s, app encerrado ao terminar. O worker ainda tem rede/API bloqueadas e não recebe segredos do banco. Cada chamada é limitada a 241 quadros e 900 s; a sessão não inicia uma chamada se seu possível timeout/startup passar de 7.200 s. Não reiniciar uma sessão sem conferir novamente crédito/limites após um bloqueio do provedor.
+
+O resultado não demonstra boca sincronizada. Diálogo em duas vozes, legibilidade de legendas e continuidade visual serão avaliados no capítulo; isso não é a habilitação do modo animado para clientes. Não existe inserção no banco, consumo de pauta ou publicação nesses comandos.
+
+O audit registra quadros decodificados/distintos e início/meio/fim de cada tomada. Quadros distintos descartam um arquivo inteiramente estático; não comprovam atuação natural ou ausência de defeitos visuais. O assembler verifica hash, cobertura medida da fala, legendas e o QA final. `preview-script.json` organiza sete blocos editoriais locais; não é um episódio com assets pronto para submissão ao renderer de produção.
+
+Resultado de 06/10: 19 tomadas geradas; capítulo final de 88,552 s passou no QA audiovisual e decode integral. O assembler removeu apenas caudas silenciosas medidas, preservando palavras/pausas internas, e recalculou a trilha original. Relatórios: `episode-qa.json`, `audio-qa.json`, `editing-cuts.json`, `shot-audit.json` e `modal-final-state.json`. Apps encerrados com zero tarefas. A escuta completa e aprovação artística do operador permanecem pendentes; não houve publicação.

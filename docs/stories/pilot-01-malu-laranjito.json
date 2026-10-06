@@ -1,0 +1,163 @@
+{
+  "id": "malu-laranjito-pilot-01",
+  "title": "O biscoito e o segredo",
+  "summary": "Malu cobra o biscoito escondido por Laranjito. As desculpas dele revelam que uma visita inesperada chegou ao bairro: o irmão de Malu voltou, apesar de um conflito antigo ainda não resolvido.",
+  "fiction": true,
+  "publish": false,
+  "database_writes": false,
+  "lip_sync_validated": false,
+  "shots": [
+    {
+      "id": "01",
+      "scene": 0,
+      "speaker": "malu",
+      "reference": "wide",
+      "text": "Vai esconder esse biscoito atrás das costas? Eu estou vendo, Laranjito.",
+      "acting": "The apple woman questions the orange man with narrowed eyes and a small open-palm gesture. He reacts guiltily, still hiding the same biscuit. Neither changes position."
+    },
+    {
+      "id": "02",
+      "scene": 0,
+      "speaker": "laranjito",
+      "reference": "laranjito",
+      "text": "Calma, Malu. Isso não é o que parece. Deixa eu explicar.",
+      "acting": "The orange man looks camera-left toward the apple woman, nervous and defensive, one small eyebrow lift and a tiny pleading head tilt. Biscuit stays behind his back."
+    },
+    {
+      "id": "03",
+      "scene": 0,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "É o último biscoito da dona Cida. Eu guardei para a visita!",
+      "acting": "The apple woman holds a skeptical gaze camera-right, one eyebrow raised, then glances briefly at his hidden hand and back to his eyes. Keep her palm open."
+    },
+    {
+      "id": "04",
+      "scene": 1,
+      "speaker": "laranjito",
+      "reference": "laranjito",
+      "text": "Talvez seja o que parece. Mas eu tive um bom motivo.",
+      "acting": "The orange man offers a sheepish uncertain smile, then hesitates, eyebrows falling as he searches for an excuse. Restrained head motion, same stance and biscuit."
+    },
+    {
+      "id": "05",
+      "scene": 1,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Espero que seja melhor do que a desculpa que você inventou ontem.",
+      "acting": "The apple woman gives an unimpressed patient stare, lips pressed then relaxed, slight head tilt and a small impatient palm gesture."
+    },
+    {
+      "id": "06",
+      "scene": 1,
+      "speaker": "laranjito",
+      "reference": "wide",
+      "text": "Eu só provei um pedacinho. Precisava garantir que estava bom.",
+      "acting": "The orange man tries to look confidently innocent while the apple woman reacts with disbelief. Both retain the exact original positions, clothes and fruit faces."
+    },
+    {
+      "id": "07",
+      "scene": 2,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Você protegeu o biscoito com a boca? Era um presente!",
+      "acting": "The apple woman raises a questioning eyebrow, disbelieving, then gives a tiny incredulous head shake. Her expression is frustrated but comic, not aggressive."
+    },
+    {
+      "id": "08",
+      "scene": 2,
+      "speaker": "laranjito",
+      "reference": "laranjito",
+      "text": "Já resolvi! Levei um pacote novo para a dona Cida.",
+      "acting": "The orange man raises his eyebrows and makes a small reassuring gesture with his free hand, relieved to have an answer, then checks her reaction camera-left."
+    },
+    {
+      "id": "09",
+      "scene": 2,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Você levou? Em que hora? Eu passei lá e estava fechado.",
+      "acting": "The apple woman becomes curious rather than angry, turns her gaze slightly back toward his eyes, head subtly tilting as she asks a specific question."
+    },
+    {
+      "id": "10",
+      "scene": 3,
+      "speaker": "laranjito",
+      "reference": "laranjito",
+      "text": "Hoje cedo. Ela estava com alguém na varanda. Você não sabia?",
+      "acting": "The orange man grows hesitant, glances down briefly and back camera-left, realizing he has said something important. Maintain exact head shape and facial texture."
+    },
+    {
+      "id": "11",
+      "scene": 3,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Ela disse que não esperava ninguém. Quem estava lá, Laranjito?",
+      "acting": "The apple woman's annoyed expression changes to serious suspicion. Her eyes widen slightly and her open palm pauses, gaze fixed camera-right."
+    },
+    {
+      "id": "12",
+      "scene": 3,
+      "speaker": "laranjito",
+      "reference": "wide",
+      "text": "Essa pessoa perguntou por você. Perguntou se ainda morava aqui.",
+      "acting": "The orange man becomes cautious and sober while the apple woman watches closely. Tiny coordinated breathing and blinks, no walking, no props appearing."
+    },
+    {
+      "id": "13",
+      "scene": 4,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Olha para mim e fala. Quem perguntou por mim?",
+      "acting": "The apple woman fixes a firm emotional gaze camera-right and lowers her raised eyebrow, waiting seriously for an answer. Hands remain anatomically stable."
+    },
+    {
+      "id": "14",
+      "scene": 4,
+      "speaker": "laranjito",
+      "reference": "laranjito",
+      "text": "Eu prometi não contar. Mas você precisa saber.",
+      "acting": "The orange man hesitates, takes a subtle breath and looks back at the apple woman, concerned, no smile, gentle movement only."
+    },
+    {
+      "id": "15",
+      "scene": 4,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Depois de tudo que aconteceu, eu não aguento mais segredo.",
+      "acting": "The apple woman looks hurt rather than angry, brows lifting at the center, lips softening, small controlled breath, gaze camera-right."
+    },
+    {
+      "id": "16",
+      "scene": 5,
+      "speaker": "laranjito",
+      "reference": "laranjito",
+      "text": "Seu irmão, Malu. Ele voltou. Com a mesma mala de quando foi embora.",
+      "acting": "The orange man delivers a serious revelation with a steady concerned gaze camera-left, a small downward nod, then remains still while watching her reaction. No new person or suitcase appears."
+    },
+    {
+      "id": "17",
+      "scene": 5,
+      "speaker": "malu",
+      "reference": "malu",
+      "text": "Meu irmão? Ele prometeu que nunca mais pisaria nesta rua.",
+      "acting": "The apple woman reacts to an unexpected family revelation: eyes widen, brows lift, then her expression becomes conflicted and hurt. Slow subtle motion, keep same identity and clothing."
+    },
+    {
+      "id": "18",
+      "scene": 5,
+      "speaker": "narrator",
+      "reference": "wide",
+      "text": "Ela veio cobrar um biscoito. E descobriu que o passado estava de volta.",
+      "acting": "The apple woman looks stunned and thoughtful while the orange man watches her with concern. Warm street remains still, dramatic restrained reaction, no walking or new objects."
+    },
+    {
+      "id": "19",
+      "scene": 6,
+      "speaker": "narrator",
+      "reference": "wide",
+      "text": "Qual decisão você tomaria? Comente e acompanhe o próximo capítulo desta história original.",
+      "acting": "Both original characters remain in the same street, exchanging a quiet concerned look. Subtle natural breathing and one blink, stable fixed camera, no text."
+    }
+  ]
+}
