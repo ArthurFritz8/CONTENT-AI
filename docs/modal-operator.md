@@ -106,3 +106,21 @@ python scripts/audit-speech-motion-probe.py
 ```
 
 Reutiliza o close aprovado e a fala 07 do piloto, verificando integridade antes de criar o app. Wan S2V requer GPU de 80 GB: esta amostra usa H100, até 1.800 s, 64 GiB de RAM, sem retries/volumes. Instalação/pesos/imports em CPU; inferência sem rede. Uma chamada, não um lote de capítulo. Ao atingir limites/erro do provedor, parar e conferir consumo, sem revezamento automático de contas. Os resultados ficam em `output/audio-driven-motion-probe/`; `qa.json` não presume validação fonética pelo simples fato de receber áudio.
+
+## Conversa de duas vozes
+
+Após aprovação da amostra curta, o [ADR-053](ADR/ADR-053-conversa-humanizada-com-audio-condicionado.md) amplia o teste para quatro tomadas. Reutiliza a fala 07 aprovada e gera somente 06, 08 e 09 com áudio condicionado. Precisa dos mesmos PNGs/áudios locais preservados e do resultado do ADR-052.
+
+```powershell
+python scripts/render-story-conversation.py --prepare
+python scripts/test_story_motion_contract.py
+python scripts/render-story-conversation.py --run --shot 06
+# Após conferir a primeira tomada e o app estar parado:
+python scripts/render-story-conversation.py --remaining-parallel
+node --experimental-strip-types scripts/assemble-story-conversation.mts
+python scripts/audit-story-conversation.py
+```
+
+O probe compartilhado agora limita cada chamada a 2.100 s. Três novas chamadas, 7.200 s de sessão com reserva, sem retry automático. Checkpoints íntegros são reaproveitados; falha anterior ou arquivo sem checkpoint bloqueiam nova inferência até inspeção. O QA verifica áudio, decode e quadros; não certifica fonemas. Artes/vozes permanecem próprias ou geradas com a proveniência existente. Saídas em `output/audio-driven-conversation/`, sem banco, publicação ou habilitação automática no Studio. Não é um episódio de produção de 60 s.
+
+Resultado de 06/10: conversa de 17,200 s / 60 fps / 1.032 quadros, 704 × 1280. Quatro tomadas, duas vozes, legendas pontuadas por frase, master −15,9 LUFS / peak −1,8 dBFS. Origem de áudio/vídeo zero, timestamps contínuos e áudio sem atraso medido; correlação 0,994924 após normalização. Dez testes locais passaram. Três apps parados/zero tarefas. Worker novo agregado 5.364,549 s, estimativa US$ 6,928 de compute, excluindo build/startup/idle e sem consulta à fatura/saldo. Arquivo: `output/audio-driven-conversation/malu-laranjito-conversa.mp4`; QA e revisão do operador separados.

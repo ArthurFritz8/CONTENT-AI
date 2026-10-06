@@ -16,7 +16,7 @@ import sys
 import time
 
 import modal
-from story_motion_contract import FRAMES, NATIVE_FPS, OUTPUT_FPS, validate_inputs, interpolation_schedule
+from story_motion_contract import FRAMES, NATIVE_FPS, OUTPUT_FPS, REFERENCE_SHA, validate_inputs, interpolation_schedule
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output/audio-driven-motion-probe"
@@ -149,9 +149,10 @@ def encode(frames, destination: Path, width: int, height: int, fps: int):
 
 @app.function(image=image, gpu="H100", cpu=(4, 4), memory=(65536, 65536),
     max_containers=1, min_containers=0, buffer_containers=0, scaledown_window=2,
-    timeout=1800, startup_timeout=180, restrict_modal_access=True, block_network=True,
+    timeout=2100, startup_timeout=180, restrict_modal_access=True, block_network=True,
     is_generator=True)
-def speak(png: bytes, wav: bytes, audio_sha: str):
+def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
+          reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED):
     import tempfile
     import numpy as np
     import torch
@@ -160,7 +161,9 @@ def speak(png: bytes, wav: bytes, audio_sha: str):
     from wan.speech2video import WanS2V
     from wan.configs.wan_s2v_14B import s2v_14B
     import io
-    seconds = validate_inputs(png, wav, audio_sha)
+    seconds = validate_inputs(png, wav, audio_sha, frames=frames_count, reference_sha=reference_sha)
+    if not isinstance(prompt, str) or not 100 <= len(prompt) <= 2000 or not isinstance(seed, int) or not 0 <= seed <= 10000:
+        raise ValueError("Invalid bounded acting direction")
     start = time.perf_counter()
     yield {"kind": "progress", "stage": "loading-audio-driven-model"}
     with tempfile.TemporaryDirectory() as directory:
@@ -172,16 +175,16 @@ def speak(png: bytes, wav: bytes, audio_sha: str):
         pipeline = WanS2V(config=s2v_14B, checkpoint_dir="/opt/s2v-model", device_id=0,
             t5_cpu=True, init_on_cpu=True, convert_model_dtype=True)
         yield {"kind": "progress", "stage": "audio-conditioned-generation", "steps": STEPS}
-        tensor = pipeline.generate(input_prompt=PROMPT, ref_image_path=str(reference), audio_path=str(voice),
+        tensor = pipeline.generate(input_prompt=prompt, ref_image_path=str(reference), audio_path=str(voice),
             enable_tts=False, tts_prompt_audio=None, tts_prompt_text=None, tts_text=None,
-            num_repeat=1, pose_video=None, max_area=MAX_AREA, infer_frames=FRAMES, shift=3.0,
+            num_repeat=1, pose_video=None, max_area=MAX_AREA, infer_frames=frames_count, shift=3.0,
             sample_solver="unipc", sampling_steps=STEPS, guide_scale=4.5, n_prompt=NEGATIVE,
-            seed=SEED, offload_model=True, init_first_frame=True)
+            seed=seed, offload_model=True, init_first_frame=True)
         frames = (tensor.clamp(-1, 1).permute(1, 2, 3, 0).float().add(1).mul(127.5).round().byte().numpy())
         del pipeline, tensor
         gc.collect()
         torch.cuda.empty_cache()
-        if len(frames) != FRAMES:
+        if len(frames) != frames_count:
             raise ValueError("Unexpected S2V frame count; refuse ambiguous timing")
         height, width = frames.shape[1:3]
         encode(frames, directory / "native-silent.mp4", width, height, NATIVE_FPS)
@@ -211,12 +214,12 @@ def speak(png: bytes, wav: bytes, audio_sha: str):
         for name in ("native", "fluid"):
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(directory / f"{name}-silent.mp4"),
                 "-i", str(voice), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac",
-                "-b:a", "192k", "-movflags", "+faststart", str(directory / f"{name}.mp4")], check=True, timeout=60)
+                "-b:a", "96k", "-movflags", "+faststart", str(directory / f"{name}.mp4")], check=True, timeout=60)
         report = {"audio_conditioned": True, "lip_sync_validated": False, "human_review_required": True,
             "input_audio_sha256": audio_sha, "input_audio_seconds": seconds, "audio_offset_seconds": 0,
             "init_first_frame": True, "native_fps": NATIVE_FPS, "native_frames": len(frames),
             "output_fps": OUTPUT_FPS, "output_frames": interpolated_count, "neural_intermediate_frames": inferred_count,
-            "width": width, "height": height, "steps": STEPS, "seed": SEED,
+            "width": width, "height": height, "steps": STEPS, "seed": seed, "acting_prompt": prompt,
             "model": MODEL, "model_revision": MODEL_REVISION, "wan_commit": WAN_COMMIT,
             "rife_revision": RIFE_REVISION, "rife_weights_sha256": RIFE_SHA,
             "reference_sha256": hashlib.sha256(png).hexdigest(), "worker_seconds": time.perf_counter() - start,

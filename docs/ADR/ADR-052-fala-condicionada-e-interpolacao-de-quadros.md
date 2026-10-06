@@ -1,6 +1,6 @@
 # ADR-052 — Fala como entrada da animação e quadros intermediários
 
-Data: 06/10/2026. Status: amostra gerada e QA técnico aprovado; revisão fonética/artística pendente. Sem habilitação automática no Studio.
+Data: 06/10/2026. Status: amostra curta aprovada pelo operador após reprodução; QA técnico aprovado. Sem habilitação automática no Studio ou validação fonética generalizada.
 
 ## O — Objetivo
 
@@ -59,3 +59,7 @@ Inspeção de 12 momentos de cada versão: rosto, cabelo, vestido floral, brinco
 Worker: 1.420,282 s; cliente: 1.447,608 s. Estimativa somente do worker: **US$ 1,834 de compute**, excluindo build/startup/idle e preparações/interrupções anteriores. Saldo/fatura não consultados. O custo observado reforça que não se deve lançar um novo capítulo completo nesta resolução sem reserva de crédito e medição de uma rota mais eficiente.
 
 Preparação incluiu três falhas em CPU corrigidas (helper ausente, consulta de CUDA no import, cabeças RIFE exclusivas de treinamento), uma execução interrompida no carregamento antes de denoising para instalar FlashAttention, e dois preflights CPU concluídos. Seus logs ficaram preservados. Não houve retries automáticos de inferência. A listagem autenticada confirmou todos os sete apps desta etapa parados com zero tarefas; nenhuma publicação, mensagem, volume, pauta consumida ou alteração do banco.
+
+## Revisão do operador
+
+O operador assistiu à amostra e respondeu “ficou bom!!!”. Em seguida autorizou gerar a conversa de 15–20 s. Registrar aprovação humana desta amostra separadamente: não modificar `lip_sync_validated=false` do QA técnico, nem presumir aprovação das novas tomadas, do capítulo inteiro ou da publicação. A ampliação está documentada no ADR-053.

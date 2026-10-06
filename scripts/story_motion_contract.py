@@ -5,12 +5,15 @@ import io
 import wave
 
 REFERENCE_SHA = "7787a6cf6fd20359c78a9c7ff32f19f5108e2b802703bcc9716e9519c5442d95"
+APPROVED_REFERENCES = {REFERENCE_SHA, "ad075fef288a790e5a56cb6aa947b1bf29060c742a553cca427c0b92379b3574"}
 FRAMES, NATIVE_FPS, OUTPUT_FPS = 64, 16, 60
 
 
-def validate_inputs(png: bytes, wav: bytes, audio_sha: str) -> float:
-    if len(png) > 12 * 1024 * 1024 or hashlib.sha256(png).hexdigest() != REFERENCE_SHA:
-        raise ValueError("Only the approved Malu close is allowed")
+def validate_inputs(png: bytes, wav: bytes, audio_sha: str, *, frames=FRAMES, reference_sha=REFERENCE_SHA) -> float:
+    if frames not in {64, 80} or reference_sha not in APPROVED_REFERENCES:
+        raise ValueError("Only bounded approved conversation inputs are allowed")
+    if len(png) > 12 * 1024 * 1024 or hashlib.sha256(png).hexdigest() != reference_sha:
+        raise ValueError("Approved close fingerprint mismatch")
     if not 44 < len(wav) <= 1024 * 1024 or hashlib.sha256(wav).hexdigest() != audio_sha:
         raise ValueError("Invalid owned dialogue fingerprint or size")
     with wave.open(io.BytesIO(wav)) as audio:
@@ -20,7 +23,7 @@ def validate_inputs(png: bytes, wav: bytes, audio_sha: str) -> float:
         if len(audio.readframes(audio.getnframes())) != audio.getnframes() * 2:
             raise ValueError("Truncated dialogue data")
     # No artificial frozen tail: every output timestamp must have two native neighbours.
-    if not 0 < duration <= (FRAMES - 1) / NATIVE_FPS:
+    if not 0 < duration <= (frames - 1) / NATIVE_FPS:
         raise ValueError("Dialogue exceeds genuine generated frame coverage")
     return duration
 

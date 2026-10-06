@@ -36,8 +36,8 @@ def audio_alignment(path: Path, reference: np.ndarray):
         "decoded_audio_seconds": len(decoded) / 16000, "scope": "audio transport only; not lip-sync"}
 
 
-def audit(name, expected_fps, expected_count, reference):
-    path = OUT / f"malu-{name}.mp4"
+def audit(name, expected_fps, expected_count, reference, *, path=None):
+    path = path or OUT / f"malu-{name}.mp4"
     details = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-count_frames",
         "-show_streams", "-show_format", "-of", "json", str(path)], timeout=60))
     video = next(s for s in details["streams"] if s["codec_type"] == "video")
@@ -66,7 +66,7 @@ def audit(name, expected_fps, expected_count, reference):
         "fully_identical_adjacent_frames": int(np.sum(changes == 0)),
         "audio_alignment": audio_alignment(path, reference), "decode_passed": True,
         "lip_sync_validated": False, "artistic_review_required": True}
-    review = OUT / "review"
+    review = path.parent / "review"
     review.mkdir(exist_ok=True)
     times = [0.10, 0.40, 0.95, 1.45, 1.62, 1.88, 2.08, 2.38, 2.67, 3.04, 3.32, 3.65]
     sheet = Image.new("RGB", (4 * 260, 3 * 480), "#151515")

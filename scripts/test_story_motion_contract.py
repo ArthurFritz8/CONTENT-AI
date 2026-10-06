@@ -2,6 +2,7 @@
 import hashlib
 import io
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 import subprocess
@@ -48,6 +49,25 @@ class MotionContractTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_inputs(self.png, wav, hashlib.sha256(wav).hexdigest())
 
+    def test_second_character_and_extended_coverage_are_explicit(self):
+        png = (ROOT / "output/humanized-story-pilot/references/laranjito-close-v1.png").read_bytes()
+        wav = pcm(4.74)
+        reference_sha = hashlib.sha256(png).hexdigest()
+        self.assertAlmostEqual(validate_inputs(png, wav, hashlib.sha256(wav).hexdigest(),
+            frames=80, reference_sha=reference_sha), 4.74)
+        with self.assertRaises(ValueError):
+            validate_inputs(png, wav, hashlib.sha256(wav).hexdigest())
+        with self.assertRaises(ValueError):
+            validate_inputs(png, wav, hashlib.sha256(wav).hexdigest(), frames=800, reference_sha=reference_sha)
+        too_long = pcm(5)
+        with self.assertRaises(ValueError):
+            validate_inputs(png, too_long, hashlib.sha256(too_long).hexdigest(), frames=80, reference_sha=reference_sha)
+
+    def test_five_second_take_has_no_frozen_tail(self):
+        schedule = list(interpolation_schedule(80, 16, 60))
+        self.assertEqual(len(schedule), 297)
+        self.assertLessEqual(schedule[-1][0] + schedule[-1][2], 79)
+
     def test_real_intermediates_without_frozen_tail(self):
         schedule = list(interpolation_schedule(64, 16, 60))
         self.assertEqual(len(schedule), 237)
@@ -65,6 +85,26 @@ class MotionContractTest(unittest.TestCase):
 
 
 class AudioTransportTest(unittest.TestCase):
+    def test_video_only_delay_rejected_even_when_voice_is_at_zero(self):
+        import numpy as np
+        spec = importlib.util.spec_from_file_location("speech_audit", ROOT / "scripts/audit-speech-motion-probe.py")
+        audit = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(audit)
+        source = ROOT / "output/humanized-story-pilot/clips/07.mp4"
+        info = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+            "-show_streams", "-of", "json", str(source)]))["streams"][0]
+        num, den = map(int, info["avg_frame_rate"].split("/"))
+        with wave.open(str(ROOT / "output/audio-driven-motion-probe/voice.wav")) as wav:
+            reference = np.frombuffer(wav.readframes(wav.getnframes()), dtype="<i2").astype(np.float64)
+        with tempfile.TemporaryDirectory(prefix="video-origin-audit-") as directory:
+            path = Path(directory) / "video-shifted.mp4"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-itsoffset", "0.064", "-i", str(source),
+                "-i", str(ROOT / "output/audio-driven-motion-probe/voice.wav"), "-map", "0:v:0", "-map", "1:a:0",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "96k", "-avoid_negative_ts", "disabled", str(path)], check=True)
+            self.assertEqual(audit.audio_alignment(path, reference)["measured_audio_lag_seconds"], 0)
+            with self.assertRaisesRegex(ValueError, "zero time origin"):
+                audit.audit("shifted", num / den, int(info["nb_read_frames"]), reference, path=path)
+
     def test_real_aac_mux_accepts_zero_and_rejects_200ms_offset(self):
         import numpy as np
         spec = importlib.util.spec_from_file_location("speech_audit", ROOT / "scripts/audit-speech-motion-probe.py")
