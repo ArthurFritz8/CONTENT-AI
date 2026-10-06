@@ -30,3 +30,5 @@ Checkpoints registram `visual_types` em `job_events`; hash do render já inclui 
 - Executar a suíte do renderer, incluindo imagens, música, QA e publicação idempotente, e checagem TypeScript.
 - Não habilitar animação no painel automaticamente. Faltam geração de referências por API do produto, jobs duráveis de geração, reserva de orçamento e validação artística do capítulo completo.
 - Nenhum episódio criado, pauta consumida, mudança no banco ou publicação neste incremento.
+
+Resultado local: os 30 testes do workspace `@content-ai/local-renderer` passaram, incluindo os três novos testes de clipes e a montagem real com FFmpeg. `tsc --noEmit` passou. Não foi acionada CI remota nem implantada mudança no site nesta etapa.

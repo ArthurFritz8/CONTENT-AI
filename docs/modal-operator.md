@@ -52,3 +52,19 @@ Fontes oficiais: [início e autenticação](https://modal.com/docs/guide/getting
 O teste corrigido completou na NVIDIA A10 com Blender 4.5.14 LTS. Worker: 113,53 s; execução do cliente: 140,194 s. Arquivo de 109.358 bytes, duração 1 s, 540 × 960, 24 fps, H.264/AAC. Integridade, 24 quadros distintos, decodificação integral no worker e localmente passaram. Quatro tomadas foram inspecionadas visualmente. Relatório local: `output/modal-render-probe/qa.json`; decisão e limitações: [ADR-048](ADR/ADR-048-prova-render-modal.md).
 
 Isso conclui a prova de infraestrutura e transporte; não conclui integração no Studio, QA de episódio publicável, sincronização fonética ou direção artística humanizada. A consulta ao consumo contabilizado na Modal continua pendente.
+
+## Amostra humanizada de 06/10/2026
+
+O experimento seguinte usa Wan2.2-TI2V-5B com a imagem humanizada aprovada, sem a cena Blender anterior:
+
+```powershell
+python scripts/modal-wan-probe.py --run
+```
+
+Uma L40S, 4 cores, 24 GiB de RAM, no máximo um contêiner, prazo de 900 s, sem retry automático nem volume. Usa os mesmos dois tokens em `.env.cloud`. A imagem de contêiner contém os pesos públicos fixados por revisão, e o worker roda sem rede. Não habilita geração no Studio.
+
+Resultado: `output/humanized-motion-probe/malu-laranjito-motion-v1.mp4`, 2,042 s, 49 quadros / 24 fps, 704 × 1248, silencioso. O relatório `qa.json` registra hash, tempos e QA. Worker medido: 144,287 s; cliente: 174,254 s; pico de memória CUDA alocada: 24,890 GiB. Essa execução direta foi validada na L40S, não em uma GPU de 24 GB. A listagem autenticada confirmou app parado e zero tarefas.
+
+Antes do arquivo entregável houve uma falha de dependências e duas inferências sem exportação. O exportador agora usa FFmpeg, solicita quadros PIL explicitamente e passa por teste preliminar. Todas as tentativas contam para o consumo de compute; não prometer que a franquia produz uma quantidade mensal fixa. Os resultados e limites estão no [ADR-049](ADR/ADR-049-teste-movimento-imagem-aprovada.md).
+
+O renderer recebeu suporte real a clipes de cena no [ADR-050](ADR/ADR-050-render-de-clipes-por-cena.md), com 30 testes e TypeScript passando. Faltam produtor integrado, referências automatizadas, jobs duráveis e reserva de orçamento para habilitar a animação no painel. O usuário final continuará usando apenas o navegador.
