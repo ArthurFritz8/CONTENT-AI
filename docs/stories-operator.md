@@ -13,3 +13,5 @@ Em uma falha, abra **Ver geração** para conferir o motivo. **Gerar capítulo n
 O contador é atualizado a cada 30 segundos. “Até N vídeos estimados hoje” considera o limite do Studio e a cota de roteiro conhecida, com margem para correção. Todos os formatos dividem o limite de produção; saldo de API desconhecido não é exibido como ilimitado. Criar propostas usa cota de texto. O dia do Studio renova à 0h UTC (21h em Brasília).
 
 O modo disponível usa **ilustrações originais, movimento de câmera, duas vozes, legendas e CTA orgânico**. Não gera clipes animados nem sincroniza boca. Geração externa de animação depende de uma conexão/cota confirmada e validação adicional; não está habilitada. Publicação em TikTok/YouTube segue os canais configurados e sua aprovação explícita na revisão.
+
+Atualização técnica de 06/10/2026: o código do renderer agora consegue montar uma cena cujo visual seja um asset `video_clip`, com narração e legendas, conforme ADR-050. Isso ainda não habilita geração de animação no painel: o produtor de clipes e a geração de referências humanizadas continuam separados do fluxo disponível. A amostra Wan/Modal está documentada no ADR-049.

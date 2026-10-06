@@ -36,3 +36,5 @@ Reutilizar elenco, continuidade, TTS, QA, estados e revisão existentes. Um futu
 - Os modos normais de gadgets e outras pautas permanecem independentes da ficção.
 
 Nenhum recurso de animação novo foi implantado por este ADR.
+
+Atualização de 06/10/2026: o ADR-049 registra o experimento de movimento com o frame humanizado aprovado; o ADR-050 implementa leitura de `video_clip` na montagem existente. A geração automática humanizada e sincronização labial continuam sem habilitação de produção.

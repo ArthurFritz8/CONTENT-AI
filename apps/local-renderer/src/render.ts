@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { rasterizeArtwork } from "./artwork.ts";
+import { assertClipCoverage, buildClipSceneFilterGraph, isSceneClip } from "./clip-render.ts";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
@@ -97,7 +98,7 @@ interface SceneLocalFiles {
   audioPath: string;
   audioDuration: number;
   wordBoundaries: TtsWordBoundary[] | null;
-  imageByOrientation: Record<Orientation, string[]>;
+  visualByOrientation: Record<Orientation, { kind: "image"; paths: string[] } | { kind: "video_clip"; path: string }>;
   subtitleByOrientation: Record<Orientation, string>;
 }
 
@@ -391,27 +392,35 @@ async function prepareSceneFiles(
     word_boundaries: wordBoundaries,
   });
 
-  const imageByOrientation = {} as Record<Orientation, string[]>;
+  const visualByOrientation = {} as SceneLocalFiles["visualByOrientation"];
   const subtitleByOrientation = {} as Record<Orientation, string>;
 
   for (const orientation of Object.keys(ORIENTATIONS) as Orientation[]) {
-    const imagePath = join(
+    const visualUrl = sceneAssetUrl(scene, orientation);
+    const visualPath = join(
       sceneDir,
-      `${orientation}_${basename(new URL(sceneAssetUrl(scene, orientation)).pathname) || "image"}`,
+      `${orientation}_${basename(new URL(visualUrl).pathname) || "visual"}`,
     );
-    await downloadUrl(sceneAssetUrl(scene, orientation), imagePath);
-    const imagePaths = [await rasterizeArtwork(imagePath)];
-    const extraImages = ctx.assets.filter((asset) =>
-      asset.type === "image" && asset.metadata?.scene_order === scene.order &&
-      asset.metadata?.orientation === orientation &&
-      typeof asset.metadata?.shot_index === "number" && asset.metadata.shot_index > 0
-    ).sort((a, b) => Number(a.metadata!.shot_index) - Number(b.metadata!.shot_index));
-    for (const [index, extra] of extraImages.entries()) {
-      const extraPath = join(sceneDir, `${orientation}_shot_${index + 1}_${basename(new URL(extra.url).pathname) || "image"}`);
-      await downloadUrl(extra.url, extraPath);
-      imagePaths.push(await rasterizeArtwork(extraPath));
+    const clip = isSceneClip(ctx.assets, visualUrl, scene.order, orientation);
+    await downloadUrl(visualUrl, visualPath);
+    if (clip) {
+      const probe = JSON.parse(await run("ffprobe", ["-v", "error", "-show_streams", "-of", "json", visualPath], { capture: true })) as MediaProbe;
+      assertClipCoverage(probe, audioDuration + ctx.script.gap_seconds);
+      visualByOrientation[orientation] = { kind: "video_clip", path: visualPath };
+    } else {
+      const imagePaths = [await rasterizeArtwork(visualPath)];
+      const extraImages = ctx.assets.filter((asset) =>
+        asset.type === "image" && asset.metadata?.scene_order === scene.order &&
+        asset.metadata?.orientation === orientation &&
+        typeof asset.metadata?.shot_index === "number" && asset.metadata.shot_index > 0
+      ).sort((a, b) => Number(a.metadata!.shot_index) - Number(b.metadata!.shot_index));
+      for (const [index, extra] of extraImages.entries()) {
+        const extraPath = join(sceneDir, `${orientation}_shot_${index + 1}_${basename(new URL(extra.url).pathname) || "image"}`);
+        await downloadUrl(extra.url, extraPath);
+        imagePaths.push(await rasterizeArtwork(extraPath));
+      }
+      visualByOrientation[orientation] = { kind: "image", paths: imagePaths };
     }
-    imageByOrientation[orientation] = imagePaths;
 
     const subtitlePath = join(sceneDir, `${orientation}.ass`);
     const subtitleUrl = selectAssetUrlForScene(
@@ -444,11 +453,12 @@ async function prepareSceneFiles(
         ),
       );
     }
-    if (scene.asset_portrait?.source === "pexels") {
+    const sceneRef = orientation === "portrait" ? scene.asset_portrait : scene.asset_landscape;
+    if (sceneRef?.source === "pexels") {
       const style = orientation === "portrait"
         ? "\\an7\\pos(70,110)\\fs32\\bord2\\shad1"
         : "\\an7\\pos(60,60)\\fs22\\bord2\\shad1";
-      const caption = `Dialogue: 1,0:00:00.00,${formatAssTime(audioDuration + ctx.script.gap_seconds)},Default,,0,0,0,,{${style}}IMAGEM ILUSTRATIVA`;
+      const caption = `Dialogue: 1,0:00:00.00,${formatAssTime(audioDuration + ctx.script.gap_seconds)},Default,,0,0,0,,{${style}}${clip ? "VÍDEO" : "IMAGEM"} ILUSTRATIV${clip ? "O" : "A"}`;
       await writeFile(subtitlePath, `${(await readFile(subtitlePath, "utf8")).trimEnd()}\n${caption}\n`);
     }
     subtitleByOrientation[orientation] = subtitlePath;
@@ -458,13 +468,13 @@ async function prepareSceneFiles(
     audioPath,
     audioDuration,
     wordBoundaries,
-    imageByOrientation,
+    visualByOrientation,
     subtitleByOrientation,
   };
 }
 
 async function renderSceneOrientation(args: {
-  imagePaths: string[];
+  visual: SceneLocalFiles["visualByOrientation"][Orientation];
   scene: Scene;
   audioPath: string;
   subtitlePath: string;
@@ -476,8 +486,13 @@ async function renderSceneOrientation(args: {
 }): Promise<void> {
   const size = ORIENTATIONS[args.orientation];
   const totalDuration = args.audioDuration + args.gapSeconds;
-  const shotDurations = planShotDurations(totalDuration, args.imagePaths.length);
-  const filterGraph = buildSceneFilterGraph({
+  const shotDurations = args.visual.kind === "image" ? planShotDurations(totalDuration, args.visual.paths.length) : [];
+  const filterGraph = args.visual.kind === "video_clip" ? buildClipSceneFilterGraph({
+    size,
+    subtitlePath: args.subtitlePath,
+    audioDuration: args.audioDuration,
+    gapSeconds: args.gapSeconds,
+  }) : buildSceneFilterGraph({
     shotDurations,
     motion: args.scene.ken_burns,
     size,
@@ -486,7 +501,8 @@ async function renderSceneOrientation(args: {
     gapSeconds: args.gapSeconds,
   });
 
-  const inputs = args.imagePaths.slice(0, shotDurations.length).flatMap((path) => ["-loop", "1", "-i", path]);
+  const inputs = args.visual.kind === "video_clip" ? ["-i", args.visual.path] :
+    args.visual.paths.slice(0, shotDurations.length).flatMap((path) => ["-loop", "1", "-i", path]);
   await run("ffmpeg", [
     "-y", ...inputs,
     "-i",
@@ -560,11 +576,14 @@ async function ensureSceneCheckpoints(
       }
     }
 
+    let visualTypes: Partial<Record<Orientation, "image" | "video_clip">> | undefined;
     if (missing.length > 0) {
       const files = await prepareSceneFiles(ctx, scene);
+      visualTypes = {};
       for (const orientation of missing) {
+        visualTypes[orientation] = files.visualByOrientation[orientation].kind;
         await renderSceneOrientation({
-          imagePaths: files.imageByOrientation[orientation],
+          visual: files.visualByOrientation[orientation],
           scene,
           audioPath: files.audioPath,
           subtitlePath: files.subtitleByOrientation[orientation],
@@ -599,6 +618,7 @@ async function ensureSceneCheckpoints(
         scene: scene.order,
         total: scenes.length,
         skipped: missing.length === 0,
+        visual_types: visualTypes,
         progress,
       },
     });
