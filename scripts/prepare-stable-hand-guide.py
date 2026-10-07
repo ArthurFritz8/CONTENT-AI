@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 import importlib
+import argparse
 
 probe = importlib.import_module("modal-speech-motion-probe")
 OUT = probe.ROOT / "output/stable-hands-motion-probe"
@@ -39,7 +40,7 @@ def pulse(t, start, end):
     return math.sin(math.pi*(t-start)/(end-start))**2 if start < t < end else 0
 
 
-def points(t):
+def points(t, arm_gesture=False):
     question, emphasis = pulse(t,.1,2.1), pulse(t,2.25,3.6)
     dx, dy = 7*question, -5*question-6*emphasis
     body = [None if p is None else (p[0]+dx,p[1]+dy) for p in BODY]
@@ -47,14 +48,18 @@ def points(t):
     for i in (4,8,11): body[i] = BODY[i]
     for i in (0,14,15,16,17): body[i] = (body[i][0],body[i][1]+6*emphasis)
     palm = [(x+6*question,y-8*emphasis) for x,y in PALM]
+    if arm_gesture:
+        # One larger elbow-led palm-up beat; translation only, no finger/wrist rotation.
+        palm = [(x-38*emphasis,y-42*emphasis) for x,y in palm]
+        body[6] = (body[6][0]-16*emphasis,body[6][1]-20*emphasis)
     body[7] = palm[0]
     return body, palm, WAIST
 
 
-def draw_map(t):
+def draw_map(t, arm_gesture=False):
     canvas = Image.new("RGB",(704,1280),"black")
     draw = ImageDraw.Draw(canvas)
-    body, palm, waist = points(t)
+    body, palm, waist = points(t,arm_gesture)
     for i,(a,b) in enumerate(BONES):
         if body[a] is not None and body[b] is not None:
             draw.line([body[a],body[b]],fill=tuple(int(c*.6) for c in COLORS[i]),width=7)
@@ -68,15 +73,15 @@ def draw_map(t):
     return canvas
 
 
-def prepare():
+def prepare(arm_gesture=False):
     OUT.mkdir(parents=True,exist_ok=True)
     if any((OUT/name).exists() for name in ("pose.mp4","input.json","qa.json","generation.lock.json")):
         raise ValueError("Existing guide/experiment must be preserved, not overwritten")
     reference = probe.ROOT / "output/humanized-story-pilot/references/malu-close-v1.png"
     reference_sha = hashlib.sha256(reference.read_bytes()).hexdigest()
     if reference_sha != probe.REFERENCE_SHA: raise ValueError("Owned reference changed")
-    first_frame = draw_map(0)
-    probe.encode((np.asarray(draw_map(i/16)) for i in range(64)),OUT/"pose.mp4",704,1280,16)
+    first_frame = draw_map(0,arm_gesture)
+    probe.encode((np.asarray(draw_map(i/16,arm_gesture)) for i in range(64)),OUT/"pose.mp4",704,1280,16)
     sha = hashlib.sha256((OUT/"pose.mp4").read_bytes()).hexdigest()
     probe.validate_pose((OUT/"pose.mp4").read_bytes(),sha)
     reference_fit = ImageOps.fit(Image.open(reference).convert("RGB"),(704,1248))
@@ -90,12 +95,23 @@ def prepare():
         "video_sha256":sha,"frames":64,"fps":16,"width":704,"height":1280,
         "annotation":"Manual technical keypoints on owned reference; not automated hand anatomy QA",
         "body":BODY,"palm":PALM,"waist_hand":WAIST,"hand_bones":HAND_BONES,
-        "per_frame_keypoints":[points(i/16) for i in range(64)],
+        "per_frame_keypoints":[points(i/16,arm_gesture) for i in range(64)],
+        "trajectory":"elbow-led-palm-up-v2" if arm_gesture else "restrained-v1",
         "limitation":"Synthetic projected pose; model adherence and rendered fingers require visual validation."}
     (OUT/"pose-guide.json").write_text(json.dumps(data,indent=2),encoding="utf-8")
+    if arm_gesture:
+        peak = .5*(2.25+3.6)
+        draw_map(peak,True).save(OUT/"pose-peak-frame.png")
+        guide = np.asarray(draw_map(peak,True)); photo = np.asarray(overlay).copy()
+        mask = guide.max(axis=2)>0; photo[mask] = guide[mask]
+        Image.fromarray(photo).save(OUT/"alignment-peak-review.png")
     logging.info("Own pose guide decoded: 64 frames, 16 fps, two fixed-shape 21-point hands")
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    prepare()
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--arm-gesture",action="store_true")
+    args=parser.parse_args()
+    if args.arm_gesture: OUT=probe.ROOT/"output/arm-gesture-motion-probe"
+    prepare(args.arm_gesture)

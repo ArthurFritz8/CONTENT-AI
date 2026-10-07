@@ -206,6 +206,7 @@ def encode(frames, destination: Path, width: int, height: int, fps: int):
     is_generator=True)
 def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
           reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None):
+    entry_start = time.perf_counter()
     import tempfile
     import numpy as np
     import torch
@@ -214,6 +215,7 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
     from wan.speech2video import WanS2V
     from wan.configs.wan_s2v_14B import s2v_14B
     import io
+    imported = time.perf_counter()
     seconds = validate_inputs(png, wav, audio_sha, frames=frames_count, reference_sha=reference_sha)
     if (pose is None) != (pose_sha is None):
         raise ValueError("Pose data and fingerprint must be provided together")
@@ -222,6 +224,7 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
     if not isinstance(prompt, str) or not 100 <= len(prompt) <= 2000 or not isinstance(seed, int) or not 0 <= seed <= 10000:
         raise ValueError("Invalid bounded acting direction")
     start = time.perf_counter()
+    stage_seconds = {"imports": imported-entry_start, "input_validation": start-imported}
     yield {"kind": "progress", "stage": "loading-audio-driven-model"}
     with tempfile.TemporaryDirectory() as directory:
         directory = Path(directory)
@@ -232,8 +235,12 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
         pose_path = directory / "pose.mp4" if pose is not None else None
         if pose_path is not None:
             pose_path.write_bytes(pose)
+        load_start = time.perf_counter()
+        stage_seconds["input_preparation"] = load_start-start
         pipeline = WanS2V(config=s2v_14B, checkpoint_dir="/opt/s2v-model", device_id=0,
             t5_cpu=True, init_on_cpu=True, convert_model_dtype=True)
+        generation_start = time.perf_counter()
+        stage_seconds["model_loading"] = generation_start-load_start
         yield {"kind": "progress", "stage": "audio-conditioned-generation", "steps": STEPS}
         tensor = pipeline.generate(input_prompt=prompt, ref_image_path=str(reference), audio_path=str(voice),
             enable_tts=False, tts_prompt_audio=None, tts_prompt_text=None, tts_text=None,
@@ -241,6 +248,8 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
             sample_solver="unipc", sampling_steps=STEPS, guide_scale=4.5, n_prompt=NEGATIVE,
             seed=seed, offload_model=True, init_first_frame=True)
         frames = (tensor.clamp(-1, 1).permute(1, 2, 3, 0).float().add(1).mul(127.5).round().byte().numpy())
+        generated = time.perf_counter()
+        stage_seconds["generation_and_frame_transfer"] = generated-generation_start
         del pipeline, tensor
         gc.collect()
         torch.cuda.empty_cache()
@@ -248,6 +257,8 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
             raise ValueError("Unexpected S2V frame count; refuse ambiguous timing")
         height, width = frames.shape[1:3]
         encode(frames, directory / "native-silent.mp4", width, height, NATIVE_FPS)
+        interpolation_start = time.perf_counter()
+        stage_seconds["model_release_and_native_encode"] = interpolation_start-generated
         yield {"kind": "progress", "stage": "neural-frame-interpolation", "native_frames": len(frames)}
         net = load_interpolator("cuda")
         pad_w, pad_h = (-width) % 64, (-height) % 64
@@ -271,10 +282,14 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
                     inferred_count += 1
                     yield (merged[0, :, :height, :width].clamp(0, 1).permute(1, 2, 0) * 255).round().byte().cpu().numpy()
         encode(smooth_frames(), directory / "fluid-silent.mp4", width, height, OUTPUT_FPS)
+        mux_start = time.perf_counter()
+        stage_seconds["interpolator_loading_and_fluid_encode"] = mux_start-interpolation_start
         for name in ("native", "fluid"):
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(directory / f"{name}-silent.mp4"),
                 "-i", str(voice), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac",
                 "-b:a", "96k", "-movflags", "+faststart", str(directory / f"{name}.mp4")], check=True, timeout=60)
+        finished = time.perf_counter()
+        stage_seconds["audio_mux"] = finished-mux_start
         report = {"audio_conditioned": True, "lip_sync_validated": False, "human_review_required": True,
             "pose_conditioned": pose is not None, "pose_sha256": pose_sha,
             "input_audio_sha256": audio_sha, "input_audio_seconds": seconds, "audio_offset_seconds": 0,
@@ -284,6 +299,8 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
             "model": MODEL, "model_revision": MODEL_REVISION, "wan_commit": WAN_COMMIT,
             "rife_revision": RIFE_REVISION, "rife_weights_sha256": RIFE_SHA,
             "reference_sha256": hashlib.sha256(png).hexdigest(), "worker_seconds": time.perf_counter() - start,
+            "stage_seconds":stage_seconds,"worker_entry_seconds":finished-entry_start,
+            "timing_scope":"worker_seconds excludes imports/validation for historic comparability; entry includes them; both exclude boot/image build/transport/idle",
             "no_loop_no_speed_change": True, "license": {"wan": "Apache-2.0", "rife": "MIT"}}
         yield {"kind": "report", "report": report}
         for name in ("native", "fluid"):
@@ -314,11 +331,17 @@ def prepare():
     logger.info("Prepared owned audio, %.3f seconds", duration)
 
 
-def prepare_expressive(pose_controlled=False):
+def prepare_expressive(pose_controlled=False, arm_gesture=False):
     """Controlled acting comparison: same approved image, PCM, seed and model."""
-    baseline = ROOT / "output/audio-driven-motion-probe"
+    baseline = ROOT / ("output/stable-hands-motion-probe" if arm_gesture else "output/audio-driven-motion-probe")
     data = json.loads((baseline / "input.json").read_text(encoding="utf-8"))
     approved = json.loads((baseline / "qa.json").read_text(encoding="utf-8"))
+    if arm_gesture:
+        review=json.loads((baseline/"operator-review.json").read_text(encoding="utf-8"))
+        if (not pose_controlled or not approved.get("pose_conditioned") or
+            not review.get("movement_quality_accepted") or review.get("video_sha256")!=approved["outputs"]["fluid"]["sha256"] or
+            data["prompt"]!=STABLE_HANDS_PROMPT):
+            raise ValueError("Larger gesture requires the unchanged movement-approved pose baseline")
     fixed = {"seed": SEED, "steps": STEPS, "model": MODEL, "model_revision": MODEL_REVISION,
         "wan_commit": WAN_COMMIT, "rife_revision": RIFE_REVISION, "rife_weights_sha256": RIFE_SHA,
         "native_fps": NATIVE_FPS, "native_frames": FRAMES, "output_fps": OUTPUT_FPS}
@@ -333,7 +356,7 @@ def prepare_expressive(pose_controlled=False):
         wav, data["audio_sha256"])
     data.update(prompt=STABLE_HANDS_PROMPT if pose_controlled else EXPRESSIVE_PROMPT, negative_prompt=NEGATIVE,
         baseline_sha256=approved["outputs"]["fluid"]["sha256"],
-        experiment="stable-hands-pose-v1" if pose_controlled else "acting-only-v1", seed=SEED, native_fps=NATIVE_FPS, output_fps=OUTPUT_FPS,
+        experiment="arm-gesture-pose-v2" if arm_gesture else "stable-hands-pose-v1" if pose_controlled else "acting-only-v1", seed=SEED, native_fps=NATIVE_FPS, output_fps=OUTPUT_FPS,
         max_new_gpu_calls=1, worker_timeout_seconds=2100,
         worker_timeout_upper_estimate_usd=2100 * (.001097 + 4 * .0000131 + 64 * .00000222),
         budget_scope="worker only; excludes build/startup/idle; not invoice or remaining balance",
@@ -345,6 +368,8 @@ def prepare_expressive(pose_controlled=False):
             raise ValueError("Guide provenance must match the owned reference")
         data["pose_sha256"] = geometry["video_sha256"]
         validate_pose(pose, data["pose_sha256"])
+        if arm_gesture and data["pose_sha256"]==approved["pose_sha256"]:
+            raise ValueError("New gesture must use a different pose trajectory")
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "input.json"
     if (OUT / "voice.wav").exists() and (OUT / "voice.wav").read_bytes() != wav:
@@ -439,6 +464,9 @@ def run(build_only=False, expressive=False, pose_controlled=False):
 
 
 if __name__ == "__main__":
+    # Rich emits Unicode checkmarks; Windows redirected stdout may default to cp1252.
+    for stream in (sys.stdout,sys.stderr):
+        if hasattr(stream,"reconfigure"): stream.reconfigure(encoding="utf-8")
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
     action = parser.add_mutually_exclusive_group(required=True)
@@ -448,12 +476,16 @@ if __name__ == "__main__":
     profile = parser.add_mutually_exclusive_group()
     profile.add_argument("--expressive", action="store_true", help="Isolated acting comparison, preserves approved baseline")
     profile.add_argument("--pose-controlled", action="store_true", help="Stable hands with owned pose guide and original audio")
+    profile.add_argument("--arm-gesture", action="store_true", help="Larger guided elbow gesture against movement-approved pose baseline")
     arguments = parser.parse_args()
     if arguments.expressive:
         OUT = ROOT / "output/expressive-speech-motion-probe"
     if arguments.pose_controlled:
         OUT = ROOT / "output/stable-hands-motion-probe"
+    if arguments.arm_gesture:
+        OUT = ROOT / "output/arm-gesture-motion-probe"
+    guided = arguments.pose_controlled or arguments.arm_gesture
     if arguments.prepare:
-        prepare_expressive(arguments.pose_controlled) if arguments.expressive or arguments.pose_controlled else prepare()
+        prepare_expressive(guided, arguments.arm_gesture) if arguments.expressive or guided else prepare()
     else:
-        run(build_only=arguments.build_only, expressive=arguments.expressive, pose_controlled=arguments.pose_controlled)
+        run(build_only=arguments.build_only, expressive=arguments.expressive, pose_controlled=guided)

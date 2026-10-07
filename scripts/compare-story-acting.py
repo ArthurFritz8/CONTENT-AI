@@ -22,6 +22,20 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def validate_direction(baseline, baseline_inputs, new, inputs):
+    previous = baseline.get("acting_prompt", baseline_inputs["prompt"])
+    if new["acting_prompt"] != inputs["prompt"]:
+        raise ValueError("Direction differs from experiment manifest")
+    if inputs["experiment"] == "arm-gesture-pose-v2":
+        if (new["acting_prompt"] != previous or not baseline.get("pose_conditioned") or
+            not new.get("pose_conditioned") or new.get("pose_sha256") == baseline.get("pose_sha256")):
+            raise ValueError("Gesture-only comparison must keep the prompt and change an existing pose")
+        return ["pose_trajectory"]
+    if new["acting_prompt"] == previous:
+        raise ValueError("New acting direction did not change")
+    return ["acting_prompt"] + (["pose_conditioning"] if inputs.get("pose_conditioned") else [])
+
+
 def compare():
     baseline = json.loads((BASE / "qa.json").read_text(encoding="utf-8"))
     baseline_inputs = json.loads((BASE / "input.json").read_text(encoding="utf-8"))
@@ -32,11 +46,9 @@ def compare():
         "rife_revision", "rife_weights_sha256")
     if any(new[key] != baseline[key] for key in fixed):
         raise ValueError("Comparison changed a fixed image/audio/model/frame parameter")
-    baseline_prompt = baseline.get("acting_prompt", baseline_inputs["prompt"])
     if baseline_inputs["negative_prompt"] != inputs["negative_prompt"]:
         raise ValueError("Negative direction changed between the two experiments")
-    if new["acting_prompt"] != inputs["prompt"] or new["acting_prompt"] == baseline_prompt:
-        raise ValueError("New direction is missing or differs from the experiment manifest")
+    changed = validate_direction(baseline, baseline_inputs, new, inputs)
     if inputs["baseline_sha256"] != baseline["outputs"]["fluid"]["sha256"]:
         raise ValueError("Baseline differs from the prepared comparison")
     if (BASE / "voice.wav").read_bytes() != (OUT / "voice.wav").read_bytes():
@@ -62,10 +74,11 @@ def compare():
     font = "C\\:/Windows/Fonts/arial.ttf"
     if not Path("C:/Windows/Fonts/arial.ttf").exists():
         raise ValueError("Comparison font unavailable; do not silently change layout")
-    label = "Pose guiada" if pose_controlled else "Atuacao nova"
+    label = "Gesto ampliado" if changed==["pose_trajectory"] else "Pose guiada" if pose_controlled else "Atuacao nova"
+    baseline_label = "Gesto aprovado" if changed==["pose_trajectory"] else "Anterior"
     filters = (
         f"[0:v]pad=iw:ih+80:0:80:color=0x141414,drawtext=fontfile='{font}':"
-        "text='Anterior':fontsize=36:fontcolor=white:x=30:y=18[old];"
+        f"text='{baseline_label}':fontsize=36:fontcolor=white:x=30:y=18[old];"
         f"[1:v]pad=iw:ih+80:0:80:color=0x141414,drawtext=fontfile='{font}':"
         f"text='{label}':fontsize=36:fontcolor=white:x=30:y=18[new];"
         "[old][new]hstack=shortest=1[v]"
@@ -77,12 +90,14 @@ def compare():
         "-fps_mode", "passthrough", "-c:a", "copy", "-avoid_negative_ts", "disabled",
         "-movflags", "+faststart", str(comparison)], check=True, timeout=120)
     audits["comparison"] = auditor.audit("comparison", 60, 237, reference, path=comparison)
-    report = {"experiment": inputs["experiment"], "changed": ["acting_prompt"] + (["pose_conditioning"] if pose_controlled else []),
+    measured_seconds = new.get("worker_entry_seconds",new["worker_seconds"])
+    report = {"experiment": inputs["experiment"], "changed": changed,
         "pose_conditioned":pose_controlled,"pose_sha256":new.get("pose_sha256"),"fixed_parameters": list(fixed),
         "baseline_direction_source": "qa.json" if "acting_prompt" in baseline else "input.json (historic baseline manifest)",
         "audits": audits, "worker_seconds": new["worker_seconds"],
-        "estimated_worker_cost_usd": new["worker_seconds"] * (.001097 + 4 * .0000131 + 64 * .00000222),
-        "cost_scope": "worker only; excludes build/startup/idle; not invoice or balance",
+        "worker_entry_seconds":new.get("worker_entry_seconds"),"stage_seconds":new.get("stage_seconds"),
+        "estimated_worker_cost_usd": measured_seconds * (.001097 + 4 * .0000131 + 64 * .00000222),
+        "cost_scope": "worker entry including imports/validation if measured; excludes image build/boot/transport/idle; not invoice or balance",
         "lip_sync_validated": False, "human_review_required": True, "acting_improvement_validated": False,
         "production_enabled": False, "published": False,
         "note": "Pixel variation and frame counts do not prove improved acting; compare visually."}
@@ -93,7 +108,13 @@ def compare():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pose-controlled",action="store_true")
-    if parser.parse_args().pose_controlled:
+    profile=parser.add_mutually_exclusive_group()
+    profile.add_argument("--pose-controlled",action="store_true")
+    profile.add_argument("--arm-gesture",action="store_true")
+    args=parser.parse_args()
+    if args.pose_controlled:
         OUT = ROOT / "output/stable-hands-motion-probe"
+    if args.arm_gesture:
+        BASE=ROOT/"output/stable-hands-motion-probe"
+        OUT=ROOT/"output/arm-gesture-motion-probe"
     compare()

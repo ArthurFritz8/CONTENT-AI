@@ -161,3 +161,20 @@ Saída isolada: `output/stable-hands-motion-probe/`. Guia próprio de corpo/mão
 Resultado: prévia de 3,950 s / 60 fps interpolados de 16 fps nativos, 237 quadros, 704 × 1280. Hash do guia recebido confirmado, decode/timestamps e áudio passaram, atraso medido zero. Os 64 pares de mãos nativos foram inspecionados nas folhas de contato: estabilidade melhor que na variante rejeitada, sem a mesma deformação forte; movimentos corporais muito contidos. Anatomia perfeita e fonemas não certificados. Comparação lado a lado usa o controle original aprovado. Aguardando revisão do operador. Uma chamada, 1.328,406 s de worker, estimativa US$ 1,716 apenas do worker; sem consulta à fatura/saldo. App parado/zero tarefas, quatorze testes locais passaram.
 
 Revisão posterior: operador aprovou a qualidade dos movimentos observados, mas considerou a amplitude pequena. Revisão vinculada ao hash em `operator-review.json`. Preservar esta referência; próximo experimento planejado amplia um gesto de braço/cotovelo mantendo orientação dos dedos e demais entradas. Não gerar novamente a mesma pasta, não assumir publicação aprovada e não lançar outra chamada apenas para registrar esse feedback.
+
+## Gesto ampliado e tempos — ADR-056
+
+Operador autorizou outro teste e pediu explicação de custo/demora. Novo perfil reaproveita os mesmos scripts; usa como controle a amostra guiada aprovada, com prompt idêntico. Só a trajetória do braço/cotovelo muda. Saída `output/arm-gesture-motion-probe/`, sem episódios/publicação.
+
+```powershell
+python scripts/prepare-stable-hand-guide.py --arm-gesture
+python scripts/modal-speech-motion-probe.py --prepare --arm-gesture
+# Conferir alignment-review.png e alignment-peak-review.png antes da GPU.
+python scripts/test_story_motion_contract.py
+python scripts/modal-speech-motion-probe.py --run --arm-gesture
+python scripts/audit-stable-hand-probe.py --arm-gesture
+```
+
+Dezesseis testes locais passaram antes da geração. `stage_seconds` discrimina as etapas reais; `worker_entry_seconds` inclui imports/validação, `worker_seconds` mantém o escopo histórico. Estimativa de compute ainda exclui boot/build/transporte/idle e não consulta fatura ou saldo. Nenhuma redução de passos/resolução ou promessa de velocidade sem benchmark. [ADR-056](ADR/ADR-056-gesto-ampliado-e-medicao-de-etapas.md) registra os limites e opções de otimização.
+
+Resultado: 3,950 s, 704 × 1280, 60 fps interpolados, áudio sem deslocamento e QA técnico aprovado. Palma/antebraço fazem gesto mais visível na segunda metade e retornam; mão na cintura estável nos 64 quadros inspecionados. Revisão artística/fonética do operador pendente. Total cliente 23min54s, entrada worker 23min29s, estimativa US$ 1,820 só da execução medida. Geração/preprocessamento/decode ocupa 22min00s, carregamento 1min13s e finalização aproximadamente 6s; não há aceleração demonstrada nesta rodada. App parado/zero tarefas. Comparação à esquerda com o gesto estável aprovado. Falha inicial do terminal Windows ocorreu antes da chamada de GPU; app vazio foi inspecionado/encerrado e evidências preservadas antes de recuperar a inicialização em UTF-8.

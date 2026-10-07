@@ -86,6 +86,38 @@ class MotionContractTest(unittest.TestCase):
 
 
 class ProbeReservationTest(unittest.TestCase):
+    def test_larger_arm_guide_preserves_finger_geometry_and_stays_in_frame(self):
+        import importlib
+        import numpy as np
+        guide=importlib.import_module("prepare-stable-hand-guide")
+        maximum=0
+        for i in range(64):
+            before,palm_before,waist_before=guide.points(i/16)
+            after,palm_after,waist_after=guide.points(i/16,True)
+            self.assertEqual(waist_before,waist_after)
+            for joint in range(18):
+                if joint not in (6,7): self.assertEqual(before[joint],after[joint])
+            np.testing.assert_allclose(np.array(palm_after)-palm_after[0],np.array(palm_before)-palm_before[0],atol=1e-10)
+            self.assertEqual(after[7],palm_after[0])
+            for x,y in palm_after: self.assertTrue(0<x<704 and 0<y<1280)
+            self.assertGreater(min(y for x,y in palm_after),600) # keep below the face
+            maximum=max(maximum,float(np.linalg.norm(np.array(palm_after[0])-palm_before[0])))
+        self.assertGreater(maximum,50)
+        for t in (0,63/16): self.assertEqual(guide.points(t),guide.points(t,True))
+
+    def test_gesture_only_comparison_rejects_prompt_drift_or_unchanged_pose(self):
+        import importlib
+        compare=importlib.import_module("compare-story-acting")
+        baseline=json.loads((ROOT/"output/stable-hands-motion-probe/qa.json").read_text(encoding="utf-8"))
+        old_inputs=json.loads((ROOT/"output/stable-hands-motion-probe/input.json").read_text(encoding="utf-8"))
+        inputs=json.loads((ROOT/"output/arm-gesture-motion-probe/input.json").read_text(encoding="utf-8"))
+        new={**baseline,"pose_sha256":inputs["pose_sha256"]}
+        self.assertEqual(compare.validate_direction(baseline,old_inputs,new,inputs),["pose_trajectory"])
+        for bad,manifest in (({**new,"acting_prompt":"changed"},{**inputs,"prompt":"changed"}),
+                             ({**new,"pose_sha256":baseline["pose_sha256"]},inputs),
+                             ({**new,"pose_conditioned":False},inputs)):
+            with self.assertRaises(ValueError): compare.validate_direction(baseline,old_inputs,bad,manifest)
+
     def test_owned_pose_rejects_wrong_fingerprint_and_incomplete_video(self):
         import importlib
         probe = importlib.import_module("modal-speech-motion-probe")
