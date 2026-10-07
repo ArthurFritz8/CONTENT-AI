@@ -1,6 +1,6 @@
 # ADR-054 — Atuação expressiva sem inflar FPS
 
-Data: 2026-10-06. Status: teste técnico concluído; avanço visual parcial, revisão do operador pendente.
+Data: 2026-10-06. Status: teste técnico concluído; amostra expressiva reprovada pelo operador por defeitos nas mãos.
 
 ## O — Objetivo
 
@@ -46,3 +46,15 @@ Inspeção dos quadros nativos/interpolados: no trecho final Malu movimenta mais
 Variação média de pixels entre quadros a 128 × 224: 0,5633 no controle e 0,8345 na variante. Isso indica mudança visual maior, não uma pontuação de qualidade; os quadros mostram que o movimento extra se concentra no final.
 
 Worker: 1.413,642 s; estimativa **US$ 1,826** somente de compute, excluindo build/startup/imports/idle, sem consulta à fatura/saldo. App `ap-B8jaV7BQU8B489X7LdDKes` confirmado parado com zero tarefas. Onze testes locais passaram, incluindo cinco casos de rejeição antes de criar app (prompt/seed alterados, resultado concluído, falha e reserva pendente). Comparador executado com vídeos reais e decode/timing aprovados. Sem CI remoto, deploy, banco, episódio, mensagem Telegram, publicação ou habilitação no Studio. A conversa aprovada permanece intacta; aprovação anterior registrada por hash em `operator-review.json` ao lado dela.
+
+## Correção após revisão do operador — anatomia
+
+O operador identificou mãos/dedos deformados ou incompletos na variante. **Reprovar a amostra artística**, independentemente do decode, FPS e áudio aprovados. A inspeção anterior por contact sheets observou movimento maior, mas não comprovou anatomia aceitável. Registrar essa limitação explicitamente e manter a conversa aprovada do ADR-053 como controle; não substituir seu clipe 07 pela variante.
+
+Comparação direta de `review/native-3.04.png` com `review/fluid-3.04.png`: o defeito também aparece no quadro nativo. Portanto, não é causado exclusivamente pela interpolação; a nova pose já perdeu anatomia na geração S2V. Mais FPS, mais diferença de pixels ou um prompt negativo sobre dedos não demonstram correção. As proibições de mãos deformadas/dedos extras já constam do `NEGATIVE` do worker.
+
+O S2V oficialmente aceita pose e áudio simultaneamente. Nosso worker ainda passa `pose_video=None`; essa capacidade não está conectada ou validada no fluxo. Para a próxima experiência, priorizar um guia próprio/licenciado de gesto simples, alinhado à referência, com mãos legíveis, baixa rotação do punho, movimento de cotovelo/ombro e preparação/recuperação. Inspecionar corpo, mãos e face no guia antes de gastar GPU. Um esqueleto corporal sem informação das mãos não resolve a contagem dos dedos; mesmo um guia com 21 landmarks por mão não prova que o resultado renderizado tenha anatomia correta. Não anunciar garantia de cinco dedos a partir da detecção de pontos.
+
+Preservar a fala como entrada e conferir sincronização novamente ao testar controle de pose. Mais emoção também pode vir de olhar, sobrancelhas, cabeça, ombros e postura, sem exigir giros complexos dos dedos. Não corrigir somente uma imagem do vídeo supondo que os quadros vizinhos se tornem consistentes; reparo temporal precisa de validação própria. Revisar quadros nativos durante a preparação, o ápice e a recuperação do gesto, depois conferir a versão interpolada e a reprodução contínua. Reprovar qualquer tomada com mão deformada persistente ou transição inconsistente; QA técnico não substitui essa revisão artística.
+
+Nenhuma nova inferência foi executada apenas para variar o texto novamente. O próximo teste de controle de pose ainda exige guia válido, adaptação do worker e validação; não foi apresentado como correção já entregue. Evidência primária: [model card S2V — pose + audio](https://huggingface.co/Wan-AI/Wan2.2-S2V-14B#run-speech-to-video-generation).
