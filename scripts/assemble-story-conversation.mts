@@ -7,7 +7,8 @@ import { buildAssSubtitles, resolveWordTimings, SUBTITLE_STYLE_PORTRAIT } from "
 import { buildConcatList, escapeFfmpegFilterPath } from "../apps/local-renderer/src/render-utils.ts";
 
 const root = resolve(import.meta.dirname, "..");
-const out = join(root, "output/audio-driven-conversation");
+const guidedActing = process.argv.includes("--guided-acting");
+const out = join(root, guidedActing ? "output/guided-acting-conversation" : "output/audio-driven-conversation");
 const assembled = join(out, "assembled");
 const availableOnly = process.argv.includes("--available");
 await mkdir(assembled, { recursive: true });
@@ -18,9 +19,13 @@ interface Shot {
 }
 const plan = JSON.parse(await readFile(join(out, "plan.json"), "utf8")) as {
   title: string; shots: Shot[]; published: boolean; database_writes: boolean;
+  production_enabled: boolean; new_gpu_calls: number; review_variant?: string;
 };
-if (plan.published || plan.database_writes || plan.shots.map(s => s.id).join() !== "06,07,08,09") {
+if (plan.published || plan.database_writes || plan.production_enabled || plan.shots.map(s => s.id).join() !== "06,07,08,09") {
   throw new Error("Expected isolated approved conversation plan");
+}
+if (guidedActing && (plan.new_gpu_calls !== 0 || plan.review_variant !== "existing-arm-gesture-in-conversation")) {
+  throw new Error("Guided review must reuse verified footage without cloud generation");
 }
 function command(name: string, args: string[]): string {
   const result = spawnSync(name, args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -120,5 +125,7 @@ await writeFile(join(out, "assembly.json"), JSON.stringify({ title: plan.title, 
   no_loop_no_speed_change: true, no_interpolation_across_cuts: true,
   subtitle_source: "original TTS word boundaries, matching narration punctuation, core ASS helper", published: false,
   database_writes: false, production_enabled: false, lip_sync_validated: false,
+  ...(guidedActing ? { review_variant: plan.review_variant, new_gpu_calls: 0, all_takes_reused: true,
+    review_note: "Existing guided shot 07 replaces its control; other three takes retained. New edit needs human approval." } : {}),
   human_review_required: true, mode: "artistic_preview_not_episode" }, null, 2));
 process.stdout.write(`Assembled ${cursor.toFixed(3)}s at 60fps: ${final}\n`);

@@ -193,3 +193,15 @@ python -X utf8 -m unittest discover -s scripts -p "test_story*.py"
 Não usar um saldo ilustrativo. O CLI exige pelo menos US$ 6,424216 disponíveis: US$ 5,424216 de execução máxima estimada + US$ 1 de margem, sem garantia sobre overhead/fatura. Não aumentar limites nem usar gastos pagos. Um lote de até 4.200 s, sem retry; se houver falha/lock/arquivos parciais, inspecionar o app antes de qualquer ação. Depois de concluir, confirmar app parado e zero tarefas. `--audit` verifica evidência existente sem GPU; `--run` com resultado concluído também não regenera.
 
 Arquivos em `output/model-reuse-benchmark/`: plano, checkpoints por tomada, relatório do lote, QA e comparação. Hash dos quadros RGB nativos permite detectar diferença causada pelo reuso. Hash igual e QA técnico ainda exigem revisão artística. Velocidade, memória e equivalência não estão validadas na GPU: por enquanto há preparação e 27 testes locais, sem nova chamada à nuvem. O saldo atual foi solicitado ao operador; não existe consulta autenticada de faturamento nesta sessão.
+
+## Revisão de gesto na conversa sem consumir Modal — ADR-058
+
+Operador informou US$ 11,70 restantes. [ADR-058](ADR/ADR-058-revisao-de-atuacao-em-cena-sem-nova-gpu.md) entrega nova edição de 17,2 s com as quatro tomadas existentes, substituindo somente a fala 07 pelo gesto ampliado. Não há novas falas/animações, chamadas de GPU, TTS ou imagens. Benchmark de reuso continua sem execução.
+
+```powershell
+python -X utf8 scripts/render-story-conversation.py --prepare-guided-review
+node --experimental-strip-types scripts/assemble-story-conversation.mts --guided-acting
+python -X utf8 scripts/audit-story-conversation.py --guided-acting
+```
+
+Pasta `output/guided-acting-conversation/`; preparador rejeita pasta existente, preservando o material e a revisão. Os perfis antigos continuam nos caminhos anteriores. QA técnico do master passou; 29 testes locais passaram. Prévia não é episódio >=60 s, aprovação de publicação ou ativação no Studio. Rever atuação/mãos/boca no contexto antes de consumir saldo em outra inferência.

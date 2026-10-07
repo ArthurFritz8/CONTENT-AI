@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import wave
+import argparse
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -102,4 +103,8 @@ def main():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--guided-acting", action="store_true", help="Audit isolated zero-cloud guided-acting edit")
+    if parser.parse_args().guided_acting:
+        OUT = ROOT / "output/guided-acting-conversation"
     main()

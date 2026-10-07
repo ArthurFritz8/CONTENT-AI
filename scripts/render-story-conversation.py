@@ -136,6 +136,69 @@ def checked(shot):
     save(folder / "av-audit.json", results)
 
 
+def prepare_guided_review():
+    """Re-edit the approved conversation with existing guided acting; zero cloud calls."""
+    baseline = ROOT / "output/audio-driven-conversation"
+    guided = ROOT / "output/arm-gesture-motion-probe"
+    if OUT == baseline or OUT == guided or OUT.exists():
+        raise ValueError("Review must use a new isolated folder; preserve previous evidence")
+    plan = json.loads((baseline / "plan.json").read_text(encoding="utf-8"))
+    assembly = json.loads((baseline / "assembly.json").read_text(encoding="utf-8"))
+    review = json.loads((baseline / "operator-review.json").read_text(encoding="utf-8"))
+    if (review.get("video_sha256") != assembly["sha256"] or review.get("appearance") != "approved" or
+            review.get("dialogue_sync") != "approved_by_operator_after_playback" or
+            digest((baseline / assembly["filename"]).read_bytes()) != assembly["sha256"] or
+            [s["id"] for s in plan["shots"]] != ["06", "07", "08", "09"] or
+            plan["published"] or plan["database_writes"] or plan["production_enabled"]):
+        raise ValueError("Unchanged reviewed conversation required")
+    sources = []
+    for shot in plan["shots"]:
+        source = guided if shot["id"] == "07" else baseline / shot["id"]
+        report = json.loads((source / "qa.json").read_text(encoding="utf-8"))
+        if (report["input_audio_sha256"] != shot["audio_sha256"] or
+                digest((ROOT / shot["audio"]).read_bytes()) != shot["audio_sha256"] or
+                report["reference_sha256"] != shot["reference"]["sha256"] or
+                report["seed"] != shot["seed"] or report["steps"] != probe.STEPS or
+                report["model_revision"] != probe.MODEL_REVISION or report["wan_commit"] != probe.WAN_COMMIT or
+                report["native_frames"] != shot["frames"] or report["output_frames"] != shot["output_frames"] or
+                report["native_fps"] != 16 or report["output_fps"] != 60 or
+                (shot["id"] != "07" and report.get("acting_prompt") != shot["prompt"])):
+            raise ValueError("Reused shot differs from the dialogue contract")
+        validate_inputs((ROOT / shot["reference"]["path"]).read_bytes(), (ROOT / shot["audio"]).read_bytes(),
+            shot["audio_sha256"], frames=shot["frames"], reference_sha=shot["reference"]["sha256"])
+        if shot["id"] == "07":
+            if (not report.get("pose_conditioned") or report["acting_prompt"] != probe.STABLE_HANDS_PROMPT or
+                    digest((guided / "voice.wav").read_bytes()) != shot["audio_sha256"]):
+                raise ValueError("Replacement must retain the exact original dialogue with guided acting")
+            probe.validate_pose((guided / "pose.mp4").read_bytes(), report["pose_sha256"], shot["frames"])
+            shot["prompt"] = report["acting_prompt"]
+            shot["pose_sha256"] = report["pose_sha256"]
+        for name in ("native", "fluid"):
+            filename = f"malu-{name}.mp4" if shot["id"] == "07" else f"{name}.mp4"
+            if digest((source / filename).read_bytes()) != report["outputs"][name]["sha256"]:
+                raise ValueError("Reused video fingerprint changed")
+        sources.append((shot, source, report))
+    # All original inputs/checkpoints verified before creating the new review directory.
+    OUT.mkdir()
+    for shot, source, report in sources:
+        folder = OUT / shot["id"]
+        folder.mkdir()
+        for name in ("native", "fluid"):
+            filename = f"malu-{name}.mp4" if shot["id"] == "07" else f"{name}.mp4"
+            shutil.copyfile(source / filename, folder / f"{name}.mp4")
+        shot.update(reused=True, source_directory=str(source.relative_to(ROOT)))
+        save(folder / "qa.json", {**report, "reused": True, "new_worker_seconds": 0,
+            "source_directory": shot["source_directory"], "human_sample_approved": False,
+            "approval_scope": "new edit requires operator review; previous approval not transferred"})
+        checked(shot)
+    plan.update(new_gpu_calls=0, worker_timeout_upper_estimate_usd=0,
+        budget_scope="local reuse/edit only, no new Modal/TTS/image requests",
+        review_variant="existing-arm-gesture-in-conversation", source_conversation_sha256=assembly["sha256"],
+        production_enabled=False, human_review_required=True)
+    save(OUT / "plan.json", plan)
+    logger.info("Prepared four reused takes with guided shot 07; no credentials or cloud calls")
+
+
 def run(selected=None):
     plan = json.loads((OUT / "plan.json").read_text(encoding="utf-8"))
     suffix = f"-{selected}" if selected else ""
@@ -278,12 +341,16 @@ if __name__ == "__main__":
     choice.add_argument("--prepare", action="store_true")
     choice.add_argument("--run", action="store_true")
     choice.add_argument("--remaining-parallel", action="store_true")
+    choice.add_argument("--prepare-guided-review", action="store_true", help="Re-edit existing conversation with guided acting; no cloud calls")
     parser.add_argument("--shot", choices=("06", "08", "09"), help="One take per isolated client; 06 exits cleanly before parallel continuation")
     args = parser.parse_args()
     if args.shot and not args.run:
         parser.error("--shot requires --run")
     if args.prepare:
         prepare()
+    elif args.prepare_guided_review:
+        OUT = ROOT / "output/guided-acting-conversation"
+        prepare_guided_review()
     elif args.remaining_parallel:
         remaining_parallel()
     else:
