@@ -141,3 +141,21 @@ Arquivos separados em `output/expressive-speech-motion-probe/`. Uma chamada de a
 Resultado: 3,950 s / 60 fps / 237 quadros, decode e áudio aprovados, atraso medido zero. Há movimento corporal/mãos mais amplo no final; a primeira metade segue contida e a sequência de gestos pedida não é reproduzida precisamente. Comparação em `comparacao-gestos.mp4`, SHA/QA no ADR-054 e pasta do teste. Uma inferência, 1.413,642 s de worker / estimativa US$ 1,826, sem custos de build/startup/idle ou consulta à fatura. App parado/zero tarefas; onze testes locais passaram. Aguardando revisão do operador, sem promoção automática para capítulos.
 
 Revisão posterior: operador **reprovou a variante expressiva por defeitos nas mãos/dedos**. O defeito também aparece no quadro nativo de 3,04 s; não aumentar FPS esperando reconstruir anatomia. Não usar essa variante em capítulos, mesmo com QA técnico aprovado. Revisão por hash em `output/expressive-speech-motion-probe/operator-review.json`; manter o controle aprovado. Próxima rota em estudo: gesto simples guiado por pose + áudio, com informação das mãos e revisão do guia antes da GPU. Ainda não integrada nem validada.
+
+## Poses próprias e mãos estáveis — ADR-055
+
+Nova prévia autorizada pelo operador. Worker aceita guia opcional por bytes/hash, validado localmente e no contêiner. Essa entrada agora está conectada ao S2V; a qualidade do guia sintético no personagem ainda exige revisão.
+
+```powershell
+python scripts/prepare-stable-hand-guide.py
+python scripts/modal-speech-motion-probe.py --prepare --pose-controlled
+# Inspecionar output/stable-hands-motion-probe/alignment-review.png antes da GPU.
+python scripts/test_story_motion_contract.py
+python scripts/modal-speech-motion-probe.py --run --pose-controlled
+python scripts/compare-story-acting.py --pose-controlled
+python scripts/audit-stable-hand-probe.py
+```
+
+Saída isolada: `output/stable-hands-motion-probe/`. Guia próprio de corpo/mãos, movimentos pequenos; mesma voz/imagem/seed/modelo/40 passos. Uma chamada, sem retries, não gera episódio nem publica. Guia existente não é sobrescrito pelo preparador; falha/reserva exigem inspeção. Os testes agora requerem esse guia e os fixtures anteriores preservados. Pose + prompt diferem do controle: comparação não é de uma única variável. Ainda não habilita o Studio.
+
+Resultado: prévia de 3,950 s / 60 fps interpolados de 16 fps nativos, 237 quadros, 704 × 1280. Hash do guia recebido confirmado, decode/timestamps e áudio passaram, atraso medido zero. Os 64 pares de mãos nativos foram inspecionados nas folhas de contato: estabilidade melhor que na variante rejeitada, sem a mesma deformação forte; movimentos corporais muito contidos. Anatomia perfeita e fonemas não certificados. Comparação lado a lado usa o controle original aprovado. Aguardando revisão do operador. Uma chamada, 1.328,406 s de worker, estimativa US$ 1,716 apenas do worker; sem consulta à fatura/saldo. App parado/zero tarefas, quatorze testes locais passaram.

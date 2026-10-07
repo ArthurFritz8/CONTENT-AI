@@ -86,6 +86,46 @@ class MotionContractTest(unittest.TestCase):
 
 
 class ProbeReservationTest(unittest.TestCase):
+    def test_owned_pose_rejects_wrong_fingerprint_and_incomplete_video(self):
+        import importlib
+        probe = importlib.import_module("modal-speech-motion-probe")
+        source = ROOT / "output/stable-hands-motion-probe/pose.mp4"
+        data = source.read_bytes()
+        probe.validate_pose(data, hashlib.sha256(data).hexdigest())
+        with self.assertRaises(ValueError):
+            probe.validate_pose(data, "0" * 64)
+        with tempfile.TemporaryDirectory(prefix="pose-coverage-") as directory:
+            short = Path(directory) / "short.mp4"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(source), "-t", "1",
+                "-c", "copy", str(short)], check=True, timeout=30)
+            short_data = short.read_bytes()
+            with self.assertRaises(ValueError):
+                probe.validate_pose(short_data, hashlib.sha256(short_data).hexdigest())
+
+    def test_pose_retiming_rejected_before_cloud_allocation(self):
+        import importlib
+        probe = importlib.import_module("modal-speech-motion-probe")
+        source = ROOT / "output/stable-hands-motion-probe/pose.mp4"
+        with tempfile.TemporaryDirectory(prefix="pose-rate-") as directory:
+            path = Path(directory) / "retimed.mp4"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-itsscale", "0.5", "-i", str(source),
+                "-c", "copy", str(path)], check=True, timeout=30)
+            data = path.read_bytes()
+            with self.assertRaises(ValueError):
+                probe.validate_pose(data, hashlib.sha256(data).hexdigest())
+
+    def test_pose_guide_preserves_each_hand_geometry_and_waist_anchor(self):
+        import numpy as np
+        guide = json.loads((ROOT / "output/stable-hands-motion-probe/pose-guide.json").read_text(encoding="utf-8"))
+        base = np.array(guide["palm"])
+        for body,palm,waist in guide["per_frame_keypoints"]:
+            self.assertEqual(len(palm),21)
+            self.assertEqual(len(waist),21)
+            self.assertEqual(waist,guide["waist_hand"])
+            np.testing.assert_allclose(np.array(palm)-palm[0],base-base[0],atol=1e-10)
+            self.assertEqual(body[7],palm[0])
+            self.assertEqual(body[4],waist[0])
+
     def test_rejected_inputs_and_reservations_do_not_start_cloud_app(self):
         import importlib
         probe = importlib.import_module("modal-speech-motion-probe")
