@@ -47,6 +47,23 @@ NEGATIVE = (
     "mouth, motionless, blinking flicker, changing clothing, deformed hands, extra fingers, fast "
     "shaking, face morphing, plastic skin, low detail, watermark, text, subtitles, camera cuts"
 )
+EXPRESSIVE_PROMPT = (
+    "Cinematic stylized realistic 3D medium close-up of the exact adult apple woman in the reference, "
+    "speaking the provided Portuguese dialogue to the man blurred on the right. Preserve her identity, "
+    "apple skin, chestnut wavy hair, gold earrings, floral cream dress, and golden-hour Brazilian street. "
+    "Her lips and jaw articulate the actual audio; her face stays unobstructed and directed toward him. "
+    "Play an incredulous comic confrontation with a clear progression, not a held pose. "
+    "During the question 'Voce protegeu o biscoito com a boca?', she leans her upper body toward him, "
+    "raises her eyebrows, and moves the already visible open palm outward toward him in one deliberate "
+    "questioning gesture. Her shoulder and elbow follow the hand naturally, fingers relaxed. "
+    "Between sentences she draws that hand back toward her torso, briefly narrowing her eyes at him. "
+    "On 'Era um presente!', she straightens, gives one emphatic palm-up beat from the elbow and a "
+    "small decisive head nod, conveying frustrated disbelief, then lets her shoulders and hand settle. "
+    "Keep the other hand at her waist. Hair and dress follow her body motion naturally. "
+    "Movement is visibly expressive, motivated by the words, smooth and anatomically coherent, "
+    "with distinct preparation, action and recovery rather than constant waving. "
+    "Only she speaks; the man stays a silent blurred foreground shoulder. Stable camera, continuous shot."
+)
 logger = logging.getLogger("speech-motion-probe")
 
 
@@ -253,19 +270,68 @@ def prepare():
     logger.info("Prepared owned audio, %.3f seconds", duration)
 
 
-def run(build_only=False):
+def prepare_expressive():
+    """Controlled acting comparison: same approved image, PCM, seed and model."""
+    baseline = ROOT / "output/audio-driven-motion-probe"
+    data = json.loads((baseline / "input.json").read_text(encoding="utf-8"))
+    approved = json.loads((baseline / "qa.json").read_text(encoding="utf-8"))
+    fixed = {"seed": SEED, "steps": STEPS, "model": MODEL, "model_revision": MODEL_REVISION,
+        "wan_commit": WAN_COMMIT, "rife_revision": RIFE_REVISION, "rife_weights_sha256": RIFE_SHA,
+        "native_fps": NATIVE_FPS, "native_frames": FRAMES, "output_fps": OUTPUT_FPS}
+    if any(approved.get(key) != value for key, value in fixed.items()) or data["negative_prompt"] != NEGATIVE:
+        raise ValueError("Approved generation configuration differs; not an acting-only comparison")
+    wav = (baseline / "voice.wav").read_bytes()
+    if hashlib.sha256((baseline / "malu-fluid.mp4").read_bytes()).hexdigest() != approved["outputs"]["fluid"]["sha256"]:
+        raise ValueError("Approved baseline video changed")
+    if hashlib.sha256(wav).hexdigest() != approved["input_audio_sha256"]:
+        raise ValueError("Approved baseline voice changed")
+    validate_inputs((ROOT / "output/humanized-story-pilot/references/malu-close-v1.png").read_bytes(),
+        wav, data["audio_sha256"])
+    data.update(prompt=EXPRESSIVE_PROMPT, negative_prompt=NEGATIVE,
+        baseline_sha256=approved["outputs"]["fluid"]["sha256"],
+        experiment="acting-only-v1", seed=SEED, native_fps=NATIVE_FPS, output_fps=OUTPUT_FPS,
+        max_new_gpu_calls=1, worker_timeout_seconds=2100,
+        worker_timeout_upper_estimate_usd=2100 * (.001097 + 4 * .0000131 + 64 * .00000222),
+        budget_scope="worker only; excludes build/startup/idle; not invoice or remaining balance",
+        pose_conditioned=False, production_enabled=False, published=False)
+    OUT.mkdir(parents=True, exist_ok=True)
+    path = OUT / "input.json"
+    if (OUT / "voice.wav").exists() and (OUT / "voice.wav").read_bytes() != wav:
+        raise ValueError("Existing experiment voice differs")
+    if path.exists():
+        if json.loads(path.read_text(encoding="utf-8")) != data or not (OUT / "voice.wav").exists():
+            raise ValueError("Existing experiment differs; preserve its inputs and outputs")
+        logger.info("Existing acting experiment preserved; no inputs rewritten")
+        return
+    (OUT / "voice.wav").write_bytes(wav)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Prepared one acting-only comparison; original image, voice, seed and FPS retained")
+
+
+def run(build_only=False, expressive=False):
     png = (ROOT / "output/humanized-story-pilot/references/malu-close-v1.png").read_bytes()
     wav = (OUT / "voice.wav").read_bytes()
-    expected = json.loads((OUT / "input.json").read_text(encoding="utf-8"))["audio_sha256"]
+    inputs = json.loads((OUT / "input.json").read_text(encoding="utf-8"))
+    expected = inputs["audio_sha256"]
+    prompt = EXPRESSIVE_PROMPT if expressive else PROMPT
+    if inputs["prompt"] != prompt or inputs["negative_prompt"] != NEGATIVE or inputs.get("seed", SEED) != SEED:
+        raise ValueError("Experiment direction differs from the reviewed manifest")
     validate_inputs(png, wav, expected)  # Reject before creating cloud app.
     if (OUT / "qa.json").exists():
         raise ValueError("Completed test exists; do not spend credits regenerating silently")
+    lock = OUT / "generation.lock.json"
+    if (OUT / "failure.json").exists() or lock.exists():
+        raise ValueError("Inspect previous failure/reservation; never retry automatically")
     for line in (ROOT / ".env.cloud").read_text(encoding="utf-8-sig").splitlines():
         key, separator, value = line.partition("=")
         if separator and key in {"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"}:
             os.environ[key] = value.strip().strip("\"'")
     results, manifests, report = {}, {}, None
     started, app_id = time.perf_counter(), None
+    if not build_only:
+        with lock.open("x", encoding="utf-8") as reservation:
+            json.dump({"pid": os.getpid(), "experiment": inputs.get("experiment", "baseline"),
+                "max_new_gpu_calls": 1}, reservation)
     try:
         with modal.enable_output(), app.run():
             app_id = app.app_id
@@ -273,7 +339,7 @@ def run(build_only=False):
             if build_only:
                 logger.info("CPU image/dependency preparation complete; no GPU inference requested")
                 return
-            for item in speak.remote_gen(png, wav, expected):
+            for item in speak.remote_gen(png, wav, expected, prompt=prompt):
                 if item["kind"] == "progress":
                     logger.info("Stage: %s", item["stage"])
                 elif item["kind"] == "report":
@@ -307,6 +373,7 @@ def run(build_only=False):
             (OUT / "failure.json").replace(OUT / "preparation-failure.json")
         (OUT / "run-state.json").write_text(json.dumps({"status": "completed", "modal_app_id": app_id,
             "human_review_required": True, "production_enabled": False}), encoding="utf-8")
+        lock.unlink()  # remove only this invocation's exclusive reservation after verified transport
         logger.info("Native and fluid audio-driven tests received: %s", OUT)
     except Exception as exc:
         (OUT / "failure.json").write_text(json.dumps({"modal_app_id": app_id, "error_type": type(exc).__name__,
@@ -321,5 +388,11 @@ if __name__ == "__main__":
     action.add_argument("--prepare", action="store_true")
     action.add_argument("--run", action="store_true")
     action.add_argument("--build-only", action="store_true")
+    parser.add_argument("--expressive", action="store_true", help="Isolated acting comparison, preserves approved baseline")
     arguments = parser.parse_args()
-    prepare() if arguments.prepare else run(build_only=arguments.build_only)
+    if arguments.expressive:
+        OUT = ROOT / "output/expressive-speech-motion-probe"
+    if arguments.prepare:
+        prepare_expressive() if arguments.expressive else prepare()
+    else:
+        run(build_only=arguments.build_only, expressive=arguments.expressive)

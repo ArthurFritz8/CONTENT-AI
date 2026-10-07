@@ -53,3 +53,7 @@ Inspeção de início/meio/final das quatro tomadas e contact sheets nativos/int
 Worker 06: 1.766,086 s; 08: 1.762,841 s; 09: 1.835,621 s. Total novo **5.364,549 s / estimativa US$ 6,928 de compute**, sem build/startup/idle e sem consulta à fatura ou saldo. Três inferências concluídas, sem retries. Encerrar o cliente sequencial somente após checkpoint completo da primeira tomada, antes da próxima inferência, e confirmar app parado/zero tarefas. As duas restantes rodaram simultaneamente em clientes/apps isolados; todos os três apps foram confirmados parados/zero tarefas ao final. O parâmetro `--shot 06` permite essa separação com saída normal em próximas execuções.
 
 Dez testes locais passaram; seis scripts Python compilados e assembler TypeScript executado com os arquivos reais. Não houve CI remoto, deploy, episódio/asset no banco, consumo de candidato, mensagem ou publicação. Nenhuma habilitação automática no Studio.
+
+## Revisão posterior do operador
+
+O operador aprovou a qualidade visual e a sincronização das falas no arquivo completo de 17,2 s, mas pediu mais gestos, movimentação e sentimento. Registrar essa aprovação humana com escopo artístico do arquivo entregue, sem converter métricas de áudio em certificação fonética ou autorizar publicação. A atuação contida permanece uma limitação; a comparação isolada de direção está documentada no ADR-054. Não presumir que um capítulo maior automaticamente resolva a rigidez.

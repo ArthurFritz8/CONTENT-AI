@@ -8,6 +8,7 @@ import unittest
 import subprocess
 import tempfile
 import wave
+from unittest.mock import patch
 from story_motion_contract import validate_inputs, interpolation_schedule
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +83,31 @@ class MotionContractTest(unittest.TestCase):
         for args in [(1, 16, 60), (64, 60, 30), (64, 0, 60), (64, 16, 240)]:
             with self.assertRaises(ValueError):
                 list(interpolation_schedule(*args))
+
+
+class ProbeReservationTest(unittest.TestCase):
+    def test_rejected_inputs_and_reservations_do_not_start_cloud_app(self):
+        import importlib
+        probe = importlib.import_module("modal-speech-motion-probe")
+        baseline = json.loads((ROOT / "output/audio-driven-motion-probe/input.json").read_text(encoding="utf-8"))
+        wav = (ROOT / "output/audio-driven-motion-probe/voice.wav").read_bytes()
+        for reason in ("prompt", "seed", "completed", "failure", "reserved"):
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory(prefix="probe-reservation-") as directory:
+                out = Path(directory)
+                inputs = {**baseline, "prompt": probe.EXPRESSIVE_PROMPT}
+                if reason == "prompt":
+                    inputs["prompt"] = probe.PROMPT
+                if reason == "seed":
+                    inputs["seed"] = probe.SEED + 1
+                (out / "input.json").write_text(json.dumps(inputs), encoding="utf-8")
+                (out / "voice.wav").write_bytes(wav)
+                flag = {"completed": "qa.json", "failure": "failure.json", "reserved": "generation.lock.json"}.get(reason)
+                if flag:
+                    (out / flag).write_text("{}", encoding="utf-8")
+                with patch.object(probe, "OUT", out), patch.object(probe.app, "run") as start:
+                    with self.assertRaises(ValueError):
+                        probe.run(expressive=True)
+                    start.assert_not_called()
 
 
 class AudioTransportTest(unittest.TestCase):

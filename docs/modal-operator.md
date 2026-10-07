@@ -124,3 +124,18 @@ python scripts/audit-story-conversation.py
 O probe compartilhado agora limita cada chamada a 2.100 s. Três novas chamadas, 7.200 s de sessão com reserva, sem retry automático. Checkpoints íntegros são reaproveitados; falha anterior ou arquivo sem checkpoint bloqueiam nova inferência até inspeção. O QA verifica áudio, decode e quadros; não certifica fonemas. Artes/vozes permanecem próprias ou geradas com a proveniência existente. Saídas em `output/audio-driven-conversation/`, sem banco, publicação ou habilitação automática no Studio. Não é um episódio de produção de 60 s.
 
 Resultado de 06/10: conversa de 17,200 s / 60 fps / 1.032 quadros, 704 × 1280. Quatro tomadas, duas vozes, legendas pontuadas por frase, master −15,9 LUFS / peak −1,8 dBFS. Origem de áudio/vídeo zero, timestamps contínuos e áudio sem atraso medido; correlação 0,994924 após normalização. Dez testes locais passaram. Três apps parados/zero tarefas. Worker novo agregado 5.364,549 s, estimativa US$ 6,928 de compute, excluindo build/startup/idle e sem consulta à fatura/saldo. Arquivo: `output/audio-driven-conversation/malu-laranjito-conversa.mp4`; QA e revisão do operador separados.
+
+## Comparação de atuação expressiva
+
+O operador aprovou aparência e sincronização da conversa, solicitando atuação mais viva. [ADR-054](ADR/ADR-054-atuacao-expressiva-sem-inflar-fps.md): comparar uma fala com o mesmo WAV, referência, seed, resolução e FPS; mudar somente a direção. Interpolação não inventa gestos intencionais. Não regenerar a conversa inteira para experimentar.
+
+```powershell
+python scripts/modal-speech-motion-probe.py --prepare --expressive
+python scripts/test_story_motion_contract.py
+python scripts/modal-speech-motion-probe.py --run --expressive
+python scripts/compare-story-acting.py
+```
+
+Arquivos separados em `output/expressive-speech-motion-probe/`. Uma chamada de até 2.100 s, sem retry e sem novas TTS/imagens. Falha ou lock pendente requerem inspeção do app, não apagar reserva e rodar novamente. Os mesmos testes de áudio/decode do auditor podem ser chamados com `path=` para cada nova tomada. A nova atuação precisa de revisão visual própria, inclusive boca, mãos e identidade. Não habilita o Studio e não altera o renderer de produção.
+
+Resultado: 3,950 s / 60 fps / 237 quadros, decode e áudio aprovados, atraso medido zero. Há movimento corporal/mãos mais amplo no final; a primeira metade segue contida e a sequência de gestos pedida não é reproduzida precisamente. Comparação em `comparacao-gestos.mp4`, SHA/QA no ADR-054 e pasta do teste. Uma inferência, 1.413,642 s de worker / estimativa US$ 1,826, sem custos de build/startup/idle ou consulta à fatura. App parado/zero tarefas; onze testes locais passaram. Aguardando revisão do operador, sem promoção automática para capítulos.
