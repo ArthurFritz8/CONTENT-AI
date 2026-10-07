@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { canonicalStringify, sha256Hex } from "../packages/core/src/validators/hash-utils.ts";
 import { createHash } from "node:crypto";
 import { routeVideoShot, videoShotSchema } from "../packages/core/src/stories/video-routing.ts";
-import { FreeVideoError, FreeVideoProvider, HF_VIDEO, HF_SPEECH } from "../apps/local-renderer/src/free-video-provider.ts";
+import { FreeVideoError, FreeVideoProvider, HF_VIDEO, HF_SPEECH, HF_LIPSYNC, freeVideoQuotaLedger } from "../apps/local-renderer/src/free-video-provider.ts";
 
 const root = resolve(import.meta.dirname, ".."), out = join(root, "output", "free-video-jobs");
 const mode = process.argv[2];
@@ -33,7 +33,7 @@ async function read<T>(path: string, missing: T): Promise<T> {
   catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return missing; throw e; }
 }
 if (mode === "--inspect") {
-  for (const profile of [HF_VIDEO, HF_SPEECH]) {
+  for (const profile of [HF_VIDEO, HF_SPEECH, HF_LIPSYNC]) {
     try {
       const capacity = await new FreeVideoProvider(token, fetch, profile).inspect();
       await save(join(out, `${profile.id}-capacity.json`), capacity);
@@ -45,7 +45,10 @@ if (mode === "--inspect") {
 }
 const path = process.argv[3]; if (!path) throw new Error("Plano da tomada obrigatório");
 const shot = videoShotSchema.parse(JSON.parse(await readFile(resolve(path), "utf8")));
-const profile = shot.kind === "dialogue" ? HF_SPEECH : HF_VIDEO;
+const providerArg = process.argv.find(v => v.startsWith("--provider="))?.split("=")[1];
+if (providerArg && providerArg !== HF_LIPSYNC.id) throw new Error("Provedor explícito permitido: hf-musetalk");
+if (providerArg && shot.kind !== "dialogue") throw new Error("MuseTalk só recebe diálogo; não gera atuação corporal");
+const profile = providerArg ? HF_LIPSYNC : shot.kind === "dialogue" ? HF_SPEECH : HF_VIDEO;
 const provider = new FreeVideoProvider(token, fetch, profile);
 const image = await readFile(resolve(root, shot.reference_path));
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
@@ -66,7 +69,8 @@ if (shot.kind === "dialogue") {
 const fingerprintProfile = { id: profile.id, space: profile.space, host: profile.host, revision: profile.revision, endpoint: profile.endpoint };
 // The first audition used this legacy label; preserve its cache without inferring native motion FPS.
 const { min_output_fps, ...fingerprintShot } = shot;
-const key = await sha256Hex(canonicalStringify({ shot: { ...fingerprintShot, min_native_fps: min_output_fps }, provider: fingerprintProfile, steps: 6, guidance: 1 }));
+const parameters = profile.mode === "lipsync" ? { bbox_shift: 0, extra_margin: 10, parsing_mode: "jaw", left_cheek_width: 90, right_cheek_width: 90 } : { steps: 6, guidance: 1 };
+const key = await sha256Hex(canonicalStringify({ shot: { ...fingerprintShot, min_native_fps: min_output_fps }, provider: fingerprintProfile, ...parameters }));
 const folder = join(out, key); await mkdir(folder, { recursive: true });
 type State = { status: "prepared" | "submitting" | "accepted" | "downloaded" | "review" | "blocked" | "unknown";
   event_id?: string; output_url?: string; error_code?: string; output_sha256?: string };
@@ -99,7 +103,7 @@ try {
     if (state.status === "prepared") {
       if (mode !== "--run") throw new Error("Nenhuma chamada para retomar");
       const capacity = await provider.inspect();
-      const ledgerPath = join(out, profile.mode === "i2v" ? "quota.json" : "speech-quota.json");
+      const ledgerPath = join(out, freeVideoQuotaLedger(profile));
       const ledger = await read(ledgerPath, { day: "", attempts: 0, cooldown_until: 0 });
       capacity.cooldown_until = ledger.cooldown_until;
       const routing = routeVideoShot(shot, [capacity]);
@@ -107,7 +111,8 @@ try {
       if (!routing.selected) throw new Error(`Sem provedor compatível: ${routing.reasons.map(r => r.reason).join(", ")}`);
       const day = new Date().toISOString().slice(0, 10), attempts = ledger.day === day ? ledger.attempts : 0;
       if (attempts >= 2) throw new Error("Limite local de duas tentativas/dia atingido; não é a cota anunciada pelo provedor");
-      await save(join(folder, "request.json"), { key, shot, provider: profile, ...(profile.mode === "i2v" ? { steps: 6 } : { motion_prompt_supported: false }) });
+      await save(join(folder, "request.json"), { key, shot, provider: profile, ...(profile.mode === "i2v" ? { steps: 6 } : { motion_prompt_supported: false, seed_supported: false }),
+        ...(profile.mode === "lipsync" ? { parameters, body_motion_generated: false } : {}) });
       phase = "upload";
       const uploaded = await provider.upload(image, audio);
       // Persist reservation and unknown submission state BEFORE the non-idempotent request.
@@ -138,7 +143,7 @@ try {
     const [num, den] = String(stream?.avg_frame_rate).split("/").map(Number), fps = Number(num) / Number(den);
     if (!stream || !Number.isFinite(fps) || fps < shot.min_output_fps ||
       Math.min(stream.width, stream.height) < shot.min_short_edge ||
-      !Number.isFinite(Number(info.format.duration)) || Number(info.format.duration) + 1 / fps < shot.seconds)
+      !Number.isFinite(Number(stream.duration ?? info.format.duration)) || Number(stream.duration ?? info.format.duration) + 1 / fps < shot.seconds)
       throw new Error("Mídia não cobre o contrato da tomada; sem completar com quadro congelado");
     if (shot.kind === "dialogue" && !info.streams?.some((s: { codec_type: string }) => s.codec_type === "audio"))
       throw new Error("Diálogo sem faixa de áudio");
@@ -155,13 +160,14 @@ try {
       encoded_fps: fps, expected_native_fps_from_source: profile.mode === "i2v" ? 16 : null, seconds: Number(info.format.duration), sha256: state.output_sha256,
       audio_alignment: audioAlignment,
       human_review_pending: true, lip_sync_verified: false, production_enabled: false, cash_charge_usd: 0,
+      ...(profile.mode === "lipsync" ? { scope: "mouth inpainting over image; no generated body motion", parameters } : {}),
       visual_checks: ["identidade", "mãos e anatomia", "ação completa", "continuidade", "ausência de fala inventada"] });
     state = { ...state, status: "review" }; await save(statePath, state);
     await report("clip_ready_for_review", { job: key, path: video, human_review_pending: true, production_enabled: false });
 } catch (error) {
   const code = error instanceof FreeVideoError ? error.code : phase === "preflight" ? "preflight_blocked" : "unknown";
   if (code === "quota_rejected" || code === "access_required" || code === "generation_failed") {
-    const ledgerPath = join(out, profile.mode === "i2v" ? "quota.json" : "speech-quota.json");
+    const ledgerPath = join(out, freeVideoQuotaLedger(profile));
     const ledger = await read(ledgerPath, { day: new Date().toISOString().slice(0,10), attempts: 0, cooldown_until: 0 });
     await save(ledgerPath, { ...ledger, cooldown_until: Date.now() + 3_600_000 });
   }

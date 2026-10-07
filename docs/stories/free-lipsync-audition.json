@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "id": "malu-musetalk-mouth",
+  "kind": "dialogue",
+  "reference_path": "output/suitcase-story-preview/references/malu-entryway-v1.png",
+  "reference_sha256": "d7ef0d3da2a31bd93f35988cab8b6d3fecf746cdf579277aea1e92b1e049776c",
+  "audio_path": "output/suitcase-story-preview/02/voice.wav",
+  "audio_sha256": "8dbf56e5e72b4ee9db8b1a823d7e81ada20f25e86b9f2d8adc18bf7ada91c632",
+  "prompt": "Isolated lip synchronization audition on the existing apple woman image and original Portuguese audio. MuseTalk edits the mouth region only; this editorial context is not a body-motion prompt. No claim of new gestures, head movement or seed control.",
+  "seconds": 3.25,
+  "seed": 7009,
+  "quality": "preview",
+  "min_short_edge": 480,
+  "min_output_fps": 25
+}
