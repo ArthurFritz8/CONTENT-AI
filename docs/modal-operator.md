@@ -207,3 +207,25 @@ python -X utf8 scripts/audit-story-conversation.py --guided-acting
 Pasta `output/guided-acting-conversation/`; preparador rejeita pasta existente, preservando o material e a revisão. Os perfis antigos continuam nos caminhos anteriores. QA técnico do master passou; 29 testes locais passaram. Prévia não é episódio >=60 s, aprovação de publicação ou ativação no Studio. Rever atuação/mãos/boca no contexto antes de consumir saldo em outra inferência.
 
 Feedback posterior: operador aceitou a qualidade dos poucos segundos que assistiu e pediu mais atuação corporal/cenas diferentes. Revisão limitada ao trecho assistido, registrada por hash; não é revisão integral nem autorização de publicação. [ADR-059](ADR/ADR-059-direcao-corporal-e-cobertura-de-cenas.md) e [plano da próxima prévia](story-direction-next-test.md) especificam cobertura narrativa e uma primeira tomada corporal nova de Laranjito. Plano ainda não gerado, sem novas chamadas/imagens/TTS ou ativação de recursos no Studio. Preservar os créditos enquanto se valida o material necessário.
+
+## Primeira tomada corporal de Laranjito — ADR-060
+
+O operador autorizou gerar a próxima prévia. [ADR-060](ADR/ADR-060-tomada-corporal-guiada-de-laranjito.md) registra uma nova fala 06 guiada por pose masculina própria e as outras três falas reutilizadas. Preserva a voz, identidade, pesos, seed, 40 passos e resolução; não gera novas imagens/TTS. O enquadramento permite tronco/ombros/quadril, sem promessa de caminhada. Preparação não sobrescreve pasta existente; `--audit` e execução sobre resultado completo não chamam GPU.
+
+```powershell
+python -X utf8 scripts/test-story-body-acting.py --prepare
+# Inspecionar 06/alignment-initial.png e alignment-peak.png antes da GPU.
+# Apenas após conferir saldo disponível para a reserva impressa no plano:
+python -X utf8 scripts/test-story-body-acting.py --run --available-credit-usd SALDO_DISPONIVEL
+python -X utf8 scripts/audit-stable-hand-probe.py --body-acting
+node --experimental-strip-types scripts/assemble-story-conversation.mts --body-acting
+python -X utf8 scripts/audit-story-conversation.py --body-acting
+```
+
+Pasta `output/body-acting-conversation/`. O perfil atual usa H200 com timeout 2.400 s; reserva estimada US$ 4,493152 incluindo US$ 1 de margem, sem garantia de fatura. A tentativa inicial com H100 solicitada foi interrompida por alerta de limitação térmica do provedor e prazo projetado além do timeout. App parado/zero tarefas confirmado antes de uma recuperação controlada em H200; evidência original preservada. Máximo duas tentativas nesta tarefa, nunca um loop de retry. US$ 1 separado para a tentativa abortada foi descontado conservadoramente dos US$ 11,70 informados: US$ 10,70 usados como saldo de planejamento, sem consulta à fatura. Não aumentar limites da conta. Função H100 existente permanece no fluxo anterior; essa mudança é experimental e não habilita geração no Studio.
+
+QA técnico verifica hashes, decode, timestamps, voz e montagem. Inspecionar todos os quadros nativos das mãos e os finais da fala; FPS/pose e áudio alinhado não certificam anatomia, emoção ou sincronização fonética. A conversa de 17,2 s é uma prévia artística abaixo do contrato de episódio, exige revisão do operador e não é publicada.
+
+Resultado em 07/10/2026: recuperação concluída na `NVIDIA H200`, 4,950 s da nova fala / 297 quadros de entrega, cena montada 17,2 s / 1.032 quadros / 60 fps. Decode, timestamps, voz e níveis do master passaram (−15,9 LUFS / −1,8 dBFS, atraso zero). As cinco folhas mostram todos os 80 pares de mãos nativos: estabilidade visual preservada na inspeção. **O gesto corporal amplo ainda não foi reproduzido de forma convincente**; expressão facial varia, tronco/quadril seguem discretos. Não promover ao Studio como problema resolvido, nem repetir GPU para a mesma saída. Revisão humana pendente, nenhum novo cenário ou capítulo completo.
+
+Nova chamada: 33min28s do cliente, 33min14s de worker; estimativa US$ 2,902. Tentativa interrompida: aproximadamente US$ 0,679 estimados pelo tempo do app. Rodada combinada aproximadamente US$ 3,581 de computação, sem fatura/saldo/overhead confirmados. Duas tentativas totais; ambas paradas/zero tarefas. `execution-summary.json`, `visual-review.json`, `plan-h200-request.json`, comparação e QA preservam escopo, hashes e evidência. 32 testes locais passaram; CI remoto não executado. Próximo teste deve resolver direção/aderência do gesto antes de gerar as demais coberturas do ADR-059.

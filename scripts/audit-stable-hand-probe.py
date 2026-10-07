@@ -15,17 +15,20 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output/stable-hands-motion-probe"
 
 
-def audit(arm_gesture=False):
+def audit(arm_gesture=False,body_acting=False):
     comparison.OUT = OUT
     if arm_gesture: comparison.BASE=ROOT/"output/stable-hands-motion-probe"
-    comparison.compare()
+    if body_acting: comparison.BASE=ROOT/"output/audio-driven-conversation/06"
+    comparison.compare(body_acting)
     qa = json.loads((OUT/"qa.json").read_text(encoding="utf-8"))
     pose_sha = hashlib.sha256((OUT/"pose.mp4").read_bytes()).hexdigest()
     if not qa["pose_conditioned"] or qa["pose_sha256"] != pose_sha:
         raise ValueError("Conditioning guide not confirmed in worker output")
     timings = {}
-    for name,fps,count in (("native",16,64),("fluid",60,237)):
-        path = OUT/f"malu-{name}.mp4"
+    prefix="" if body_acting else "malu-"
+    native_count,fluid_count=qa["native_frames"],qa["output_frames"]
+    for name,fps,count in (("native",16,native_count),("fluid",60,fluid_count)):
+        path = OUT/f"{prefix}{name}.mp4"
         frames = json.loads(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0",
             "-show_frames","-show_entries","frame=best_effort_timestamp_time","-of","json",str(path)],timeout=30))["frames"]
         if len(frames) != count: raise ValueError("Frame count changed")
@@ -33,37 +36,41 @@ def audit(arm_gesture=False):
         if error>1e-5: raise ValueError("Frame timestamps have gaps or drift")
         timings[name] = {"frames":count,"fps":fps,"max_grid_error_seconds":error}
     # Diagnostic crops only. Final video is not cropped, masked or patched.
-    regions = [[70,760,200,240],[430,590,260,240]] if arm_gesture else [[70,790,200,190],[470,640,220,190]]
+    regions = [[190,550,230,270],[560,875,144,270]] if body_acting else [[70,760,200,240],[430,590,260,240]] if arm_gesture else [[70,790,200,190],[470,640,220,190]]
     width,height=sum(r[2] for r in regions),regions[0][3]
     left,right=regions
     filters=(f"[0:v]split[a][b];[a]crop={left[2]}:{height}:{left[0]}:{left[1]}[w];"
         f"[b]crop={right[2]}:{height}:{right[0]}:{right[1]}[p];[w][p]hstack[v]")
-    raw = subprocess.check_output(["ffmpeg","-v","error","-i",str(OUT/"malu-native.mp4"),
+    raw = subprocess.check_output(["ffmpeg","-v","error","-i",str(OUT/f"{prefix}native.mp4"),
         "-filter_complex",filters,"-map","[v]","-pix_fmt","rgb24","-f","rawvideo","pipe:1"],timeout=30)
     hands = np.frombuffer(raw,dtype=np.uint8).reshape(-1,height,width,3)
-    if len(hands)!=64: raise ValueError("Hand review missed native frames")
+    if len(hands)!=native_count: raise ValueError("Hand review missed native frames")
     review = OUT/"review"
-    for start in range(0,64,16):
+    for start in range(0,native_count,16):
         sheet = Image.new("RGB",(width*4,(height+26)*4),"#151515")
         draw = ImageDraw.Draw(sheet)
-        for index in range(start,start+16):
+        for index in range(start,min(start+16,native_count)):
             x,y = ((index-start)%4)*width,((index-start)//4)*(height+26)
             sheet.paste(Image.fromarray(hands[index]),(x,y))
-            draw.text((x+4,y+height+3),f"native {index:02d} {index/16:.4f}s | waist / open palm",fill="white")
+            label="open palm / biscuit grip" if body_acting else "waist / open palm"
+            draw.text((x+4,y+height+3),f"native {index:02d} {index/16:.4f}s | {label}",fill="white")
         sheet.save(review/f"all-hands-{start:02d}-{start+15:02d}.jpg",quality=98)
     report = {"pose_sha256":pose_sha,"pose_conditioned":True,"timings":timings,
-        "native_frames_with_hand_crops":64,"hand_crop_regions":regions,
+        "native_frames_with_hand_crops":native_count,"hand_crop_regions":regions,
         "scope":"Review crops anchored to reference; inspect full frames if hands leave regions.",
         "anatomy_validated":False,"lip_sync_validated":False,"human_review_required":True,
         "published":False,"production_enabled":False}
     (OUT/"hand-review-qa.json").write_text(json.dumps(report,indent=2),encoding="utf-8")
-    logging.info("Pose hash, audio, frame timing and decode passed; all 64 native hand pairs ready for inspection")
+    logging.info("Pose hash, audio, frame timing and decode passed; all %s native hand pairs ready for inspection",native_count)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--arm-gesture",action="store_true")
+    profiles=parser.add_mutually_exclusive_group()
+    profiles.add_argument("--arm-gesture",action="store_true")
+    profiles.add_argument("--body-acting",action="store_true")
     args=parser.parse_args()
     if args.arm_gesture: OUT=ROOT/"output/arm-gesture-motion-probe"
-    audit(args.arm_gesture)
+    if args.body_acting: OUT=ROOT/"output/body-acting-conversation/06"
+    audit(args.arm_gesture,args.body_acting)

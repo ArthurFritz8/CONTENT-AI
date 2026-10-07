@@ -86,14 +86,19 @@ def main():
         sheet.paste(frame, (x, y))
         draw.text((x + 4, y + 454), f"{shot['speaker']} {timestamp:.2f}s", fill="white")
     sheet.save(review / "conversation-contact-sheet.jpg", quality=95)
-    workers = sum(json.loads((OUT / s["id"] / "qa.json").read_text(encoding="utf-8")).get("new_worker_seconds", 0) for s in plan["shots"])
+    checkpoints = [json.loads((OUT / s["id"] / "qa.json").read_text(encoding="utf-8")) for s in plan["shots"]]
+    workers = sum(qa.get("new_worker_seconds", 0) for qa in checkpoints)
+    worker_estimate = sum(qa.get("new_worker_estimate_usd",
+        qa.get("new_worker_seconds", 0) * (.001097 + 4 * .0000131 + 64 * .00000222)) for qa in checkpoints)
     report = {"decode_passed": True, "seconds": float(video["duration"]), "fps": 60,
         "frames": int(video["nb_read_frames"]), "width": 704, "height": 1280, "audio_alignment": audio_report,
         "integrated_lufs": loudness, "true_peak_dbfs": peak,
         "max_frame_timestamp_error_seconds": max(errors), "continuous_frame_timestamps": True,
         "sha256": assembly["sha256"], "bytes": path.stat().st_size,
-        "new_worker_seconds": workers, "worker_estimate_usd": workers * (.001097 + 4 * .0000131 + 64 * .00000222),
-        "cost_scope": "worker estimate, excludes build/startup/idle, not invoice or balance",
+        "new_worker_seconds": workers, "worker_estimate_usd": worker_estimate,
+        "aborted_gpu_attempts": assembly.get("aborted_gpu_attempts", 0),
+        "hardware_recovery": plan.get("hardware_recovery"),
+        "cost_scope": "completed worker estimate; excludes aborted attempt/build/startup/idle; not invoice or balance",
         "lip_sync_validated": False, "human_review_required": True, "published": False,
         "database_writes": False, "production_enabled": False, "synthetic_fiction": True,
         "scope": "artistic preview, not production episode"}
@@ -104,7 +109,12 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--guided-acting", action="store_true", help="Audit isolated zero-cloud guided-acting edit")
-    if parser.parse_args().guided_acting:
+    profiles=parser.add_mutually_exclusive_group()
+    profiles.add_argument("--guided-acting", action="store_true", help="Audit isolated zero-cloud guided-acting edit")
+    profiles.add_argument("--body-acting", action="store_true", help="Audit one new male body-acting take in conversation")
+    args=parser.parse_args()
+    if args.guided_acting:
         OUT = ROOT / "output/guided-acting-conversation"
+    elif args.body_acting:
+        OUT = ROOT / "output/body-acting-conversation"
     main()

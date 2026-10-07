@@ -56,21 +56,30 @@ def points(t, arm_gesture=False):
     return body, palm, WAIST
 
 
-def draw_map(t, arm_gesture=False):
+def draw_keypoints(body, hands):
+    """Same diagnostic palette for character-specific coordinates, including occlusions."""
     canvas = Image.new("RGB",(704,1280),"black")
     draw = ImageDraw.Draw(canvas)
-    body, palm, waist = points(t,arm_gesture)
     for i,(a,b) in enumerate(BONES):
         if body[a] is not None and body[b] is not None:
             draw.line([body[a],body[b]],fill=tuple(int(c*.6) for c in COLORS[i]),width=7)
     for i,p in enumerate(body):
         if p is not None: draw.ellipse((p[0]-4,p[1]-4,p[0]+4,p[1]+4),fill=COLORS[i])
-    for hand in (palm,waist):
+    for hand in hands:
         for i,(a,b) in enumerate(HAND_BONES):
             color = tuple(round(c*255) for c in colorsys.hsv_to_rgb(i/20,1,1))
-            draw.line([hand[a],hand[b]],fill=color,width=3)
-        for x,y in hand: draw.ellipse((x-2,y-2,x+2,y+2),fill=(255,0,0))
+            if hand[a] is not None and hand[b] is not None:
+                draw.line([hand[a],hand[b]],fill=color,width=3)
+        for point in hand:
+            if point is not None:
+                x,y=point
+                draw.ellipse((x-2,y-2,x+2,y+2),fill=(255,0,0))
     return canvas
+
+
+def draw_map(t, arm_gesture=False):
+    body, palm, waist = points(t,arm_gesture)
+    return draw_keypoints(body, (palm,waist))
 
 
 def prepare(arm_gesture=False):

@@ -353,6 +353,7 @@ def generate_speech(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAM
             "model_reused": reused, "model_retained_for_batch": model_session is not None,
             "generation_settings": dict(GENERATION_SETTINGS), "negative_prompt": NEGATIVE,
             "raw_native_rgb_sha256": raw_native_sha, "generation_peak_gpu_allocated_bytes": peak_gpu_bytes,
+            "gpu_name": torch.cuda.get_device_name(0),
             "reference_sha256": hashlib.sha256(png).hexdigest(), "worker_seconds": time.perf_counter() - start,
             "stage_seconds":stage_seconds,"worker_entry_seconds":finished-entry_start,
             "timing_scope":"worker_seconds excludes imports/validation for historic comparability; entry includes them; both exclude boot/image build/transport/idle",
@@ -371,6 +372,19 @@ def generate_speech(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAM
     is_generator=True)
 def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
           reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None):
+    yield from generate_speech(png, wav, audio_sha, frames_count=frames_count,
+        reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha)
+
+
+@app.function(image=image, gpu="H200", cpu=(4, 4), memory=(65536, 65536),
+    max_containers=1, min_containers=0, buffer_containers=0, scaledown_window=2,
+    timeout=2400, startup_timeout=180, restrict_modal_access=True, block_network=True,
+    is_generator=True)
+def speak_body_h200(png: bytes, wav: bytes, audio_sha: str, *, frames_count=80,
+                    reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None):
+    """Isolated healthy-hardware recovery route; preserves the existing sampler/settings."""
+    if frames_count != 80 or pose is None:
+        raise ValueError("Body-acting recovery requires the bounded 80-frame pose experiment")
     yield from generate_speech(png, wav, audio_sha, frames_count=frames_count,
         reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha)
 

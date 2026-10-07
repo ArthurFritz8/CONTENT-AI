@@ -8,7 +8,9 @@ import { buildConcatList, escapeFfmpegFilterPath } from "../apps/local-renderer/
 
 const root = resolve(import.meta.dirname, "..");
 const guidedActing = process.argv.includes("--guided-acting");
-const out = join(root, guidedActing ? "output/guided-acting-conversation" : "output/audio-driven-conversation");
+const bodyActing = process.argv.includes("--body-acting");
+if (guidedActing && bodyActing) throw new Error("Choose one isolated review profile");
+const out = join(root, bodyActing ? "output/body-acting-conversation" : guidedActing ? "output/guided-acting-conversation" : "output/audio-driven-conversation");
 const assembled = join(out, "assembled");
 const availableOnly = process.argv.includes("--available");
 await mkdir(assembled, { recursive: true });
@@ -20,12 +22,16 @@ interface Shot {
 const plan = JSON.parse(await readFile(join(out, "plan.json"), "utf8")) as {
   title: string; shots: Shot[]; published: boolean; database_writes: boolean;
   production_enabled: boolean; new_gpu_calls: number; review_variant?: string;
+  hardware_recovery?: { aborted_attempts: number };
 };
 if (plan.published || plan.database_writes || plan.production_enabled || plan.shots.map(s => s.id).join() !== "06,07,08,09") {
   throw new Error("Expected isolated approved conversation plan");
 }
 if (guidedActing && (plan.new_gpu_calls !== 0 || plan.review_variant !== "existing-arm-gesture-in-conversation")) {
   throw new Error("Guided review must reuse verified footage without cloud generation");
+}
+if (bodyActing && (plan.new_gpu_calls !== 1 || plan.review_variant !== "male-body-acting-v1")) {
+  throw new Error("Body-acting review must contain one bounded new take");
 }
 function command(name: string, args: string[]): string {
   const result = spawnSync(name, args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -127,5 +133,10 @@ await writeFile(join(out, "assembly.json"), JSON.stringify({ title: plan.title, 
   database_writes: false, production_enabled: false, lip_sync_validated: false,
   ...(guidedActing ? { review_variant: plan.review_variant, new_gpu_calls: 0, all_takes_reused: true,
     review_note: "Existing guided shot 07 replaces its control; other three takes retained. New edit needs human approval." } : {}),
+  ...(bodyActing ? { review_variant: plan.review_variant, new_gpu_calls: 1, all_takes_reused: false,
+    reused_takes: 3, completed_new_takes: 1,
+    aborted_gpu_attempts: plan.hardware_recovery?.aborted_attempts ?? 0,
+    gpu_attempts_total: 1 + (plan.hardware_recovery?.aborted_attempts ?? 0),
+    review_note: "New guided male shot 06; three existing takes preserved. GPU attempts include documented hardware abort. Requires operator review." } : {}),
   human_review_required: true, mode: "artistic_preview_not_episode" }, null, 2));
 process.stdout.write(`Assembled ${cursor.toFixed(3)}s at 60fps: ${final}\n`);

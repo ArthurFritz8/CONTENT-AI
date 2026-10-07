@@ -69,7 +69,9 @@ def audit(name, expected_fps, expected_count, reference, *, path=None):
     review = path.parent / "review"
     review.mkdir(exist_ok=True)
     times = [0.10, 0.40, 0.95, 1.45, 1.62, 1.88, 2.08, 2.38, 2.67, 3.04, 3.32, 3.65]
-    sheet = Image.new("RGB", (4 * 260, 3 * 480), "#151515")
+    if expected_count/expected_fps > 4.8:
+        times += [4.05,4.35,4.60,4.80]
+    sheet = Image.new("RGB", (4 * 260, ((len(times)+3)//4) * 480), "#151515")
     draw = ImageDraw.Draw(sheet)
     for index, timestamp in enumerate(times):
         target = review / f"{name}-{timestamp:.2f}.png"
