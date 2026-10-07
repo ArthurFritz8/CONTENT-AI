@@ -205,3 +205,5 @@ python -X utf8 scripts/audit-story-conversation.py --guided-acting
 ```
 
 Pasta `output/guided-acting-conversation/`; preparador rejeita pasta existente, preservando o material e a revisão. Os perfis antigos continuam nos caminhos anteriores. QA técnico do master passou; 29 testes locais passaram. Prévia não é episódio >=60 s, aprovação de publicação ou ativação no Studio. Rever atuação/mãos/boca no contexto antes de consumir saldo em outra inferência.
+
+Feedback posterior: operador aceitou a qualidade dos poucos segundos que assistiu e pediu mais atuação corporal/cenas diferentes. Revisão limitada ao trecho assistido, registrada por hash; não é revisão integral nem autorização de publicação. [ADR-059](ADR/ADR-059-direcao-corporal-e-cobertura-de-cenas.md) e [plano da próxima prévia](story-direction-next-test.md) especificam cobertura narrativa e uma primeira tomada corporal nova de Laranjito. Plano ainda não gerado, sem novas chamadas/imagens/TTS ou ativação de recursos no Studio. Preservar os créditos enquanto se valida o material necessário.

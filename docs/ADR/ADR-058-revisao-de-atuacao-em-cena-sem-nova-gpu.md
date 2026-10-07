@@ -1,6 +1,6 @@
 # ADR-058 — Revisão de atuação em cena sem nova GPU
 
-Data: 2026-10-07. Status: prévia de revisão montada e QA técnico aprovado; revisão do operador pendente.
+Data: 2026-10-07. Status: QA técnico aprovado; qualidade do trecho assistido aceita pelo operador, com melhorias de direção solicitadas. Revisão integral pendente.
 
 ## O — Objetivo
 
@@ -29,3 +29,7 @@ Continuar correções locais e integração sem inferência quando apropriado; d
 Prévia 17,200 s, 704 × 1280, 1.032 quadros a 60 fps, duas vozes e legendas. SHA `ac18bbadaf2027b668733928c8729f909200227c1e55d3e35f9d1ad27b7f9a4e`. Decode, hashes, origens de áudio/vídeo e cortes passaram. Atraso de transporte de áudio medido 0 s, correlação PCM 0,994924226; erro máximo de timestamps 0,000000333 s; master −15,9 LUFS / pico −1,8 dBFS. QA não certifica fonemas, emoção ou anatomia. Inspeção da folha de 12 momentos confirmou personagens, legendas e sequência esperados; reprodução/revisão humana permanece pendente.
 
 Dois novos testes protegem evidência existente e rejeitam master original alterado antes de criar pasta ou acessar credenciais. Total de 29 testes locais passou. Compilação Python e execução real do assembler passaram, sem CI remota. Nenhuma GPU foi acionada nesta rodada. Master e tomadas anteriores preservados, sem banco/episódio/publicação/ativação de produção.
+
+### Feedback do operador
+
+Operador: “ficou muito bom”, qualificando que avaliou poucos segundos, e solicitando mais gestos corporais e cenas diferentes; notou sobretudo movimento da cabeça e da mão. Registrar em `output/guided-acting-conversation/operator-review.json`, vinculado ao SHA acima. Aceitação limitada ao trecho assistido; não marcar revisão completa dos 17,2 s, anatomia/fonemas certificados ou publicação autorizada. Nenhuma inferência gerada ao registrar o feedback. Próxima direção planejada no ADR-059: atuação corporal e cobertura cinematográfica, mantendo a base visual aceita.
