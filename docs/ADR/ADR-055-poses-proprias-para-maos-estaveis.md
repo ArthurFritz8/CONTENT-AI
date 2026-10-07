@@ -1,6 +1,6 @@
 # ADR-055 — Poses próprias para mãos estáveis
 
-Data: 2026-10-06. Status: prévia gerada, aguardando revisão do operador; não habilitada em produção.
+Data: 2026-10-06. Status: movimentos da prévia aprovados pelo operador, amplitude ainda insuficiente; não habilitada em produção.
 
 ## O — Objetivo
 
@@ -39,5 +39,11 @@ Decode, integridade, origem zero e áudio passaram: deslocamento medido 0 s, cor
 Comparação com o **controle original aprovado**, não com a variante expressiva rejeitada: `comparacao-gestos.mp4`, SHA-256 `deb7e4ac589db73c070a36f50df1b9f9ff77f1204180956b013c3a46025c643c`. Relatórios `qa.json`, `comparison-qa.json`, `hand-review-qa.json` e `visual-review.json` separados da futura aprovação humana.
 
 Worker: 1.328,406 s; estimativa US$ 1,716 só de compute do worker, sem build/startup/idle e sem consulta à fatura/saldo. App `ap-fqV7IZoVLCY3Okpro1bXi9` confirmado `stopped`, zero tarefas. Quatorze testes locais passaram; não houve execução de CI remota, alteração de banco, publicação ou habilitação no Studio.
+
+### Revisão do operador e próximo experimento
+
+O operador avaliou: “fez pouco movimento, mais os movimentos que fez ficaram bons!”. Registrar em `output/stable-hands-motion-probe/operator-review.json`, vinculado ao hash do vídeo. Isso aprova a qualidade dos movimentos observados, mantendo a amplitude insuficiente; não constitui certificação anatômica, nova aprovação fonética, aprovação de capítulo ou autorização para publicar.
+
+Preservar esta amostra como referência de estabilidade. O próximo experimento deve ampliar um único gesto de braço/cotovelo, com palma e dedos na mesma orientação, mantendo voz, prompt, seed, pesos e demais parâmetros. Olhar/cabeça/ombros podem ganhar expressividade em uma etapa posterior, sem mudar tudo simultaneamente. Comparar diretamente com esta amostra, revisar guia antes da GPU e mãos nos quadros nativos após a geração. Mais FPS não substitui direção de atuação. Este registro não inicia outra inferência nem comprova que maior amplitude será estável.
 
 Fonte primária: [Wan S2V — pose e áudio](https://huggingface.co/Wan-AI/Wan2.2-S2V-14B#run-speech-to-video-generation), [implementação usada](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/speech2video.py).
