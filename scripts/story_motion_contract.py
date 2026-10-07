@@ -3,9 +3,11 @@ from fractions import Fraction
 import hashlib
 import io
 import wave
+from suitcase_story_contract import REFERENCE_HASHES as SUITCASE_REFERENCES
 
 REFERENCE_SHA = "7787a6cf6fd20359c78a9c7ff32f19f5108e2b802703bcc9716e9519c5442d95"
 APPROVED_REFERENCES = {REFERENCE_SHA, "ad075fef288a790e5a56cb6aa947b1bf29060c742a553cca427c0b92379b3574"}
+APPROVED_REFERENCES.update(SUITCASE_REFERENCES.values())
 FRAMES, NATIVE_FPS, OUTPUT_FPS = 64, 16, 60
 
 

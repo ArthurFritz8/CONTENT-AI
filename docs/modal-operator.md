@@ -229,3 +229,29 @@ QA técnico verifica hashes, decode, timestamps, voz e montagem. Inspecionar tod
 Resultado em 07/10/2026: recuperação concluída na `NVIDIA H200`, 4,950 s da nova fala / 297 quadros de entrega, cena montada 17,2 s / 1.032 quadros / 60 fps. Decode, timestamps, voz e níveis do master passaram (−15,9 LUFS / −1,8 dBFS, atraso zero). As cinco folhas mostram todos os 80 pares de mãos nativos: estabilidade visual preservada na inspeção. **O gesto corporal amplo ainda não foi reproduzido de forma convincente**; expressão facial varia, tronco/quadril seguem discretos. Não promover ao Studio como problema resolvido, nem repetir GPU para a mesma saída. Revisão humana pendente, nenhum novo cenário ou capítulo completo.
 
 Nova chamada: 33min28s do cliente, 33min14s de worker; estimativa US$ 2,902. Tentativa interrompida: aproximadamente US$ 0,679 estimados pelo tempo do app. Rodada combinada aproximadamente US$ 3,581 de computação, sem fatura/saldo/overhead confirmados. Duas tentativas totais; ambas paradas/zero tarefas. `execution-summary.json`, `visual-review.json`, `plan-h200-request.json`, comparação e QA preservam escopo, hashes e evidência. 32 testes locais passaram; CI remoto não executado. Próximo teste deve resolver direção/aderência do gesto antes de gerar as demais coberturas do ADR-059.
+
+## Nova história com crédito protegido — ADR-061
+
+[ADR-061](ADR/ADR-061-previa-nova-historia-com-reserva-de-creditos.md): “A mala na porta”, cenário novo, quatro falas, cinco imagens próprias e seis planos. [Roteiro](stories/pilot-02-suitcase.json) e [prompts de imagem](stories/pilot-02-image-prompts.md) preservam continuidade. Malu pergunta pelas malas; Laranjito explica que as duas passagens eram uma surpresa. Preparação local mede voz e faz animatic antes de usar Modal.
+
+```powershell
+python -X utf8 scripts/prepare-suitcase-story.py --prepare
+node --experimental-strip-types scripts/assemble-story-conversation.mts --suitcase --animatic
+python -X utf8 scripts/audit-story-conversation.py --suitcase --animatic
+python -X utf8 -m unittest discover -s scripts -p "test_story*.py"
+# Somente depois de obter o saldo atual no painel ou consumo atualizado no CLI:
+python -X utf8 scripts/prepare-suitcase-story.py --run --available-credit-usd SALDO_ATUAL
+# Para cálculo conservador documentado a partir de modal billing summary --json:
+# acrescentar --credit-source modal_billing_cli_conservative (não é campo direto de saldo).
+# Final apenas depois de finalizar/verificar todas as tomadas alocadas:
+node --experimental-strip-types scripts/assemble-story-conversation.mts --suitcase
+python -X utf8 scripts/audit-story-conversation.py --suitcase
+```
+
+No máximo duas animações curtas sequenciais, H200/64 quadros/40 passos/1.800 s por chamada, sem retry. O CLI escolhe duas se saldo >=US$ 7,739728, uma se >=US$ 5,119864, zero abaixo disso, reservando US$ 1 para overhead e US$ 1,50 de saldo de planejamento. Não são garantias da fatura. Não informar saldo inventado ou aumentar limites. Falha/parcial/lock/seleção existente incompleta exige inspeção; resultado completo não regenera. App anterior deve estar parado/zero tarefas antes de continuar. Construção CPU das referências novas só depois desse gate e entra no overhead.
+
+Preparação concluída: animatic 17,133333 s / 1.028 quadros / 704 × 1280, áudio/legendas/timestamps e níveis passaram. Imagens do animatic possuem câmera digital, **não animação de personagens nem sincronização de boca**. Nenhum crédito Modal usado nessa preparação. Sem navegador conectado, o CLI de faturamento permitiu consultar o consumo: US$ 23,27 em créditos usados dos US$ 30 mensais, aproximadamente US$ 6,73 restantes; saldo de planejamento conservador US$ 6,64166116 ignora desconto de tráfego gratuito. Não é campo direto de saldo e a medição pode atrasar. Apenas tomada 02 alocada, reserva US$ 3,619864, sem segunda animação/retry.
+
+Execução concluída: uma animação de Malu na H200, 64 quadros nativos/237 de entrega. App parado/zero tarefas. Master `output/suitcase-story-preview/a-mala-na-porta.mp4` tem seis planos/17,133333 s/60 fps, uma animação e cinco imagens com câmera digital. Falas de candidatos não animados ficam fora do quadro sobre mala/passagens, por referências de cobertura verificadas, evitando retrato estático falando. QA técnico passou: atraso zero, −16,3 LUFS / −1,7 dBFS. 37 testes locais, sem CI remoto. Inspeção das duas regiões de mãos nos 64 quadros nativos: gesto breve com mãos parcialmente na borda; prompt de mãos fora do quadro não foi integralmente obedecido. Não declarar sincronização fonética/anatomia certificadas ou grande atuação corporal.
+
+26min39s do cliente, 23min22s de worker; estimativa do worker US$ 2,041. Consulta do consumo depois da execução registrou aumento US$ 2,48 em créditos usados no workspace, aproximadamente US$ 4,25 restantes dos US$ 30 mensais (conservador US$ 4,145); não fatura isolada do app ou campo direto de saldo, pode haver atraso de medição. Reserva preservada e nenhuma nova chamada nesta rodada. Evidências `billing-preflight.json`, `billing-after.json`, `execution-summary.json`, `visual-review.json`, QA e master anteriores preservados. Revisão humana pendente; não habilita Studio, cria episódio, consome candidato, envia Telegram ou publica.

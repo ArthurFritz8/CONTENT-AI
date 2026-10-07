@@ -1,0 +1,17 @@
+{
+  "title": "A mala na porta",
+  "mode": "artistic_preview_not_episode",
+  "setting": "Apartamento brasileiro ao fim da tarde; porta azul, console de madeira, mala azul fechada e duas passagens fictícias",
+  "shots": [
+    {"id":"01","speaker":null,"text":"","image":"entryway-wide-v1.png","kind":"still","seconds":1.4,"direction":"Plano conjunto; uma mala pronta interrompe o encontro. Bocas fechadas, câmera digital muito suave."},
+    {"id":"02","speaker":"malu","text":"Você fez as malas? Ia embora sem me contar?","image":"malu-entryway-v1.png","fallback_image":"suitcase-detail-v1.png","kind":"animated_candidate","tail_seconds":0.25,"seed":3002,"direction":"Preocupação e mágoa; olhar à direita, sobrancelhas tensas, pequena retração de ombros. Mãos fora do quadro. Se não animada, voz fora do quadro sobre a mala."},
+    {"id":"03","speaker":"laranjito","text":"Você não devia ter visto isso. Eu ia te contar.","image":"suitcase-detail-v1.png","kind":"offscreen_still","tail_seconds":0.30,"direction":"Voz dele fora do quadro sobre a mala fechada; manter a surpresa, não mostrar passagens ainda."},
+    {"id":"04","speaker":"malu","text":"Então... era tudo mentira?","image":"suitcase-detail-v1.png","kind":"offscreen_still","tail_seconds":0.40,"direction":"Voz dela fora do quadro; detalhe mais próximo da alça recolhida e zíper, sem rosto estático fingindo falar."},
+    {"id":"05","speaker":"laranjito","text":"Era surpresa, Malu. Pra nós dois.","image":"laranjito-entryway-v1.png","fallback_image":"tickets-detail-v1.png","kind":"animated_candidate","tail_seconds":0.25,"seed":3005,"direction":"Explicação calma, olhar à esquerda, sobrancelhas relaxam e surge sorriso afetuoso no final. Mãos fora do quadro. Se não animado, voz fora do quadro sobre as passagens."},
+    {"id":"06","speaker":null,"text":"","image":"tickets-detail-v1.png","kind":"still","seconds":2.4,"direction":"Revelar duas passagens fictícias; respiro final sobre a prova visual da surpresa."}
+  ],
+  "published":false,
+  "database_writes":false,
+  "production_enabled":false,
+  "human_review_required":true
+}

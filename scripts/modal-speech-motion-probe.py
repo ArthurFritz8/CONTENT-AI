@@ -17,6 +17,7 @@ import time
 
 import modal
 from story_motion_contract import FRAMES, NATIVE_FPS, OUTPUT_FPS, REFERENCE_SHA, validate_inputs, interpolation_schedule
+import suitcase_story_contract as suitcase_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output/audio-driven-motion-probe"
@@ -170,6 +171,7 @@ image = (
         "git clone https://github.com/Wan-Video/Wan2.2.git /opt/wan && git -C /opt/wan checkout " + WAN_COMMIT,
         "git clone https://github.com/hzwer/Practical-RIFE.git /opt/rife && git -C /opt/rife checkout " + RIFE_COMMIT)
     .add_local_file(ROOT / "scripts/story_motion_contract.py", "/root/story_motion_contract.py", copy=True)
+    .add_local_file(ROOT / "scripts/suitcase_story_contract.py", "/root/suitcase_story_contract.py", copy=True)
     .run_function(build_models, timeout=1800, cpu=4, memory=16384)
     # S2V cross-attention calls flash_attention directly, unlike TI2V's SDPA fallback.
     .uv_pip_install(FLASH_WHEEL)
@@ -387,6 +389,22 @@ def speak_body_h200(png: bytes, wav: bytes, audio_sha: str, *, frames_count=80,
         raise ValueError("Body-acting recovery requires the bounded 80-frame pose experiment")
     yield from generate_speech(png, wav, audio_sha, frames_count=frames_count,
         reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha)
+
+
+@app.function(image=image, gpu="H200", cpu=(4, 4), memory=(65536, 65536),
+    max_containers=1, min_containers=0, buffer_containers=0, scaledown_window=2,
+    timeout=1800, startup_timeout=180, restrict_modal_access=True, block_network=True,
+    is_generator=True)
+def speak_suitcase(png: bytes, wav: bytes, audio_sha: str, *, frames_count=64,
+                   reference_sha=None, prompt=None, seed=None, pose=None, pose_sha=None):
+    expected = {suitcase_contract.REFERENCE_HASHES["malu-entryway-v1.png"]:
+        (3002, suitcase_contract.PROMPTS["02"]),
+        suitcase_contract.REFERENCE_HASHES["laranjito-entryway-v1.png"]:
+        (3005, suitcase_contract.PROMPTS["05"])}
+    if frames_count != 64 or pose is not None or pose_sha is not None or expected.get(reference_sha) != (seed, prompt):
+        raise ValueError("Only the two bounded new-story takes; no reused pose or arbitrary direction")
+    yield from generate_speech(png, wav, audio_sha, frames_count=64,
+        reference_sha=reference_sha, prompt=prompt, seed=seed)
 
 
 @app.function(image=image, gpu="H100", cpu=(4, 4), memory=(65536, 65536),

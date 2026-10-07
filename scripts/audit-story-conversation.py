@@ -14,13 +14,16 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output/audio-driven-conversation"
+SUITCASE_STORY, ANIMATIC = False, False
 audit = importlib.import_module("audit-speech-motion-probe")
 logger = logging.getLogger("audit-story-conversation")
 
 
 def main():
     plan = json.loads((OUT / "plan.json").read_text(encoding="utf-8"))
-    assembly = json.loads((OUT / "assembly.json").read_text(encoding="utf-8"))
+    assembly = json.loads((OUT / ("assembly-animatic.json" if ANIMATIC else "assembly.json")).read_text(encoding="utf-8"))
+    if SUITCASE_STORY:
+        importlib.import_module("prepare-suitcase-story").preflight()
     path = OUT / assembly["filename"]
     pcm = []
     for shot, cut in zip(plan["shots"], assembly["cuts"], strict=True):
@@ -32,6 +35,14 @@ def main():
         if count < len(samples):
             raise ValueError("Assembled dialogue cuts conditioning voice")
         pcm.append(np.pad(samples, (0, count - len(samples))))
+        if SUITCASE_STORY and cut["from_still"]:
+            reference = shot.get("fallback_reference",shot["reference"]) if not ANIMATIC else shot["reference"]
+            image = ROOT / reference["path"]
+            assembled = OUT / ("assembled-animatic" if ANIMATIC else "assembled") / f"{shot['id']}.mp4"
+            if (hashlib.sha256(image.read_bytes()).hexdigest() != cut["source_sha256"] or
+                    hashlib.sha256(assembled.read_bytes()).hexdigest() != cut["assembled_sha256"]):
+                raise ValueError("Changed still source or assembled camera-motion take")
+            continue
         folder = OUT / shot["id"]
         audit.OUT = folder
         report = json.loads((folder / "qa.json").read_text(encoding="utf-8"))
@@ -71,9 +82,9 @@ def main():
     loudness, peak = float(integrated[-1]), float(peaks[-1])
     if peak > -.5 or not -18 <= loudness <= -14:
         raise ValueError("Clipping or unsuitable preview narration level")
-    review = OUT / "review"
+    review = OUT / ("review-animatic" if ANIMATIC else "review")
     review.mkdir(exist_ok=True)
-    sheet = Image.new("RGB", (1040, 1440), "#151515")
+    sheet = Image.new("RGB", (1040, ((len(plan["shots"])*3+3)//4)*480), "#151515")
     draw = ImageDraw.Draw(sheet)
     for index, (shot, cut, portion) in enumerate((s, c, p) for s, c in zip(plan["shots"], assembly["cuts"], strict=True) for p in (.1, .5, .9)):
         timestamp = cut["start_seconds"] + cut["seconds"] * portion
@@ -84,9 +95,11 @@ def main():
         frame.thumbnail((256, 450))
         x, y = index % 4 * 260, index // 4 * 480
         sheet.paste(frame, (x, y))
-        draw.text((x + 4, y + 454), f"{shot['speaker']} {timestamp:.2f}s", fill="white")
+        draw.text((x + 4, y + 454), f"{shot['speaker'] or 'ambiente'} {timestamp:.2f}s", fill="white")
     sheet.save(review / "conversation-contact-sheet.jpg", quality=95)
-    checkpoints = [json.loads((OUT / s["id"] / "qa.json").read_text(encoding="utf-8")) for s in plan["shots"]]
+    checkpoints = [json.loads((OUT / s["id"] / "qa.json").read_text(encoding="utf-8"))
+        for s,c in zip(plan["shots"],assembly["cuts"],strict=True)
+        if not SUITCASE_STORY or (not ANIMATIC and not c["from_still"])]
     workers = sum(qa.get("new_worker_seconds", 0) for qa in checkpoints)
     worker_estimate = sum(qa.get("new_worker_estimate_usd",
         qa.get("new_worker_seconds", 0) * (.001097 + 4 * .0000131 + 64 * .00000222)) for qa in checkpoints)
@@ -102,7 +115,10 @@ def main():
         "lip_sync_validated": False, "human_review_required": True, "published": False,
         "database_writes": False, "production_enabled": False, "synthetic_fiction": True,
         "scope": "artistic preview, not production episode"}
-    (OUT / "conversation-qa.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    if SUITCASE_STORY:
+        report.update(animatic=ANIMATIC, animated_takes=assembly["animated_takes"], still_takes=assembly["still_takes"],
+            scope="new-story artistic preview; digital camera motion on stills, not body animation")
+    (OUT / ("conversation-qa-animatic.json" if ANIMATIC else "conversation-qa.json")).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Conversation decode/FPS/cuts/audio transport passed: %.3fs", report["seconds"])
 
 
@@ -112,9 +128,15 @@ if __name__ == "__main__":
     profiles=parser.add_mutually_exclusive_group()
     profiles.add_argument("--guided-acting", action="store_true", help="Audit isolated zero-cloud guided-acting edit")
     profiles.add_argument("--body-acting", action="store_true", help="Audit one new male body-acting take in conversation")
+    profiles.add_argument("--suitcase", action="store_true", help="Audit hybrid new-story preview")
+    parser.add_argument("--animatic",action="store_true")
     args=parser.parse_args()
     if args.guided_acting:
         OUT = ROOT / "output/guided-acting-conversation"
     elif args.body_acting:
         OUT = ROOT / "output/body-acting-conversation"
+    elif args.suitcase:
+        OUT = ROOT / "output/suitcase-story-preview"
+        SUITCASE_STORY, ANIMATIC = True, args.animatic
+    if args.animatic and not args.suitcase: parser.error("Animatic requires the suitcase story")
     main()
