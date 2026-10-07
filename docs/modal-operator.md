@@ -178,3 +178,18 @@ python scripts/audit-stable-hand-probe.py --arm-gesture
 Dezesseis testes locais passaram antes da geração. `stage_seconds` discrimina as etapas reais; `worker_entry_seconds` inclui imports/validação, `worker_seconds` mantém o escopo histórico. Estimativa de compute ainda exclui boot/build/transporte/idle e não consulta fatura ou saldo. Nenhuma redução de passos/resolução ou promessa de velocidade sem benchmark. [ADR-056](ADR/ADR-056-gesto-ampliado-e-medicao-de-etapas.md) registra os limites e opções de otimização.
 
 Resultado: 3,950 s, 704 × 1280, 60 fps interpolados, áudio sem deslocamento e QA técnico aprovado. Palma/antebraço fazem gesto mais visível na segunda metade e retornam; mão na cintura estável nos 64 quadros inspecionados. Revisão artística/fonética do operador pendente. Total cliente 23min54s, entrada worker 23min29s, estimativa US$ 1,820 só da execução medida. Geração/preprocessamento/decode ocupa 22min00s, carregamento 1min13s e finalização aproximadamente 6s; não há aceleração demonstrada nesta rodada. App parado/zero tarefas. Comparação à esquerda com o gesto estável aprovado. Falha inicial do terminal Windows ocorreu antes da chamada de GPU; app vazio foi inspecionado/encerrado e evidências preservadas antes de recuperar a inicialização em UTF-8.
+
+## Reuso de modelo em lote experimental — ADR-057
+
+[ADR-057](ADR/ADR-057-reuso-limitado-de-modelo-sem-reduzir-qualidade.md) prepara um benchmark de duas tomadas idênticas de 3,950 s, carregando pesos uma vez. Não altera o fluxo padrão de geração, não habilita Studio e não cria episódio. Preserva 40 passos, resolução, voz, pose, seed e pesos. Cache de pesos/FlashAttention já existiam; esta mudança investiga apenas reuso do objeto carregado.
+
+```powershell
+python -X utf8 scripts/benchmark-story-model-reuse.py --prepare
+python -X utf8 -m unittest discover -s scripts -p "test_story*.py"
+# Só depois de conferir o saldo RESTANTE atual no painel Modal:
+# python -X utf8 scripts/benchmark-story-model-reuse.py --run --available-credit-usd SALDO_REAL
+```
+
+Não usar um saldo ilustrativo. O CLI exige pelo menos US$ 6,424216 disponíveis: US$ 5,424216 de execução máxima estimada + US$ 1 de margem, sem garantia sobre overhead/fatura. Não aumentar limites nem usar gastos pagos. Um lote de até 4.200 s, sem retry; se houver falha/lock/arquivos parciais, inspecionar o app antes de qualquer ação. Depois de concluir, confirmar app parado e zero tarefas. `--audit` verifica evidência existente sem GPU; `--run` com resultado concluído também não regenera.
+
+Arquivos em `output/model-reuse-benchmark/`: plano, checkpoints por tomada, relatório do lote, QA e comparação. Hash dos quadros RGB nativos permite detectar diferença causada pelo reuso. Hash igual e QA técnico ainda exigem revisão artística. Velocidade, memória e equivalência não estão validadas na GPU: por enquanto há preparação e 27 testes locais, sem nova chamada à nuvem. O saldo atual foi solicitado ao operador; não existe consulta autenticada de faturamento nesta sessão.

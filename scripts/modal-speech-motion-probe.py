@@ -32,6 +32,9 @@ FLASH_WHEEL = (
     "#sha256=3d41b2fc55753faa7f45d6568ea73a96b96afb48b82994ab9b49bcbcb6c87588"
 )
 STEPS, SEED, MAX_AREA = 40, 2007, 720 * 1280
+GENERATION_SETTINGS = {"num_repeat": 1, "max_area": MAX_AREA, "shift": 3.0,
+    "sample_solver": "unipc", "sampling_steps": STEPS, "guide_scale": 4.5,
+    "offload_model": True, "init_first_frame": True}
 PROMPT = (
     "A cinematic stylized realistic 3D close-up of the exact adult apple woman in the reference, "
     "speaking the provided Portuguese dialogue to the man out of focus on the right. Her lips and jaw "
@@ -200,12 +203,59 @@ def encode(frames, destination: Path, width: int, height: int, fps: int):
         process.stderr.close()
 
 
-@app.function(image=image, gpu="H100", cpu=(4, 4), memory=(65536, 65536),
-    max_containers=1, min_containers=0, buffer_containers=0, scaledown_window=2,
-    timeout=2100, startup_timeout=180, restrict_modal_access=True, block_network=True,
-    is_generator=True)
-def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
-          reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None):
+def validate_request(png, wav, audio_sha, *, frames_count=FRAMES,
+                     reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None):
+    """Shared local/worker preflight; no model allocation or credential access."""
+    seconds = validate_inputs(png, wav, audio_sha, frames=frames_count, reference_sha=reference_sha)
+    if (pose is None) != (pose_sha is None):
+        raise ValueError("Pose data and fingerprint must be provided together")
+    if pose is not None:
+        validate_pose(pose, pose_sha, frames_count)
+    if not isinstance(prompt, str) or not 100 <= len(prompt) <= 2000 or type(seed) is not int or not 0 <= seed <= 10000:
+        raise ValueError("Invalid bounded acting direction")
+    return seconds
+
+
+class ModelSession:
+    """Retain weights only inside one two-take experiment, never a warm service."""
+    def __init__(self):
+        self.pipeline = None
+        self.uses = 0
+        self.closed = False
+
+    def acquire(self, factory):
+        if self.closed or self.uses >= 2:
+            raise ValueError("Model session exhausted or closed")
+        reused = self.pipeline is not None
+        self.uses += 1
+        try:
+            if not reused:
+                self.pipeline = factory()
+        except BaseException:
+            self.close()  # no hidden reload/retry after failed construction
+            raise
+        return self.pipeline, reused
+
+    def close(self):
+        self.pipeline = None
+        self.closed = True
+
+
+def validate_batch(requests):
+    if not isinstance(requests, (list, tuple)) or len(requests) != 2:
+        raise ValueError("Benchmark requires exactly two bounded takes")
+    fields = {"png", "wav", "audio_sha", "reference_sha", "frames_count", "prompt", "seed", "pose", "pose_sha"}
+    for request in requests:
+        if not isinstance(request, dict) or set(request) != fields or request["frames_count"] != FRAMES:
+            raise ValueError("Benchmark accepts complete 64-frame requests only")
+        validate_request(**request)
+    if requests[0] != requests[1]:
+        raise ValueError("Reuse benchmark must hold all artistic inputs identical")
+
+
+def generate_speech(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
+                    reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None,
+                    model_session=None):
     entry_start = time.perf_counter()
     import tempfile
     import numpy as np
@@ -216,13 +266,8 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
     from wan.configs.wan_s2v_14B import s2v_14B
     import io
     imported = time.perf_counter()
-    seconds = validate_inputs(png, wav, audio_sha, frames=frames_count, reference_sha=reference_sha)
-    if (pose is None) != (pose_sha is None):
-        raise ValueError("Pose data and fingerprint must be provided together")
-    if pose is not None:
-        validate_pose(pose, pose_sha, frames_count)
-    if not isinstance(prompt, str) or not 100 <= len(prompt) <= 2000 or not isinstance(seed, int) or not 0 <= seed <= 10000:
-        raise ValueError("Invalid bounded acting direction")
+    seconds = validate_request(png, wav, audio_sha, frames_count=frames_count,
+        reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha)
     start = time.perf_counter()
     stage_seconds = {"imports": imported-entry_start, "input_validation": start-imported}
     yield {"kind": "progress", "stage": "loading-audio-driven-model"}
@@ -237,17 +282,24 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
             pose_path.write_bytes(pose)
         load_start = time.perf_counter()
         stage_seconds["input_preparation"] = load_start-start
-        pipeline = WanS2V(config=s2v_14B, checkpoint_dir="/opt/s2v-model", device_id=0,
-            t5_cpu=True, init_on_cpu=True, convert_model_dtype=True)
+        def load_pipeline():
+            return WanS2V(config=s2v_14B, checkpoint_dir="/opt/s2v-model", device_id=0,
+                t5_cpu=True, init_on_cpu=True, convert_model_dtype=True)
+        pipeline, reused = model_session.acquire(load_pipeline) if model_session else (load_pipeline(), False)
         generation_start = time.perf_counter()
         stage_seconds["model_loading"] = generation_start-load_start
+        torch.cuda.reset_peak_memory_stats()
         yield {"kind": "progress", "stage": "audio-conditioned-generation", "steps": STEPS}
         tensor = pipeline.generate(input_prompt=prompt, ref_image_path=str(reference), audio_path=str(voice),
             enable_tts=False, tts_prompt_audio=None, tts_prompt_text=None, tts_text=None,
-            num_repeat=1, pose_video=str(pose_path) if pose_path else None, max_area=MAX_AREA, infer_frames=frames_count, shift=3.0,
-            sample_solver="unipc", sampling_steps=STEPS, guide_scale=4.5, n_prompt=NEGATIVE,
-            seed=seed, offload_model=True, init_first_frame=True)
+            pose_video=str(pose_path) if pose_path else None, infer_frames=frames_count, n_prompt=NEGATIVE,
+            seed=seed, **GENERATION_SETTINGS)
         frames = (tensor.clamp(-1, 1).permute(1, 2, 3, 0).float().add(1).mul(127.5).round().byte().numpy())
+        raw_hash = hashlib.sha256()
+        for frame in frames:
+            raw_hash.update(frame.tobytes())
+        raw_native_sha = raw_hash.hexdigest()
+        peak_gpu_bytes = torch.cuda.max_memory_allocated()
         generated = time.perf_counter()
         stage_seconds["generation_and_frame_transfer"] = generated-generation_start
         del pipeline, tensor
@@ -298,6 +350,9 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
             "width": width, "height": height, "steps": STEPS, "seed": seed, "acting_prompt": prompt,
             "model": MODEL, "model_revision": MODEL_REVISION, "wan_commit": WAN_COMMIT,
             "rife_revision": RIFE_REVISION, "rife_weights_sha256": RIFE_SHA,
+            "model_reused": reused, "model_retained_for_batch": model_session is not None,
+            "generation_settings": dict(GENERATION_SETTINGS), "negative_prompt": NEGATIVE,
+            "raw_native_rgb_sha256": raw_native_sha, "generation_peak_gpu_allocated_bytes": peak_gpu_bytes,
             "reference_sha256": hashlib.sha256(png).hexdigest(), "worker_seconds": time.perf_counter() - start,
             "stage_seconds":stage_seconds,"worker_entry_seconds":finished-entry_start,
             "timing_scope":"worker_seconds excludes imports/validation for historic comparability; entry includes them; both exclude boot/image build/transport/idle",
@@ -308,6 +363,80 @@ def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
             yield {"kind": "manifest", "name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
             for offset in range(0, len(data), 128 * 1024):
                 yield {"kind": "chunk", "name": name, "offset": offset, "data": data[offset:offset + 128 * 1024]}
+
+
+@app.function(image=image, gpu="H100", cpu=(4, 4), memory=(65536, 65536),
+    max_containers=1, min_containers=0, buffer_containers=0, scaledown_window=2,
+    timeout=2100, startup_timeout=180, restrict_modal_access=True, block_network=True,
+    is_generator=True)
+def speak(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
+          reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None):
+    yield from generate_speech(png, wav, audio_sha, frames_count=frames_count,
+        reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha)
+
+
+@app.function(image=image, gpu="H100", cpu=(4, 4), memory=(65536, 65536),
+    max_containers=1, min_containers=0, buffer_containers=0, scaledown_window=2,
+    timeout=4200, startup_timeout=180, restrict_modal_access=True, block_network=True,
+    is_generator=True)
+def speak_reuse_benchmark(requests):
+    validate_batch(requests)  # check the entire batch before loading any weights
+    session = ModelSession()
+    started = time.perf_counter()
+    try:
+        for index, request in enumerate(requests):
+            for item in generate_speech(**request, model_session=session):
+                yield {**item, "take": index}
+            yield {"kind": "take_end", "take": index}
+    finally:
+        session.close()  # also release after cancellation, exception or abandoned generator
+        gc.collect()
+        import torch
+        torch.cuda.empty_cache()
+    import resource
+    yield {"kind": "batch_report", "takes": session.uses, "model_released": session.closed,
+        "worker_batch_seconds": time.perf_counter()-started,
+        "process_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+        "production_enabled": False, "published": False,
+        "timing_scope": "includes batch streaming/cleanup; excludes boot/build/idle and is not invoice"}
+
+
+def receive_stream(items, directory, prefix="malu-"):
+    """Verify bounded transport and decode before storing a reusable checkpoint."""
+    results, manifests, report = {}, {}, None
+    for item in items:
+        if item["kind"] == "progress":
+            logger.info("Stage: %s", item["stage"])
+        elif item["kind"] == "report":
+            if report is not None:
+                raise ValueError("Duplicate worker report")
+            report = item["report"]
+        elif item["kind"] == "manifest":
+            name = item["name"]
+            if report is None or name not in {"native", "fluid"} or name in manifests or not 0 < item["size"] <= 30 * 1024 * 1024:
+                raise ValueError("Invalid output manifest")
+            manifests[name], results[name] = item, bytearray()
+        elif item["kind"] == "chunk":
+            name = item["name"]
+            if name not in manifests or item["offset"] != len(results[name]) or not 0 < len(item["data"]) <= 128 * 1024:
+                raise ValueError("Invalid transport sequence")
+            results[name].extend(item["data"])
+            if len(results[name]) > manifests[name]["size"]:
+                raise ValueError("Oversized output")
+        else:
+            raise ValueError("Unknown worker response")
+    if report is None or set(results) != {"native", "fluid"}:
+        raise ValueError("Incomplete test")
+    # Validate both checksums before writing either output.
+    for name, data in results.items():
+        if len(data) != manifests[name]["size"] or hashlib.sha256(data).hexdigest() != manifests[name]["sha256"]:
+            raise ValueError("Output checksum mismatch")
+    for name, data in results.items():
+        temporary = directory / f"{name}.tmp.mp4"
+        temporary.write_bytes(data)
+        subprocess.run(["ffmpeg", "-v", "error", "-i", str(temporary), "-f", "null", "-"], check=True, timeout=60)
+        temporary.replace(directory / f"{prefix}{name}.mp4")
+    return {**report, "outputs": manifests}
 
 
 def prepare():
@@ -408,7 +537,6 @@ def run(build_only=False, expressive=False, pose_controlled=False):
         key, separator, value = line.partition("=")
         if separator and key in {"MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"}:
             os.environ[key] = value.strip().strip("\"'")
-    results, manifests, report = {}, {}, None
     started, app_id = time.perf_counter(), None
     if not build_only:
         with lock.open("x", encoding="utf-8") as reservation:
@@ -421,35 +549,9 @@ def run(build_only=False, expressive=False, pose_controlled=False):
             if build_only:
                 logger.info("CPU image/dependency preparation complete; no GPU inference requested")
                 return
-            for item in speak.remote_gen(png, wav, expected, prompt=prompt, pose=pose, pose_sha=pose_sha):
-                if item["kind"] == "progress":
-                    logger.info("Stage: %s", item["stage"])
-                elif item["kind"] == "report":
-                    report = item["report"]
-                elif item["kind"] == "manifest":
-                    name = item["name"]
-                    if name not in {"native", "fluid"} or name in manifests or not 0 < item["size"] <= 30 * 1024 * 1024:
-                        raise ValueError("Invalid output manifest")
-                    manifests[name], results[name] = item, bytearray()
-                elif item["kind"] == "chunk":
-                    name = item["name"]
-                    if name not in manifests or item["offset"] != len(results[name]) or len(item["data"]) > 128 * 1024:
-                        raise ValueError("Invalid transport sequence")
-                    results[name].extend(item["data"])
-                    if len(results[name]) > manifests[name]["size"]:
-                        raise ValueError("Oversized output")
-                else:
-                    raise ValueError("Unknown worker response")
-        if report is None or set(results) != {"native", "fluid"}:
-            raise ValueError("Incomplete test")
-        for name, data in results.items():
-            if len(data) != manifests[name]["size"] or hashlib.sha256(data).hexdigest() != manifests[name]["sha256"]:
-                raise ValueError("Output checksum mismatch")
-            temporary = OUT / f"{name}.tmp.mp4"
-            temporary.write_bytes(data)
-            subprocess.run(["ffmpeg", "-v", "error", "-i", str(temporary), "-f", "null", "-"], check=True, timeout=60)
-            temporary.replace(OUT / f"malu-{name}.mp4")
-        report.update({"modal_app_id": app_id, "client_seconds": time.perf_counter() - started, "outputs": manifests})
+            report = receive_stream(speak.remote_gen(png, wav, expected,
+                prompt=prompt, pose=pose, pose_sha=pose_sha), OUT)
+        report.update({"modal_app_id": app_id, "client_seconds": time.perf_counter() - started})
         (OUT / "qa.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         if (OUT / "failure.json").exists():
             (OUT / "failure.json").replace(OUT / "preparation-failure.json")
