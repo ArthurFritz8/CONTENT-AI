@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { storyDirectionSchema } from "./direction.ts";
 
 export const storyKinds = { original: "Histórias originais", fruits: "Novela de frutas" } as const;
 export const storyRequestSchema = z.object({
@@ -45,6 +46,7 @@ export const storyVisualSchema = z.object({
   setting: z.enum(["home", "office", "garden", "street"]),
   mood: z.enum(["neutral", "happy", "sad", "angry", "surprised"]),
   prop: z.enum(["none", "key", "letter", "box", "phone", "book"]).optional(),
+  direction: storyDirectionSchema.optional(),
 });
 export const storyDraftSchema = z.object({
   title: z.string().trim().min(5).max(100), summary: z.string().trim().min(30).max(1200),

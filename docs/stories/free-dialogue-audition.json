@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "id": "malu-dialogue-free",
+  "kind": "dialogue",
+  "reference_path": "output/suitcase-story-preview/references/malu-entryway-v1.png",
+  "reference_sha256": "d7ef0d3da2a31bd93f35988cab8b6d3fecf746cdf579277aea1e92b1e049776c",
+  "audio_path": "output/suitcase-story-preview/02/voice.wav",
+  "audio_sha256": "8dbf56e5e72b4ee9db8b1a823d7e81ada20f25e86b9f2d8adc18bf7ada91c632",
+  "prompt": "Visual audition of the official distilled audio-conditioned model. Keep the same character, clothes and apartment. The public S2V demo accepts image and audio only; this description is editorial context and is not sent as a motion control prompt.",
+  "seconds": 3.25,
+  "seed": 7008,
+  "quality": "preview",
+  "min_short_edge": 480,
+  "min_output_fps": 16
+}

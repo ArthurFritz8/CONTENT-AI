@@ -16,6 +16,12 @@ async function envTest(run:()=>Promise<void>) {
 const json=(v:unknown,status=200)=>new Response(JSON.stringify(v),{status,headers:{"Content-Type":"application/json"}});
 Deno.test("fiction script and image checkpoints use frozen context; no stock or research API",async()=>await envTest(async()=>{
  const {context,draft}=storyFixture(),id="11111111-1111-4111-8111-111111111111",episode:Record<string,any>={id,status:"research",briefing:{story_context:context},research_data:[],research_evidence:{type:"fiction_plan",context:structuredClone(context)},tts_engine:null};
+ draft.scenes.forEach((scene,i)=>{scene.visual.direction={
+  framing:(["wide","medium","detail","medium","close"] as const)[i]!,
+  action:`Os amigos investigam a pista ${i+1} e avançam para a próxima descoberta.`,
+  start_pose:"Ao lado da barraca olhando para a chave",end_pose:"Junto da porta olhando para a fechadura",
+  emotion_change:"Curiosidade muda para surpresa com a nova pista",listener_id:"rui",
+  listener_reaction:"Rui recua e olha para Lia com surpresa",continuity:"Mesmas roupas, chave dourada e luz vindo da esquerda"};});
  const assets:Record<string,any>[]=[];let calls=0;let uploads=0;
  globalThis.fetch=(async(input,init)=>{
   const u=new URL(input instanceof Request?input.url:String(input)),method=init?.method??"GET",body=typeof init?.body==="string"?JSON.parse(init.body):null;

@@ -19,7 +19,7 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   for (const attempt of [1, 2]) {
     const result = await writeStory(db, logger, `${chapterPrompt(context)}${errors ? `\nCorrija: ${errors}` : ""}`, episode.id);
     let script;
-    try { script = buildStoryScript(extractJson(result.text), context, episode.id); }
+    try { script = buildStoryScript(extractJson(result.text), context, episode.id, true); }
     catch (e) { errors = e instanceof Error ? e.message.slice(0, 1200) : "JSON inválido"; continue; }
     const hash = await computeScriptHash(script), report = quality.check(script, [], false);
     await recordScriptQuality(db, episode.id, report, { stage: "generate-script", script_hash: hash, policy_hash: quality.policy_hash, attempt });
