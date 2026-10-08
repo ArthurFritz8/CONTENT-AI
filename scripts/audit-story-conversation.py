@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output/audio-driven-conversation"
-SUITCASE_STORY, ANIMATIC = False, False
+SUITCASE_STORY, ANIMATIC, SCORED = False, False, False
 audit = importlib.import_module("audit-speech-motion-probe")
 logger = logging.getLogger("audit-story-conversation")
 
@@ -22,6 +22,11 @@ logger = logging.getLogger("audit-story-conversation")
 def main():
     plan = json.loads((OUT / "plan.json").read_text(encoding="utf-8"))
     assembly = json.loads((OUT / ("assembly-animatic.json" if ANIMATIC else "assembly.json")).read_text(encoding="utf-8"))
+    if SCORED:
+        mixed = json.loads((OUT / "score-mix.json").read_text(encoding="utf-8"))
+        if mixed["original_master_sha256"] != assembly["sha256"] or not mixed["video_bitstream_copied"]:
+            raise ValueError("Scored preview does not derive from the verified master")
+        assembly.update(filename=mixed["filename"], sha256=mixed["sha256"])
     if SUITCASE_STORY:
         importlib.import_module("prepare-suitcase-story").preflight()
     path = OUT / assembly["filename"]
@@ -42,6 +47,15 @@ def main():
             if (hashlib.sha256(image.read_bytes()).hexdigest() != cut["source_sha256"] or
                     hashlib.sha256(assembled.read_bytes()).hexdigest() != cut["assembled_sha256"]):
                 raise ValueError("Changed still source or assembled camera-motion take")
+            continue
+        if cut.get("from_external_clip"):
+            source = Path(cut["source_path"])
+            qa = json.loads((source.parent / "qa.json").read_text(encoding="utf-8"))
+            assembled = OUT / "assembled" / f"{shot['id']}.mp4"
+            if (not qa["decode_verified"] or qa["encoded_fps"] != 16 or qa["seconds"] < cut["seconds"] or
+                    hashlib.sha256(source.read_bytes()).hexdigest() != qa["sha256"] or qa["sha256"] != cut["source_sha256"] or
+                    hashlib.sha256(assembled.read_bytes()).hexdigest() != cut["assembled_sha256"]):
+                raise ValueError("Changed external action source or assembled take")
             continue
         folder = OUT / shot["id"]
         audit.OUT = folder
@@ -99,7 +113,8 @@ def main():
     sheet.save(review / "conversation-contact-sheet.jpg", quality=95)
     checkpoints = [json.loads((OUT / s["id"] / "qa.json").read_text(encoding="utf-8"))
         for s,c in zip(plan["shots"],assembly["cuts"],strict=True)
-        if not SUITCASE_STORY or (not ANIMATIC and not c["from_still"])]
+        if not c.get("from_external_clip") and (not SUITCASE_STORY or (not ANIMATIC and not c["from_still"]))
+        and (not plan.get("completion_mode") or s["id"] == "05")]
     workers = sum(qa.get("new_worker_seconds", 0) for qa in checkpoints)
     worker_estimate = sum(qa.get("new_worker_estimate_usd",
         qa.get("new_worker_seconds", 0) * (.001097 + 4 * .0000131 + 64 * .00000222)) for qa in checkpoints)
@@ -118,7 +133,13 @@ def main():
     if SUITCASE_STORY:
         report.update(animatic=ANIMATIC, animated_takes=assembly["animated_takes"], still_takes=assembly["still_takes"],
             scope="new-story artistic preview; digital camera motion on stills, not body animation")
-    (OUT / ("conversation-qa-animatic.json" if ANIMATIC else "conversation-qa.json")).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    if plan.get("completion_mode"):
+        animated_seconds = sum(c["seconds"] for c in assembly["cuts"] if not c["from_still"])
+        report.update(completion_mode=plan["completion_mode"], new_gpu_calls=1, reused_dialogue_takes=1,
+            reused_free_action_takes=1, animated_fraction=animated_seconds / assembly["seconds"],
+            full_animation_policy_passed=False, action_fps_conversion_duplicates_frames=True)
+    if SCORED: report.update(score_license="own", score_volume=mixed["music_volume"], video_bitstream_copied=True)
+    (OUT / ("conversation-qa-score.json" if SCORED else "conversation-qa-animatic.json" if ANIMATIC else "conversation-qa.json")).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Conversation decode/FPS/cuts/audio transport passed: %.3fs", report["seconds"])
 
 
@@ -129,7 +150,9 @@ if __name__ == "__main__":
     profiles.add_argument("--guided-acting", action="store_true", help="Audit isolated zero-cloud guided-acting edit")
     profiles.add_argument("--body-acting", action="store_true", help="Audit one new male body-acting take in conversation")
     profiles.add_argument("--suitcase", action="store_true", help="Audit hybrid new-story preview")
+    profiles.add_argument("--complete-mini", action="store_true", help="Audit separately reserved complete mini-story")
     parser.add_argument("--animatic",action="store_true")
+    parser.add_argument("--score",action="store_true", help="Audit the original procedural-score variant")
     args=parser.parse_args()
     if args.guided_acting:
         OUT = ROOT / "output/guided-acting-conversation"
@@ -138,5 +161,11 @@ if __name__ == "__main__":
     elif args.suitcase:
         OUT = ROOT / "output/suitcase-story-preview"
         SUITCASE_STORY, ANIMATIC = True, args.animatic
+    elif args.complete_mini:
+        if args.animatic: parser.error("Complete mini cannot be an animatic")
+        OUT = ROOT / "output/complete-mini-story"
+        SUITCASE_STORY = True
     if args.animatic and not args.suitcase: parser.error("Animatic requires the suitcase story")
+    if args.score and not args.complete_mini: parser.error("Score audit requires the isolated complete mini-story")
+    SCORED = args.score
     main()

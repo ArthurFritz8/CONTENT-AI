@@ -60,3 +60,25 @@ Reutiliza o I2V aceito e o diálogo Modal existente para uma prévia de 6,817s c
 Crie/use sua própria conta gratuita em [Hugging Face](https://huggingface.co/join), confirme o email e crie um token pessoal em [Settings → Access Tokens](https://huggingface.co/settings/tokens), com acesso suficiente para chamar Spaces públicos. Salve apenas `HF_TOKEN=...` em `.env.cloud`, que é ignorado pelo Git. Não envie pelo chat. Não é necessário adicionar cartão ou contratar PRO. Consulte a [documentação de API dos Spaces](https://huggingface.co/docs/hub/spaces-api-endpoints) para as permissões atuais.
 
 Autenticar associa a chamada à quota da conta. Não garante que esse Space com erro passe a funcionar; precisa de nova avaliação autorizada, dentro dos limites e fora do cooldown. Não alterar o ledger para forçar outra tentativa. A quota real ZeroGPU segue a janela do provedor, não o dia UTC do nosso limite preventivo. [Regras atuais de quota](https://huggingface.co/docs/hub/spaces-zerogpu).
+
+## Mini-história com uma reserva de créditos Modal
+
+O [ADR-064](ADR/ADR-064-mini-historia-completa-com-uma-reserva.md) registra a autorização para uma única revelação nova, preservando os modelos/parâmetros anteriores. Esta seção consome créditos Modal; não é prova de fala gratuita. As referências/WAVs/checkpoints originais devem existir. Preparar sem acesso a credenciais:
+
+```powershell
+python -X utf8 scripts/render-complete-mini-story.py
+```
+
+A geração autorizada usa `--run --credit-ceiling-usd 8`. O executor consulta o faturamento e usa o menor valor entre esse teto e a franquia mensal conservadora, reserva uma chamada e preserva US$1,50 de planejamento. Resultado completo é reutilizado; lock/reserva/falha/parcial bloqueiam nova chamada. Não remover marcadores para regenerar. A reserva de US$3,619864 não é garantia de teto de fatura.
+
+Depois do take 05 concluir e passar no auditor, montar e conferir:
+
+```powershell
+node --experimental-strip-types scripts/assemble-story-conversation.mts --complete-mini
+python -X utf8 scripts/audit-story-conversation.py --complete-mini
+python -X utf8 scripts/score-story-pilot.py --complete-mini
+node --experimental-strip-types scripts/mix-mini-story-score.mts
+python -X utf8 scripts/audit-story-conversation.py --complete-mini --score
+```
+
+Os arquivos ficam em `output/complete-mini-story/`, separados das alocações e masters anteriores. Há um master de voz limpa e outro com trilha própria discreta/ducking; o mixer copia o vídeo sem nova perda de qualidade visual. São três planos animados e três de câmera sobre imagens, 17,133s, fora do contrato >=60s dos episódios. A versão híbrida não passa pela política de animação de 80%; revisá-la como mini-história econômica, sem prometer capítulo totalmente animado. Não publica, não escreve banco e não ativa animação automática no Studio.

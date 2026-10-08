@@ -9,12 +9,14 @@ import { buildConcatList, escapeFfmpegFilterPath } from "../apps/local-renderer/
 const root = resolve(import.meta.dirname, "..");
 const guidedActing = process.argv.includes("--guided-acting");
 const bodyActing = process.argv.includes("--body-acting");
-const suitcaseStory = process.argv.includes("--suitcase");
+const completeMini = process.argv.includes("--complete-mini");
+const suitcaseStory = process.argv.includes("--suitcase") || completeMini;
 const animatic = process.argv.includes("--animatic");
 if ([guidedActing, bodyActing, suitcaseStory].filter(Boolean).length > 1 || (animatic && !suitcaseStory)) {
   throw new Error("Choose one isolated review profile; animatic only supports the new story");
 }
-const out = join(root, suitcaseStory ? "output/suitcase-story-preview" : bodyActing ? "output/body-acting-conversation" : guidedActing ? "output/guided-acting-conversation" : "output/audio-driven-conversation");
+if (completeMini && animatic) throw new Error("Complete mini requires the verified reveal, not an animatic");
+const out = join(root, completeMini ? "output/complete-mini-story" : suitcaseStory ? "output/suitcase-story-preview" : bodyActing ? "output/body-acting-conversation" : guidedActing ? "output/guided-acting-conversation" : "output/audio-driven-conversation");
 const assembled = join(out, animatic ? "assembled-animatic" : "assembled");
 const availableOnly = process.argv.includes("--available");
 await mkdir(assembled, { recursive: true });
@@ -29,7 +31,9 @@ const plan = JSON.parse(await readFile(join(out, "plan.json"), "utf8")) as {
   title: string; shots: Shot[]; published: boolean; database_writes: boolean;
   production_enabled: boolean; new_gpu_calls: number; review_variant?: string;
   hardware_recovery?: { aborted_attempts: number };
+  completion_mode?: string;
 };
+if (completeMini && plan.completion_mode !== "one-new-reveal") throw new Error("Expected the separately reserved mini-story plan");
 if (plan.published || plan.database_writes || plan.production_enabled ||
     plan.shots.map(s => s.id).join() !== (suitcaseStory ? "01,02,03,04,05,06" : "06,07,08,09")) {
   throw new Error("Expected isolated approved conversation plan");
@@ -65,24 +69,28 @@ if (process.platform === "win32") {
 }
 const paths: string[] = [];
 const cuts: Array<{ id: string; speaker: string; start_seconds: number; seconds: number; frames: number;
-  from_still: boolean; assembled_sha256: string; source_sha256: string }> = [];
+  from_still: boolean; from_external_clip: boolean; source_path: string; assembled_sha256: string; source_sha256: string }> = [];
+const actionFolder = join(root, "output/free-video-jobs/44966b220d5b6d2b2a44b6038d87067b2aba56f9d47e4f34ef40e87cca57bc34");
+const actionQA = completeMini ? JSON.parse(await readFile(join(actionFolder, "qa.json"), "utf8")) : undefined;
 let cursor = 0;
 for (const shot of plan.shots) {
   const folder = join(out, shot.id);
-  const fromStill = suitcaseStory && (animatic || !selected.includes(shot.id));
+  const fromAction = completeMini && shot.id === "01";
+  const fromStill = !fromAction && suitcaseStory && (animatic || !selected.includes(shot.id));
   const stillReference = !animatic && shot.fallback_reference ? shot.fallback_reference : shot.reference;
   let checkpoint;
-  if (!fromStill) try {
+  if (!fromStill && !fromAction) try {
     checkpoint = JSON.parse(await readFile(join(folder, "qa.json"), "utf8"));
   } catch (error) {
     if (availableOnly && (error as NodeJS.ErrnoException).code === "ENOENT") break;
     throw error;
   }
-  const audit = fromStill ? undefined : JSON.parse(await readFile(join(folder, "av-audit.json"), "utf8"));
-  const clip = fromStill ? resolve(root, stillReference!.path) : join(folder, "fluid.mp4");
+  const audit = fromStill || fromAction ? undefined : JSON.parse(await readFile(join(folder, "av-audit.json"), "utf8"));
+  const clip = fromAction ? join(actionFolder, "clip.mp4") : fromStill ? resolve(root, stillReference!.path) : join(folder, "fluid.mp4");
   const sourceSha = hash(await readFile(clip));
   if (hash(await readFile(resolve(root, shot.audio))) !== shot.audio_sha256 ||
-      (fromStill ? sourceSha !== stillReference!.sha256 : sourceSha !== checkpoint.outputs.fluid.sha256 ||
+      (fromAction ? sourceSha !== actionQA.sha256 || !actionQA.decode_verified || actionQA.encoded_fps !== 16 || actionQA.seconds < shot.audio_seconds :
+      fromStill ? sourceSha !== stillReference!.sha256 : sourceSha !== checkpoint.outputs.fluid.sha256 ||
       !audit.fluid.decode_passed || audit.fluid.fps !== 60 ||
       audit.fluid.decoded_frames !== shot.output_frames ||
       Math.abs(audit.fluid.audio_alignment.measured_audio_lag_seconds) > .02)) {
@@ -91,7 +99,7 @@ for (const shot of plan.shots) {
   // Trim only already silent excess, retaining measured speech and the 250 ms pause.
   const frames = Math.ceil(shot.audio_seconds * 60);
   const seconds = frames / 60;
-  if (!fromStill && frames > shot.output_frames) throw new Error(`Insufficient genuine video coverage: ${shot.id}`);
+  if (!fromStill && !fromAction && frames > shot.output_frames) throw new Error(`Insufficient genuine video coverage: ${shot.id}`);
   const words = shot.text ? resolveWordTimings({ narration_text: shot.text, audio_duration_seconds: shot.audio_seconds,
     word_boundaries: shot.word_boundaries }) : [];
   if (words.some(w => w.end_seconds > seconds - .15)) throw new Error(`Word clipped: ${shot.id}`);
@@ -121,12 +129,13 @@ for (const shot of plan.shots) {
     `zoompan=z='${startZoom}+0.025*on/${frames}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=${frames}:s=704x1280:fps=60,`;
   command("ffmpeg", ["-v", "error", "-y", ... (fromStill ? ["-loop", "1", "-framerate", "60"] : []),
     "-i", clip, "-i", resolve(root, shot.audio),
-    "-filter_complex", `[0:v]${fromStill ? imageMotion : ""}trim=end_frame=${frames},setpts=PTS-STARTPTS,ass='${escaped}'[v];[1:a]apad,atrim=end=${seconds},asetpts=PTS-STARTPTS[a]`,
+    "-filter_complex", `[0:v]${fromStill ? imageMotion : fromAction ? "scale=704:1280:force_original_aspect_ratio=increase,crop=704:1280,setsar=1,fps=60," : ""}trim=end_frame=${frames},setpts=PTS-STARTPTS,ass='${escaped}'[v];[1:a]apad,atrim=end=${seconds},asetpts=PTS-STARTPTS[a]`,
     "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "96k", "-ar", "16000", "-movflags", "+faststart", path]);
   paths.push(path);
   cuts.push({ id: shot.id, speaker: shot.speaker, start_seconds: cursor, seconds, frames,
-    from_still: fromStill, assembled_sha256: hash(await readFile(path)), source_sha256: sourceSha });
+    from_still: fromStill, from_external_clip: fromAction, source_path: clip,
+    assembled_sha256: hash(await readFile(path)), source_sha256: sourceSha });
   cursor += seconds;
 }
 if (availableOnly && paths.length < plan.shots.length) {
@@ -138,7 +147,7 @@ if (cursor < 15 || cursor > 20) throw new Error("Artistic preview outside reques
 // Explicit durations control each video packet timeline independently of AAC padding.
 await writeFile(join(assembled, "concat.txt"), paths.map((path, i) =>
   buildConcatList([path]) + `duration ${cuts[i]!.seconds.toFixed(6)}\n`).join(""));
-const filename = suitcaseStory ? (animatic ? "a-mala-na-porta-animatic.mp4" : "a-mala-na-porta.mp4") : "malu-laranjito-conversa.mp4";
+const filename = completeMini ? "a-mala-na-porta-completa.mp4" : suitcaseStory ? (animatic ? "a-mala-na-porta-animatic.mp4" : "a-mala-na-porta.mp4") : "malu-laranjito-conversa.mp4";
 const final = join(out, filename);
 // Video packet copy avoids another lossy encode. Rebuild audio from original PCM,
 // not intermediate AAC, and align it to the exact measured cut durations.
@@ -168,9 +177,12 @@ await writeFile(join(out, animatic ? "assembly-animatic.json" : "assembly.json")
     aborted_gpu_attempts: plan.hardware_recovery?.aborted_attempts ?? 0,
     gpu_attempts_total: 1 + (plan.hardware_recovery?.aborted_attempts ?? 0),
     review_note: "New guided male shot 06; three existing takes preserved. GPU attempts include documented hardware abort. Requires operator review." } : {}),
-  ...(suitcaseStory ? { review_variant: plan.review_variant, animatic, new_gpu_calls: selected.length,
-    animated_takes: selected.length, still_takes: cuts.filter(c => c.from_still).length,
+  ...(suitcaseStory ? { review_variant: plan.review_variant, animatic, new_gpu_calls: completeMini ? 1 : selected.length,
+    animated_takes: cuts.filter(c => !c.from_still).length, still_takes: cuts.filter(c => c.from_still).length,
     image_camera_motion_only_for_stills: true, silent_faces_not_lip_synced_in_animatic: animatic,
     review_note: "New dialogue and apartment; budget determines animated takes. Stills use digital camera motion, not body animation." } : {}),
+  ...(completeMini ? { completion_mode: plan.completion_mode, reused_dialogue_takes: 1, reused_free_action_takes: 1,
+    action_source_fps: 16, action_scaled_from: [480, 832], action_fps_conversion_duplicates_frames: true,
+    new_reveal: "05", all_voices_original_pcm: true, full_animation_policy_passed: false } : {}),
   human_review_required: true, mode: "artistic_preview_not_episode" }, null, 2));
 process.stdout.write(`Assembled ${cursor.toFixed(3)}s at 60fps: ${final}\n`);
