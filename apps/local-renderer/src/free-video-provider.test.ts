@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import { strictEqual, deepStrictEqual, throws, rejects, ok } from "node:assert";
-import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, freeVideoQuotaLedger } from "./free-video-provider.ts";
+import { spawnSync } from "node:child_process";
+import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, freeVideoQuotaLedger } from "./free-video-provider.ts";
 import { routeVideoShot } from "../../../packages/core/src/stories/video-routing.ts";
 
 test("changed model revision and non-free hardware disable the provider", () => {
@@ -106,4 +107,79 @@ test("sponsored S2V without recurring evidence is blocked before any generation"
   deepStrictEqual(result.reasons, [{ provider: HF_SPEECH.id, reason: "unverified_free_access" }]);
   for (const profile of [HF_VIDEO, HF_LIPSYNC])
     strictEqual(inspectSpaceMetadata(null, profile).free_tier, "recurring");
+});
+
+test("FlashHead is an authenticated free dialogue close-up, sharing the same account quota", async () => {
+  const base = { sha: HF_FLASHHEAD.revision, host: HF_FLASHHEAD.host,
+    runtime: { stage: "RUNNING", hardware: { current: "zero-a10g" } } };
+  const capacity = inspectSpaceMetadata(base, HF_FLASHHEAD);
+  deepStrictEqual(capacity.capabilities, ["dialogue"]);
+  deepStrictEqual(capacity.quality, ["preview"]);
+  strictEqual(capacity.short_edge, 512);
+  strictEqual(capacity.output_fps, 25);
+  strictEqual(capacity.free_tier, "recurring");
+  strictEqual(capacity.quota_group, inspectSpaceMetadata(null).quota_group);
+  strictEqual(freeVideoQuotaLedger(HF_FLASHHEAD), freeVideoQuotaLedger(HF_VIDEO));
+  const params = ["ckpt_dir", "wav2vec_dir", "model_type", "cond_image", "audio_path", "seed", "use_face_crop"]
+    .map(parameter_name => ({ parameter_name }));
+  assertEndpoint({ named_endpoints: { "/run_inference_streaming": { parameters: params } } }, HF_FLASHHEAD);
+  throws(() => assertEndpoint({ named_endpoints: { "/run_inference_streaming": { parameters: params.slice(1) } } }, HF_FLASHHEAD));
+  const url = `${HF_FLASHHEAD.host}/gradio_api/stream/${"a".repeat(32)}/123/20/playlist.m3u8`;
+  strictEqual(await readVideoEvent(stream(`event: generating\ndata: [{"video":{"url":"${url}"}}]\n\nevent: complete\ndata: [{"video":{"url":"${url}"}}]\n\n`), HF_FLASHHEAD), url);
+  throws(() => assertOutputUrl(`${HF_FLASHHEAD.host}/gradio_api/stream/../../admin`, HF_FLASHHEAD));
+  throws(() => assertOutputUrl(`${url}?token=leak`, HF_FLASHHEAD));
+});
+
+test("FlashHead sends the pinned Lite model, original character and voice in exact endpoint order", async () => {
+  const provider = new FreeVideoProvider(undefined, async (url, init) => {
+    strictEqual(url, `${HF_FLASHHEAD.host}/gradio_api/call/run_inference_streaming`);
+    strictEqual(init?.redirect, "error");
+    const file = (path: string) => ({ path, meta: { _type: "gradio.FileData" } });
+    deepStrictEqual(JSON.parse(String(init?.body)).data, ["models/SoulX-FlashHead-1_3B", "models/wav2vec2-base-960h", "lite",
+      file("/tmp/gradio/image.png"), file("/tmp/gradio/voice.wav"), 7008, false]);
+    return new Response(JSON.stringify({ event_id: "a".repeat(32) }));
+  }, HF_FLASHHEAD);
+  const shot = { version: "1.0.0", id: "malu", kind: "dialogue", reference_path: "own.png",
+    reference_sha256: "a".repeat(64), audio_sha256: "b".repeat(64),
+    prompt: "Character voice audition; this is editorial context, not sent as model control.",
+    seconds: 3.25, seed: 7008, quality: "preview", min_short_edge: 480, min_output_fps: 25 } as const;
+  strictEqual(await provider.submit(shot, ["/tmp/gradio/image.png", "/tmp/gradio/voice.wav"]), "a".repeat(32));
+});
+
+test("FlashHead remuxes a complete same-host HLS stream without forwarding credentials", async () => {
+  const source = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=s=96x96:r=25:d=0.6",
+    "-f", "lavfi", "-i", "sine=frequency=440:duration=0.6", "-c:v", "libx264", "-c:a", "aac", "-f", "mpegts", "pipe:1"],
+    { encoding: null, maxBuffer: 2 * 1024 * 1024, timeout: 30_000 });
+  strictEqual(source.status, 0);
+  const ts = source.stdout, cut = Math.floor(ts.length / 2 / 188) * 188;
+  const names = ["12345678-1234-1234-1234-123456789abc.ts", "abcdefab-1234-1234-1234-123456789abc.ts"];
+  const root = `${HF_FLASHHEAD.host}/gradio_api/stream/${"a".repeat(32)}/123/20/`;
+  const playlist = `${root}playlist.m3u8`;
+  const calls: string[] = [];
+  const provider = new FreeVideoProvider("private-test-token", async (url, init) => {
+    calls.push(String(url));
+    strictEqual(init?.redirect, "error");
+    strictEqual((init?.headers as Record<string, string>).Authorization, "Bearer private-test-token");
+    const data = url === playlist ? `#EXTM3U\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXTINF:0.3,\n${names[0]}\n#EXTINF:0.3,\n${names[1]}\n#EXT-X-ENDLIST\n` :
+      url === root + names[0] ? ts.subarray(0, cut) : url === root + names[1] ? ts.subarray(cut) : null;
+    if (data === null) throw new Error("Untrusted request");
+    return new Response(data);
+  }, HF_FLASHHEAD);
+  const output = await provider.download(playlist);
+  deepStrictEqual(calls, [playlist, root + names[0], root + names[1]]);
+  strictEqual(Buffer.from(output).subarray(4, 8).toString(), "ftyp");
+  const decode = spawnSync("ffmpeg", ["-v", "error", "-i", "pipe:0", "-f", "null", "-"],
+    { input: output, encoding: null, timeout: 30_000 });
+  strictEqual(decode.status, 0);
+});
+
+test("incomplete HLS and traversal segments are rejected before segment download", async () => {
+  const root = `${HF_FLASHHEAD.host}/gradio_api/stream/${"a".repeat(32)}/123/20/`;
+  const playlist = `${root}playlist.m3u8`;
+  for (const manifest of ["#EXTM3U\nfoo.ts\n", "#EXTM3U\n../secret.ts\n#EXT-X-ENDLIST\n"]) {
+    let calls = 0;
+    const provider = new FreeVideoProvider(undefined, async () => { calls++; return new Response(manifest); }, HF_FLASHHEAD);
+    await rejects(provider.download(playlist), /unknown|contract_changed/);
+    strictEqual(calls, 1);
+  }
 });

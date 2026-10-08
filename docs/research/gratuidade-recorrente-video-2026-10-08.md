@@ -1,5 +1,7 @@
 # Produção automática com gratuidade recorrente
 
+Atualização: o token HF foi configurado e uma nova tomada FlashHead foi produzida e auditada no mesmo dia. Consulte [ADR-067](../ADR/ADR-067-close-gratuito-flashhead-com-hls-e-voz-original.md) e [capacidade gratuita verificável](capacidade-gratuita-novelas-2026-10-08.md). As frases abaixo sobre token ausente e geração ainda não realizada descrevem o estado anterior a esse teste.
+
 Data: 08/10/2026. Decisão explícita do operador: aceitar apenas serviço gratuito ou franquia gratuita renovável. Benefícios de entrada, mesmo com saldo, não compensam e ficam fora. Este documento substitui as prioridades de cadastro/teste do levantamento anterior.
 
 ## Seleção vigente

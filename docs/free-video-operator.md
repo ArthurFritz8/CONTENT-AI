@@ -10,7 +10,7 @@ Política vigente desde ADR-066: somente gratuidade recorrente ou serviço gratu
 node --experimental-strip-types scripts/render-free-story-shot.mts --inspect
 ```
 
-Consulta três apps públicos. `available` significa endpoint/modelo conferido; não significa quota contratada nem qualidade aprovada. O contador externo permanece desconhecido. Não precisa instalar GPU/modelo local. Opcionalmente, `HF_TOKEN` pode ficar em `.env.cloud`; nunca em arquivo versionado, URL ou código do navegador. Um token só autentica a própria quota, não multiplica capacidade.
+Consulta quatro apps públicos. `available` significa endpoint/modelo conferido; não significa quota contratada nem qualidade aprovada. O contador externo permanece desconhecido. Não precisa instalar GPU/modelo local. `HF_TOKEN` fica em `.env.cloud`; nunca em arquivo versionado, URL ou código do navegador. Um token só autentica a própria quota, não multiplica capacidade.
 
 ## Avaliar ação e diálogo
 
@@ -21,9 +21,11 @@ node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/st
 node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/stories/free-dialogue-audition.json
 ```
 
-O tipo da tomada seleciona automaticamente I2V para ação/reação ou S2V para diálogo. Não usar a primeira rota para simular lipsync. O S2V público só recebe imagem/áudio/resolução, não o prompt de movimento nem seed; sua descrição é contexto editorial. A saída é uma avaliação de 480p. Não é troca automática da qualidade já aprovada.
+O tipo da tomada seleciona I2V para ação/reação ou FlashHead Lite para um close de diálogo. FlashHead recebe imagem, WAV e seed; o texto de direção é contexto editorial e não controla gestos, roupa ou cenário. A saída nativa é quadrada de 512×512 a 25 FPS. O avaliador recompõe a faixa de áudio com o WAV original, recorta a duração à fala medida e exige auditoria de transporte. Isto não substitui a qualidade da novela aprovada nem anima o corpo inteiro.
 
-O comando de diálogo acima está preservado como referência do avaliador, mas novas submissões ao S2V patrocinado ficam bloqueadas: não há prova de franquia recorrente. `available: true` na inspeção não o libera. Checkpoints anteriores continuam conciliáveis com `--resume`; nenhuma chamada aceita é reenviada. ZeroGPU I2V/MuseTalk recebem classificação recorrente, porém MuseTalk continua sem resultado visual aprovado.
+Novas submissões ao S2V patrocinado ficam bloqueadas: não há prova de franquia recorrente. `available: true` na inspeção não o libera. Checkpoints anteriores continuam conciliáveis com `--resume` e seu fingerprint original; nenhuma chamada aceita é reenviada. ZeroGPU I2V/MuseTalk/FlashHead compartilham a quota da mesma conta. MuseTalk continua sem resultado visual aprovado.
+
+Em 08/10/2026, uma tomada FlashHead Lite da Malu foi gerada no Space público com o WAV existente: 3,28 s normalizados, 512×512, 25 FPS, 82 quadros. O remux HLS puro atrasou a voz 64 ms e obteve correlação PCM 0,911; a recomposição com o WAV original reduziu o atraso medido a zero e elevou a correlação a 0,9999. A inspeção dos quadros encontrou identidade/figurino estáveis, mas isto não certifica sincronia fonética nem a atuação do capítulo. Arquivo local para revisão: `output/provider-research-deep-2026-10-08/flashhead-audition-2/normalized.mp4`. Não registrar como master aprovado.
 
 MuseTalk 1.5 é uma avaliação explícita de boca, não uma troca automática após falha:
 
@@ -33,7 +35,7 @@ node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/st
 
 Recebe o PNG e o WAV já existentes e não cria gestos/cenários nem recebe prompt/seed. O Space aplica edição de rosto de 256×256 sobre o quadro original, com saída a 25 FPS. Pode perder detalhes de boca, pele e identidade. Usa o MESMO `quota.json` e grupo ZeroGPU do I2V: trocar o endpoint não gera saldo. A primeira chamada foi aceita e devolveu erro terminal antes de gerar arquivo; causa não informada. Não repetir esse job nem declarar lipsync validado.
 
-Arquivos/checkpoints ficam em `output/free-video-jobs/<hash>/`. `events.jsonl` informa aceitação/pronto/bloqueio. Cada grupo tem limite local de duas submissões por dia UTC, independente da quota externa; mudar de Space/token não renova esse limite. Não gera em duplicidade, não usa Modal, não acrescenta método de pagamento. Apenas serviços públicos autorizados, sem scraping.
+Arquivos/checkpoints ficam em `output/free-video-jobs/<hash>/`. `events.jsonl` informa aceitação/pronto/bloqueio. Cada grupo tem limite local de duas submissões por dia UTC, independente da quota externa; mudar de Space/token não renova esse limite. As duas chamadas de pesquisa FlashHead em 08/10 foram contabilizadas nesse ledger. Não gera em duplicidade, não usa Modal, não acrescenta método de pagamento. Apenas serviços públicos autorizados, sem scraping.
 
 ## Retomar e revisar
 
@@ -45,7 +47,7 @@ node --experimental-strip-types scripts/render-free-story-shot.mts --resume docs
 
 Sem identificador após envio incerto, não reenvie: concilie antes. Resultado pronto é reutilizado por hash. Se o processo terminar abruptamente com `provider.lock`, confira o PID e o estado do job antes de remover o lock órfão; não remova durante processamento. Nunca altere o ledger para contornar limite externo.
 
-Pode limitar uma consulta a `--wait-seconds=30`. Isso apenas consulta a mesma chamada; não cancela nem reenvia uma inferência. Erro terminal exige inspeção, não nova tentativa automática. O teste S2V desta rodada falhou após aceitação, portanto essa rota ainda não comprova produção gratuita de diálogos. A rota I2V gerou a reação corporal em cerca de um minuto, mas continua em avaliação de qualidade.
+Pode limitar uma consulta a `--wait-seconds=30`. Isso apenas consulta a mesma chamada; não cancela nem reenvia uma inferência. Erro terminal exige inspeção, não nova tentativa automática. O teste S2V patrocinado anterior falhou após aceitação. A rota I2V gerou uma reação corporal em cerca de um minuto, mas continua em avaliação de qualidade. FlashHead Lite passou no transporte e na inspeção inicial de quadros; continua restrito à prévia até revisão audiovisual da fala, gestos e integração em uma história completa.
 
 `qa.json` verifica transporte/decode/cobertura/resolução/FPS codificado e registra revisão pendente. Assistir todos os segundos e conferir identidade, oclusões, mãos, emoção, início/fim da ação e fala/boca. FPS de arquivo não comprova FPS nativo ou poses novas. Aprovação audiovisual continua humana.
 
@@ -55,15 +57,16 @@ O novo avaliador `assessStoryCoverage` do core mede cobertura no modo `animated_
 
 ```powershell
 node --experimental-strip-types scripts/assemble-free-story-preview.mts
+node --experimental-strip-types scripts/assemble-free-story-preview.mts --flashhead
 ```
 
-Reutiliza o I2V aceito e o diálogo Modal existente para uma prévia de 6,817s com três cortes: conjunto, fala da Malu e reação. NÃO é um diálogo novo produzido gratuitamente. Original WAV, hashes, contagem de quadros, decode e transporte temporal são conferidos. Guarda resultado em `output/free-story-sequence/`. O arquivo usa 60 FPS para compatibilidade de montagem; conversão do I2V de 16 FPS duplica quadros, não cria gestos. Sem loops, alteração de velocidade, novas chamadas, episódio, banco, Telegram ou publicação. A gravação anterior de diálogo continua tendo seu custo histórico.
+O primeiro comando mantém a prévia anterior com diálogo Modal. `--flashhead` monta uma segunda prévia de 6,817 s com **apenas tomadas geradas em rotas gratuitas**: reação I2V anterior e fala FlashHead desta pesquisa. Guarda resultado em `output/free-story-sequence-flashhead/a-mala-acao-fala-reacao-flashhead.mp4`. O WAV, os hashes, os 409 quadros, decode e transporte temporal são conferidos; a fala final teve atraso medido zero e correlação PCM 0,9999. Os 60 FPS são formato de montagem: I2V parte de 16 FPS e FlashHead de 25 FPS, portanto há duplicação de quadros, sem novos gestos. Nenhum comando gera um episódio, chama GPU novamente, escreve banco, Telegram ou publicação. A reação foi reutilizada e o close ainda requer revisão artística; não declarar história inteira nova ou qualidade master aprovada.
 
 ## Preparar acesso autenticado para uma futura avaliação
 
 Crie/use sua própria conta gratuita em [Hugging Face](https://huggingface.co/join), confirme o email e crie um token pessoal em [Settings → Access Tokens](https://huggingface.co/settings/tokens), com acesso suficiente para chamar Spaces públicos. Salve apenas `HF_TOKEN=...` em `.env.cloud`, que é ignorado pelo Git. Não envie pelo chat. Não é necessário adicionar cartão ou contratar PRO. Consulte a [documentação de API dos Spaces](https://huggingface.co/docs/hub/spaces-api-endpoints) para as permissões atuais.
 
-Autenticar associa a chamada à quota da conta. Não garante que esse Space com erro passe a funcionar; precisa de nova avaliação autorizada, dentro dos limites e fora do cooldown. Não alterar o ledger para forçar outra tentativa. A quota real ZeroGPU segue a janela do provedor, não o dia UTC do nosso limite preventivo. [Regras atuais de quota](https://huggingface.co/docs/hub/spaces-zerogpu).
+Autenticar associa a chamada à quota da conta. Não garante que todos os Spaces funcionem; cada rota precisa de prova visual e de duração. Não alterar o ledger para forçar outra tentativa. A quota real ZeroGPU segue a janela do provedor, não o dia UTC do nosso limite preventivo. [Regras atuais de quota](https://huggingface.co/docs/hub/spaces-zerogpu).
 
 ## Mini-história com uma reserva de créditos Modal
 

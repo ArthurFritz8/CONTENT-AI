@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { spawnSync } from "node:child_process";
 import type { VideoProvider, VideoShot } from "../../../packages/core/src/stories/video-routing.ts";
 
 // Reviewed public ZeroGPU API; changing the app/model requires a new visual audition.
@@ -23,7 +24,14 @@ export const HF_LIPSYNC = {
   revision: "1bd58b7748557839bb585cb8ab6dd1399b80fcf9", endpoint: "generate",
   hardware: "zero-a10g", kinds: ["dialogue"], mode: "lipsync",
 } as const;
-export type FreeVideoProfile = typeof HF_VIDEO | typeof HF_SPEECH | typeof HF_LIPSYNC;
+/** Apache-2.0 Lite model on a public ZeroGPU Space. Dialogue close-ups only. */
+export const HF_FLASHHEAD = {
+  id: "hf-flashhead-lite", space: "khuong2532002/soulx-flashhead-demo",
+  host: "https://khuong2532002-soulx-flashhead-demo.hf.space",
+  revision: "ab40513381b0d68a4dfc2dc23b5ee667edd068ec", endpoint: "run_inference_streaming",
+  hardware: "zero-a10g", kinds: ["dialogue"], mode: "flashhead",
+} as const;
+export type FreeVideoProfile = typeof HF_VIDEO | typeof HF_SPEECH | typeof HF_LIPSYNC | typeof HF_FLASHHEAD;
 export function freeVideoQuotaLedger(profile: FreeVideoProfile): string {
   return profile.mode === "s2v" ? "speech-quota.json" : "quota.json";
 }
@@ -40,7 +48,8 @@ export function inspectSpaceMetadata(value: unknown, profile: FreeVideoProfile =
     runtime: z.object({ stage: z.literal("RUNNING"), hardware: z.object({ current: z.literal(profile.hardware) }) }),
   }).safeParse(value);
   return { id: profile.id, quota_group: profile.mode === "s2v" ? "wan-sponsored-demo" : "huggingface-account", capabilities: [...profile.kinds],
-    quality: ["preview"], short_edge: 480, output_fps: profile.mode === "lipsync" ? 25 : 16, max_seconds: 5,
+    quality: ["preview"], short_edge: profile.mode === "flashhead" ? 512 : 480,
+    output_fps: profile.mode === "lipsync" || profile.mode === "flashhead" ? 25 : 16, max_seconds: 5,
     available: parsed.success, adapter_ready: true, checked_at: Date.now(), cooldown_until: 0,
     // Sponsored public S2V has no verified recurring allowance; a live endpoint is not proof.
     free_tier: profile.mode === "s2v" ? "unknown" : "recurring",
@@ -51,6 +60,7 @@ export function assertEndpoint(info: unknown, profile: FreeVideoProfile = HF_VID
   const endpoint = (info as { named_endpoints?: Record<string, { parameters?: Array<{ parameter_name?: string }>; api_visibility?: string }> })?.named_endpoints?.[`/${profile.endpoint}`];
   const visibilityValid = endpoint?.api_visibility === "public" || (profile.mode !== "i2v" && endpoint?.api_visibility == null);
   const expected = profile.mode === "i2v" ? params : profile.mode === "s2v" ? ["ref_img", "audio", "resolution"] :
+    profile.mode === "flashhead" ? ["ckpt_dir", "wav2vec_dir", "model_type", "cond_image", "audio_path", "seed", "use_face_crop"] :
     ["audio_path", "video_path", "bbox_shift", "extra_margin", "parsing_mode", "left_cheek_width", "right_cheek_width"];
   if (!visibilityValid || endpoint?.parameters?.map(p => p.parameter_name).join() !== expected.join())
     throw new FreeVideoError("contract_changed");
@@ -63,8 +73,10 @@ function assertStatus(res: Response, submitting = false): void {
 }
 export function assertOutputUrl(value: string, profile: FreeVideoProfile = HF_VIDEO): string {
   const url = new URL(value);
+  const stream = profile.mode === "flashhead" &&
+    /^\/gradio_api\/stream\/[a-f0-9]{32}\/[0-9]+\/[0-9]+\/playlist\.m3u8$/.test(url.pathname);
   if (url.origin !== profile.host || url.username || url.password || url.search || url.hash ||
-    !url.pathname.startsWith("/gradio_api/file=")) throw new FreeVideoError("contract_changed");
+    (!url.pathname.startsWith("/gradio_api/file=") && !stream)) throw new FreeVideoError("contract_changed");
   return url.toString();
 }
 /** SSE can split a UTF-8 character, data line or event across arbitrary packets. */
@@ -94,10 +106,13 @@ export async function readVideoEvent(body: ReadableStream<Uint8Array>, profile: 
           throw new FreeVideoError("generation_failed");
         }
         if (event === "complete") {
+          let parsed: unknown;
+          try { parsed = JSON.parse(data); } catch { throw new FreeVideoError("contract_changed"); }
           const payload = profile.mode === "i2v"
-            ? z.tuple([z.object({ url: z.string() }), z.number()]).safeParse(JSON.parse(data))
-            : profile.mode === "s2v" ? z.tuple([z.object({ video: z.object({ url: z.string() }) })]).safeParse(JSON.parse(data))
-            : z.tuple([z.object({ video: z.object({ url: z.string() }) }), z.string()]).safeParse(JSON.parse(data));
+            ? z.tuple([z.object({ url: z.string() }), z.number()]).safeParse(parsed)
+            : profile.mode === "s2v" || profile.mode === "flashhead"
+              ? z.tuple([z.object({ video: z.object({ url: z.string() }) })]).safeParse(parsed)
+              : z.tuple([z.object({ video: z.object({ url: z.string() }) }), z.string()]).safeParse(parsed);
           if (!payload.success) throw new FreeVideoError("contract_changed");
           const file = payload.data[0];
           return assertOutputUrl("video" in file ? file.video.url : file.url, profile);
@@ -141,6 +156,8 @@ export class FreeVideoProvider {
     const data = this.profile.mode === "i2v" ? [file(uploaded[0]!), shot.prompt, 6,
       "deformed hands, extra fingers, missing fingers, distorted face, changing clothes, morphing objects, text, subtitles, watermark, speaking, lip movement",
       shot.seconds, 1, 1, shot.seed, false] : this.profile.mode === "s2v" ? [file(uploaded[0]!), file(uploaded[1]!), "480P"] :
+      this.profile.mode === "flashhead" ? ["models/SoulX-FlashHead-1_3B", "models/wav2vec2-base-960h", "lite",
+        file(uploaded[0]!), file(uploaded[1]!), shot.seed, false] :
       [file(uploaded[1]!), file(uploaded[0]!), 0, 10, "jaw", 90, 90];
     if (uploaded.length !== (this.profile.mode !== "i2v" ? 2 : 1) ||
       (this.profile.mode !== "i2v") !== (shot.kind === "dialogue")) throw new FreeVideoError("contract_changed");
@@ -163,21 +180,53 @@ export class FreeVideoProvider {
     return readVideoEvent(res.body, this.profile, Math.max(1, expires - Date.now()));
   }
   async download(url: string): Promise<Uint8Array> {
-    const res = await this.http(assertOutputUrl(url, this.profile), { headers: this.headers, redirect: "error", signal: AbortSignal.timeout(120_000) });
+    const validated = assertOutputUrl(url, this.profile);
+    if (this.profile.mode === "flashhead" && validated.endsWith("/playlist.m3u8")) return this.downloadHls(validated);
+    const output = await this.readBounded(validated, 64 * 1024 * 1024);
+    if (output.length < 12 || new TextDecoder().decode(output.slice(4, 8)) !== "ftyp") throw new FreeVideoError("contract_changed");
+    return output;
+  }
+  private async readBounded(url: string, limit: number): Promise<Uint8Array> {
+    const res = await this.http(url, { headers: this.headers, redirect: "error", signal: AbortSignal.timeout(120_000) });
     assertStatus(res);
-    if (!res.body || Number(res.headers.get("content-length")) > 64 * 1024 * 1024) throw new FreeVideoError("contract_changed");
+    if (!res.body || Number(res.headers.get("content-length")) > limit) throw new FreeVideoError("contract_changed");
     const reader = res.body.getReader(), parts: Uint8Array[] = []; let size = 0;
     try {
       while (true) {
         const { value, done } = await reader.read(); if (done) break;
         size += value.length;
-        if (size > 64 * 1024 * 1024) throw new FreeVideoError("contract_changed");
+        if (size > limit) throw new FreeVideoError("contract_changed");
         parts.push(value);
       }
     } finally { void reader.cancel().catch(() => {}); reader.releaseLock(); }
     const output = new Uint8Array(size); let cursor = 0;
     for (const part of parts) { output.set(part, cursor); cursor += part.length; }
-    if (size < 12 || new TextDecoder().decode(output.slice(4, 8)) !== "ftyp") throw new FreeVideoError("contract_changed");
     return output;
+  }
+  private async downloadHls(playlistUrl: string): Promise<Uint8Array> {
+    const playlistBytes = await this.readBounded(playlistUrl, 32 * 1024);
+    const playlist = new TextDecoder("utf-8", { fatal: true }).decode(playlistBytes);
+    const lines = playlist.split(/\r?\n/).filter(Boolean);
+    if (lines[0] !== "#EXTM3U" || lines.at(-1) !== "#EXT-X-ENDLIST") throw new FreeVideoError("unknown");
+    const names = lines.filter(line => !line.startsWith("#"));
+    if (names.length < 1 || names.length > 32 || names.some(name => !/^[a-f0-9-]{36}\.ts$/.test(name)))
+      throw new FreeVideoError("contract_changed");
+    const chunks: Uint8Array[] = []; let total = 0;
+    for (const name of names) {
+      const segment = new URL(name, playlistUrl);
+      if (segment.origin !== this.profile.host || !segment.pathname.startsWith(new URL(playlistUrl).pathname.replace(/playlist\.m3u8$/, "")) ||
+        segment.search || segment.hash) throw new FreeVideoError("contract_changed");
+      const bytes = await this.readBounded(segment.toString(), 20 * 1024 * 1024);
+      total += bytes.length;
+      if (bytes.length === 0 || total > 64 * 1024 * 1024) throw new FreeVideoError("contract_changed");
+      chunks.push(bytes);
+    }
+    // Gradio serves MPEG-TS fragments. Remux only local, validated bytes; FFmpeg never receives a remote URL or token.
+    const remux = spawnSync("ffmpeg", ["-v", "error", "-f", "mpegts", "-i", "pipe:0", "-c", "copy", "-bsf:a", "aac_adtstoasc",
+      "-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1"],
+      { input: Buffer.concat(chunks), maxBuffer: 64 * 1024 * 1024, timeout: 60_000 });
+    if (remux.status !== 0 || remux.stdout.length < 12 || remux.stdout.subarray(4, 8).toString() !== "ftyp")
+      throw new FreeVideoError("contract_changed");
+    return remux.stdout;
   }
 }

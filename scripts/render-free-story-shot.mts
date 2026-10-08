@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { canonicalStringify, sha256Hex } from "../packages/core/src/validators/hash-utils.ts";
 import { createHash } from "node:crypto";
 import { routeVideoShot, videoShotSchema } from "../packages/core/src/stories/video-routing.ts";
-import { FreeVideoError, FreeVideoProvider, HF_VIDEO, HF_SPEECH, HF_LIPSYNC, freeVideoQuotaLedger } from "../apps/local-renderer/src/free-video-provider.ts";
+import { FreeVideoError, FreeVideoProvider, HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, freeVideoQuotaLedger } from "../apps/local-renderer/src/free-video-provider.ts";
 
 const root = resolve(import.meta.dirname, ".."), out = join(root, "output", "free-video-jobs");
 const mode = process.argv[2];
@@ -33,7 +33,7 @@ async function read<T>(path: string, missing: T): Promise<T> {
   catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return missing; throw e; }
 }
 if (mode === "--inspect") {
-  for (const profile of [HF_VIDEO, HF_SPEECH, HF_LIPSYNC]) {
+  for (const profile of [HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD]) {
     try {
       const capacity = await new FreeVideoProvider(token, fetch, profile).inspect();
       await save(join(out, `${profile.id}-capacity.json`), capacity);
@@ -46,9 +46,20 @@ if (mode === "--inspect") {
 const path = process.argv[3]; if (!path) throw new Error("Plano da tomada obrigatório");
 const shot = videoShotSchema.parse(JSON.parse(await readFile(resolve(path), "utf8")));
 const providerArg = process.argv.find(v => v.startsWith("--provider="))?.split("=")[1];
-if (providerArg && providerArg !== HF_LIPSYNC.id) throw new Error("Provedor explícito permitido: hf-musetalk");
-if (providerArg && shot.kind !== "dialogue") throw new Error("MuseTalk só recebe diálogo; não gera atuação corporal");
-const profile = providerArg ? HF_LIPSYNC : shot.kind === "dialogue" ? HF_SPEECH : HF_VIDEO;
+if (providerArg && ![HF_LIPSYNC.id, HF_FLASHHEAD.id, HF_SPEECH.id].includes(providerArg))
+  throw new Error("Provedor explícito não reconhecido");
+if (providerArg === HF_SPEECH.id && mode === "--run")
+  throw new Error("S2V patrocinado sem gratuidade recorrente comprovada; somente retomar chamadas existentes");
+if (providerArg && shot.kind !== "dialogue") throw new Error("Este provedor só recebe diálogo; não gera atuação corporal");
+// A previously accepted S2V call keeps its original fingerprint and can still be reconciled.
+const { min_output_fps: legacyMinFps, ...legacyShot } = shot;
+const legacyKey = mode === "--resume" && !providerArg && shot.kind === "dialogue"
+  ? await sha256Hex(canonicalStringify({ shot: { ...legacyShot, min_native_fps: legacyMinFps },
+      provider: { id: HF_SPEECH.id, space: HF_SPEECH.space, host: HF_SPEECH.host,
+        revision: HF_SPEECH.revision, endpoint: HF_SPEECH.endpoint }, steps: 6, guidance: 1 })) : null;
+const legacyState = legacyKey ? await read<{ status?: string } | null>(join(out, legacyKey, "state.json"), null) : null;
+const profile = providerArg === HF_LIPSYNC.id ? HF_LIPSYNC : providerArg === HF_SPEECH.id || legacyState ? HF_SPEECH :
+  providerArg === HF_FLASHHEAD.id || shot.kind === "dialogue" ? HF_FLASHHEAD : HF_VIDEO;
 const provider = new FreeVideoProvider(token, fetch, profile);
 const image = await readFile(resolve(root, shot.reference_path));
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
@@ -69,7 +80,9 @@ if (shot.kind === "dialogue") {
 const fingerprintProfile = { id: profile.id, space: profile.space, host: profile.host, revision: profile.revision, endpoint: profile.endpoint };
 // The first audition used this legacy label; preserve its cache without inferring native motion FPS.
 const { min_output_fps, ...fingerprintShot } = shot;
-const parameters = profile.mode === "lipsync" ? { bbox_shift: 0, extra_margin: 10, parsing_mode: "jaw", left_cheek_width: 90, right_cheek_width: 90 } : { steps: 6, guidance: 1 };
+const parameters = profile.mode === "lipsync" ? { bbox_shift: 0, extra_margin: 10, parsing_mode: "jaw", left_cheek_width: 90, right_cheek_width: 90 } :
+  profile.mode === "flashhead" ? { model_type: "lite", use_face_crop: false, source_audio_remux: true } :
+  { steps: 6, guidance: 1 };
 const key = await sha256Hex(canonicalStringify({ shot: { ...fingerprintShot, min_native_fps: min_output_fps }, provider: fingerprintProfile, ...parameters }));
 const folder = join(out, key); await mkdir(folder, { recursive: true });
 type State = { status: "prepared" | "submitting" | "accepted" | "downloaded" | "review" | "blocked" | "unknown";
@@ -111,8 +124,9 @@ try {
       if (!routing.selected) throw new Error(`Sem provedor compatível: ${routing.reasons.map(r => r.reason).join(", ")}`);
       const day = new Date().toISOString().slice(0, 10), attempts = ledger.day === day ? ledger.attempts : 0;
       if (attempts >= 2) throw new Error("Limite local de duas tentativas/dia atingido; não é a cota anunciada pelo provedor");
-      await save(join(folder, "request.json"), { key, shot, provider: profile, ...(profile.mode === "i2v" ? { steps: 6 } : { motion_prompt_supported: false, seed_supported: false }),
-        ...(profile.mode === "lipsync" ? { parameters, body_motion_generated: false } : {}) });
+      await save(join(folder, "request.json"), { key, shot, provider: profile, ...(profile.mode === "i2v" ? { steps: 6 } :
+        { motion_prompt_supported: false, seed_supported: profile.mode === "flashhead" }),
+        ...(["lipsync", "flashhead"].includes(profile.mode) ? { parameters, body_motion_generated: false } : {}) });
       phase = "upload";
       const uploaded = await provider.upload(image, audio);
       // Persist reservation and unknown submission state BEFORE the non-idempotent request.
@@ -131,8 +145,20 @@ try {
     if (state.status !== "downloaded") {
       phase = "download";
       const bytes = await provider.download(state.output_url!);
-      await writeFile(join(folder, "clip.mp4"), bytes);
-      state = { ...state, status: "downloaded", output_sha256: digest(bytes) }; await save(statePath, state);
+      let finalBytes = bytes;
+      if (profile.mode === "flashhead") {
+        if (!audio) throw new Error("FlashHead exige a voz original");
+        const raw = join(folder, "raw-stream.mp4"), final = join(folder, "clip.mp4");
+        await writeFile(raw, bytes);
+        const normalization = spawnSync("ffmpeg", ["-y", "-v", "error", "-i", raw, "-i", resolve(root, shot.audio_path!),
+          "-map", "0:v:0", "-map", "1:a:0", "-vf", "setpts=PTS-STARTPTS", "-t", String(shot.seconds), "-r", "25",
+          "-c:v", "libx264", "-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p",
+          "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", final],
+          { encoding: "utf8", timeout: 60_000 });
+        if (normalization.status !== 0) throw new Error("Normalização de áudio/vídeo falhou");
+        finalBytes = await readFile(final);
+      } else await writeFile(join(folder, "clip.mp4"), bytes);
+      state = { ...state, status: "downloaded", output_sha256: digest(finalBytes) }; await save(statePath, state);
     }
     phase = "audit";
     const video = join(folder, "clip.mp4");
@@ -157,10 +183,13 @@ try {
       audioAlignment = JSON.parse(aligned.stdout);
     }
     await save(join(folder, "qa.json"), { decode_verified: true, width: stream.width, height: stream.height,
-      encoded_fps: fps, expected_native_fps_from_source: profile.mode === "i2v" ? 16 : null, seconds: Number(info.format.duration), sha256: state.output_sha256,
+      encoded_fps: fps, expected_native_fps_from_source: profile.mode === "i2v" ? 16 : profile.mode === "flashhead" ? 25 : null,
+      seconds: Number(info.format.duration), sha256: state.output_sha256,
       audio_alignment: audioAlignment,
       human_review_pending: true, lip_sync_verified: false, production_enabled: false, cash_charge_usd: 0,
       ...(profile.mode === "lipsync" ? { scope: "mouth inpainting over image; no generated body motion", parameters } : {}),
+      ...(profile.mode === "flashhead" ? { scope: "dialogue close-up; no full-body motion or prompt-controlled acting",
+        source_audio_remuxed: true, source_resolution: "512x512", parameters } : {}),
       visual_checks: ["identidade", "mãos e anatomia", "ação completa", "continuidade", "ausência de fala inventada"] });
     state = { ...state, status: "review" }; await save(statePath, state);
     await report("clip_ready_for_review", { job: key, path: video, human_review_pending: true, production_enabled: false });
