@@ -50,6 +50,8 @@ def main():
     if sys.argv[1:] not in (["--preflight"], ["--run"]):
         raise RuntimeError("Use --preflight ou --run")
     run = sys.argv[1] == "--run"
+    if run:
+        raise SystemExit("OmniAvatar vetado: rosto e olhos borrados. Nova geracao bloqueada antes de qualquer chamada ao provedor.")
     OUT.mkdir(parents=True, exist_ok=True)
     lock_path = ROOT / "output/free-video-jobs/provider.lock"
     fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
