@@ -6,13 +6,22 @@ import { storyArtwork } from "../../../packages/core/src/stories/art";
 import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories/schema";
 type Chapter = { number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean };
 type Series = { id: string; bible: SeriesBible; chapters: Chapter[] };
-type Overview = { series: Series[]; remaining: number; daily_cap: number; generated_today: number; active: number; proposals_remaining: number; capacity: { unavailable?: boolean } };
+type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null };
+type Overview = { series: Series[]; remaining: number; daily_cap: number; generated_today: number; active: number; proposals_remaining: number; capacity: { unavailable?: boolean };
+  videoCapacity?: { wallets: VideoWallet[]; series_profiles: Array<{ series_id: string; profile_sha256: string; compatible_wallets: string[] }>; unavailable?: boolean } };
+function walletAmount(value: number | null, unit: string) {
+  if (value === null) return "Não confirmado";
+  if (unit === "usd_micro") return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(value / 1_000_000);
+  if (unit === "gpu_milliseconds") return `${(value / 60_000).toFixed(1)} minutos de GPU`;
+  return `${value} créditos`;
+}
 const genres = { comedy: "Comédia", mystery: "Mistério", drama: "Drama leve", adventure: "Aventura" };
 const progress: Record<string,string> = { idea: "Preparando capítulo", research: "Conferindo continuidade", script: "Criando roteiro e ilustrações", assets: "Renderizando vídeo", rendered: "Conferindo qualidade", review: "Pronto para revisão", failed: "Geração interrompida — veja os detalhes", published: "Publicado", analyze: "Publicado" };
 
 export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refresh: number }) {
   const [kind,setKind] = useState<"factual" | "original" | "fruits">("factual");
   const [premise,setPremise] = useState(""), [genre,setGenre] = useState("comedy"), [chapters,setChapters] = useState(3);
+  const [creationMode,setCreationMode] = useState<"manual" | "automatic">("manual");
   const [data,setData] = useState<Overview | null>(null), [error,setError] = useState(""), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false);
   const request = useRef<{ key: string; id: string } | null>(null);
   const [version,setVersion] = useState(0);
@@ -41,7 +50,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   async function propose() {
     setBusy(true);setError("");setNotice("");
     try {
-      const input = { kind, genre, chapters, premise }, key = JSON.stringify(input);
+      const input = { kind, genre, chapters, premise, creation_mode: creationMode }, key = JSON.stringify(input);
       await jsonPost("/api/stories",{ action:"propose",input,requestId:requestId(key) });
       request.current=null;setVersion(v=>v+1);setNotice("Proposta criada. Confira os personagens e capítulos abaixo antes de gerar.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível criar a proposta."); }
@@ -78,17 +87,28 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
         <h2>{storyKinds[kind]}</h2>
         <p>Crie a proposta, confira o elenco e gere um capítulo por vez. Vídeos ilustrados de pelo menos 60 segundos, com narração e legendas.</p>
         <div className="story-capacity" role="status">
-          {data ? <><strong>{data.capacity.unavailable ? "Capacidade indisponível" : `Até ${data.remaining} vídeo${data.remaining===1 ? "" : "s"} estimado${data.remaining===1 ? "" : "s"} hoje`}</strong>
+          {data ? <><strong>{data.capacity.unavailable ? "Capacidade de roteiros indisponível" : `Até ${data.remaining} roteiro${data.remaining===1 ? "" : "s"} estimado${data.remaining===1 ? "" : "s"} hoje`}</strong>
             <span>{data.generated_today}/{data.daily_cap} do limite diário utilizado{data.active ? " · há uma geração em andamento" : ""}. Propostas restantes: {data.proposals_remaining}/3.</span></> : "Consultando disponibilidade…"}
         </div>
-        <p className="muted">Estimativa compartilhada entre os formatos; pode variar com as cotas gratuitas e correções do roteiro. Contadores do Studio renovam à 0h UTC (21h em Brasília).</p>
+        <p className="muted">Esta estimativa é de roteiros e do limite diário do Studio. A capacidade de animação depende de saldo e fontes compatíveis com sua novela. Contadores do Studio renovam à 0h UTC (21h em Brasília).</p>
+        <details><summary>Fontes e saldo para animação</summary>
+          {!data?.videoCapacity?.wallets.length ? <p>Saldo de animação ainda não conectado ao Studio. A integração do Modal está em preparação.</p> : data.videoCapacity.wallets.map(w=><div key={w.id}>
+            <p><strong>{w.label}</strong> · Saldo: {walletAmount(w.remaining_units,w.unit)} · Reservado: {walletAmount(w.reserved_units,w.unit)} · Disponível para novos trabalhos: {walletAmount(w.available_units,w.unit)}</p>
+            <p className="muted">{w.checked_at ? `Consultado em ${new Date(w.checked_at).toLocaleString("pt-BR")}. ` : "Consulta de saldo pendente. "}{w.renews_at ? `Renovação prevista: ${new Date(w.renews_at).toLocaleString("pt-BR")}.` : "Renovação ainda não confirmada."}</p>
+          </div>)}
+          <p className="muted">Segundos e capítulos dependem do plano de cenas e da compatibilidade com o padrão da novela.</p>
+        </details>
+        <div className="content-type-options" aria-label="Como criar sua novela">
+          <button className={`content-type-card ${creationMode==="manual" ? "selected" : ""}`} aria-pressed={creationMode==="manual"} disabled={busy} onClick={()=>setCreationMode("manual")}><strong>Criar com minha ideia</strong><span>Descreva a história que você quer desenvolver.</span></button>
+          <button className={`content-type-card ${creationMode==="automatic" ? "selected" : ""}`} aria-pressed={creationMode==="automatic"} disabled={busy} onClick={()=>setCreationMode("automatic")}><strong>Criar novela automaticamente</strong><span>O sistema cria sinopse, personagens, relações e arco da história.</span></button>
+        </div>
         <div className="studio-form-grid">
           <label>Tom da história<select value={genre} onChange={e=>setGenre(e.target.value)}>{Object.entries(genres).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
           <label>Quantidade de capítulos<select value={chapters} onChange={e=>setChapters(Number(e.target.value))}>{[1,3,6].map(n=><option key={n} value={n}>{n===1 ? "1 — história independente" : `${n} — minissérie`}</option>)}</select></label>
         </div>
-        <label>Sua ideia<textarea rows={3} maxLength={1000} value={premise} onChange={e=>setPremise(e.target.value)} placeholder={kind==="fruits" ? "Uma maçã e uma laranja disputam a barraca da feira, mas encontram um segredo que muda a amizade…" : "Dois vizinhos encontram uma carta antiga e precisam decidir quem vai descobrir seu segredo…"}/></label>
-        <p className="muted">30–1.000 caracteres. A proposta apresenta o elenco e o enredo; ainda não gera vídeo.</p>
-        <div className="studio-actions"><button className="button primary" disabled={busy || premise.trim().length<30 || data?.proposals_remaining===0} onClick={()=>void propose()}>{busy ? "Preparando…" : "Criar proposta"}</button><span className="muted">Formato: ilustrações originais. Cenas animadas aguardam disponibilidade de um provedor.</span></div>
+        <label>{creationMode==="automatic" ? "Preferências (opcional)" : "Sua ideia"}<textarea rows={3} maxLength={1000} value={premise} onChange={e=>setPremise(e.target.value)} placeholder={creationMode==="automatic" ? "Pode deixar em branco ou sugerir: mistério na feira, amizade e uma grande revelação…" : kind==="fruits" ? "Uma maçã e uma laranja disputam a barraca da feira, mas encontram um segredo que muda a amizade…" : "Dois vizinhos encontram uma carta antiga e precisam decidir quem vai descobrir seu segredo…"}/></label>
+        <p className="muted">{creationMode==="automatic" ? "Nenhuma ideia precisa ser preenchida. Pode usar até 1.000 caracteres para orientar a proposta." : "30–1.000 caracteres."} A proposta usa a cota de texto; ainda não gera vídeo.</p>
+        <div className="studio-actions"><button className="button primary" disabled={busy || (creationMode==="manual" && premise.trim().length<30) || !data || data.proposals_remaining===0} onClick={()=>void propose()}>{busy ? "Preparando…" : creationMode==="automatic" ? "Criar novela automaticamente" : "Criar proposta"}</button><span className="muted">Formato: ilustrações originais. Cenas animadas aguardam disponibilidade de um provedor.</span></div>
         {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status">{notice}</p>}
       </section>
       <section className="story-series" aria-label="Suas histórias">
@@ -96,12 +116,18 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           const last = s.chapters.at(-1), finished = !!last?.approved && last.number>=s.bible.chapters.length;
           const pending = last?.idea_status==="pending", retry = last?.status==="failed", waiting = !!last && !pending && !last.approved && !retry;
           const cancelled = last?.idea_status==="rejected";
+          const production = data?.videoCapacity?.series_profiles.find(p=>p.series_id===s.id);
           const context = {series_id:s.id,bible:s.bible,chapter_number:1,previous_summaries:[]};
           const preview = storyArtwork(context,{speaker_id:s.bible.cast[0]!.id,on_stage:s.bible.cast.map(c=>c.id),setting:"garden",mood:"happy"},"portrait");
           return <article className="panel studio-feature" key={s.id}>
             <div className="story-proposal-layout"><img className="story-art-preview" src={`data:image/svg+xml,${encodeURIComponent(preview)}`} alt={`Prévia das ilustrações de ${s.bible.title}`} width={1080} height={1920}/>
             <div><h3>{s.bible.title}</h3><p>{s.bible.premise}</p>
-              <h4>Elenco fixo</h4><div className="story-cast">{s.bible.cast.map(c=><div key={c.id}><strong><i style={{background:c.color}}/>{c.name}</strong><span>{c.personality}</span><small>{c.voice==="female" ? "Voz feminina" : "Voz masculina"}</small></div>)}</div>
+              <p className="muted">{production ? `${production.compatible_wallets.length} fonte(s) qualificada(s) para o padrão desta novela. Capacidade de capítulos aguarda o plano de cenas.` : "Padrão animado ainda não configurado. Os capítulos deste fluxo usam ilustrações."}</p>
+              {s.bible.world && <p><strong>Universo:</strong> {s.bible.world}</p>}
+              {s.bible.central_conflict && <p><strong>Conflito:</strong> {s.bible.central_conflict}</p>}
+              <h4>Elenco fixo</h4><div className="story-cast">{s.bible.cast.map(c=><div key={c.id}><strong><i style={{background:c.color}}/>{c.name}</strong><span>{c.personality}</span>{c.goal && <span>Objetivo: {c.goal}</span>}{c.appearance_description && <small>{c.appearance_description}</small>}<small>{c.voice==="female" ? "Voz feminina" : "Voz masculina"}</small></div>)}</div>
+              {!!s.bible.relationships?.length && <details><summary>Relações entre os personagens</summary>{s.bible.relationships.map((r,i)=><p key={i}><strong>{s.bible.cast.find(c=>c.id===r.from)?.name} e {s.bible.cast.find(c=>c.id===r.to)?.name}:</strong> {r.description}</p>)}</details>}
+              {s.bible.ending && <details><summary>Desfecho planejado (contém spoilers)</summary><p>{s.bible.ending}</p></details>}
               <details><summary>Ver plano dos {s.bible.chapters.length} capítulos</summary><ol>{s.bible.chapters.map((c,i)=><li key={i}><strong>{c.title}</strong><p>{c.arc}</p></li>)}</ol></details>
             </div></div>
             <div className="story-chapters">{s.chapters.map(c=><div key={c.number}><strong>Capítulo {c.number}</strong><span>{c.approved ? "Aprovado para continuidade" : c.idea_status==="rejected" ? "Cancelado" : c.idea_status==="pending" ? "Na fila — pronto para gerar" : progress[c.status ?? ""] || "Aguardando"}</span>{c.episode_id && <Link className="button small secondary" href={`/studio/episodes/${c.episode_id}`}>{c.status==="review" ? "Revisar vídeo" : "Ver geração"}</Link>}</div>)}</div>

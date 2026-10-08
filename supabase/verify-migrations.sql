@@ -28,6 +28,15 @@ begin
       raise exception 'Missing table or RLS: %',tbl;
     end if;
   end loop;
+  foreach tbl in array array['studio_video_wallets','studio_video_wallet_access','studio_series_production','studio_video_compatibility','studio_video_requests','studio_video_jobs'] loop
+    if not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=tbl and c.relrowsecurity) then
+      raise exception 'Video production table missing RLS: %',tbl;
+    end if;
+  end loop;
+  if has_function_privilege('authenticated','public.studio_reserve_video(uuid,uuid,uuid,uuid,text,jsonb)','execute')
+    or has_function_privilege('anon','public.claim_video_job(uuid)','execute') then
+    raise exception 'Video production worker RPC is exposed';
+  end if;
   if not exists(select 1 from pg_trigger where tgname='episodes_z_gate' and not tgisinternal) then raise exception 'Approval gate missing'; end if;
   if has_function_privilege('anon','public.consume_next_idea()','execute') then raise exception 'Unsafe RPC permissions'; end if;
   if not exists(select 1 from storage.buckets where id='assets' and public) then raise exception 'Public assets bucket missing'; end if;

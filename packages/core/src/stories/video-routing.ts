@@ -16,6 +16,7 @@ export const videoShotSchema = z.object({
   quality: z.enum(["preview", "approved_master"]),
   min_short_edge: z.number().int().min(480).max(2160),
   min_output_fps: z.number().int().min(16).max(60),
+  continuity: z.object({ series_id: z.string().uuid(), profile_sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
 }).strict().superRefine((v, ctx) => {
   if ((v.kind === "dialogue") !== Boolean(v.audio_sha256))
     ctx.addIssue({ code: "custom", message: "Somente diálogo exige o hash do áudio sincronizado" });
@@ -44,6 +45,9 @@ export interface VideoProvider {
   required: number;
   cash_cost: number;
   adapter_ready: boolean;
+  execution_sha256?: string;
+  continuity_approvals?: Array<{ series_id: string; profile_sha256: string; execution_sha256: string;
+    capabilities: VideoShot["kind"][] }>;
 }
 
 /** Pure preflight; a dispatcher must reserve atomically before submitting. */
@@ -61,6 +65,10 @@ export function routeVideoShot(raw: unknown, providers: VideoProvider[], now = D
     else if (p.free_tier === "trial") reason = "non_recurring_offer";
     else if (p.free_tier !== "recurring" && p.free_tier !== "permanent") reason = "unverified_free_access";
     else if (p.cash_cost !== 0) reason = "cash_not_allowed";
+    else if (shot.quality === "approved_master" && !shot.continuity) reason = "missing_series_profile";
+    else if (shot.continuity && (!p.execution_sha256 || !p.continuity_approvals?.some(a =>
+      a.series_id === shot.continuity!.series_id && a.profile_sha256 === shot.continuity!.profile_sha256 &&
+      a.execution_sha256 === p.execution_sha256 && a.capabilities.includes(shot.kind)))) reason = "series_incompatible";
     else if (!p.capabilities.includes(shot.kind)) reason = "incompatible_task";
     else if (!p.quality.includes(shot.quality) || p.short_edge < shot.min_short_edge ||
       p.output_fps < shot.min_output_fps || p.max_seconds < shot.seconds) reason = "quality_contract";
