@@ -1,6 +1,20 @@
 # Produção automática com gratuidade recorrente
 
+## Descoberta posterior em 08/10: Auray, candidata a segunda fonte
+
+A [página atual de preços](https://auray.ai/pricing) anuncia plano Free de **50 créditos renovados por mês**, vídeo no plano e geração por chave de API. A consulta somente leitura ao contrato vivo `GET https://api.auray.ai/v1/plans` em 08/10 confirmou `credits_per_month=50`, `trial_days=0`, `limits.video.enabled=true`, duração máxima de 15 s, uma geração simultânea e `limits.api.may_generate=true` com cinco gerações/minuto. O catálogo público `GET https://api.auray.ai/v1/catalogue` marcou `auray-ai/minimax-h3/text-to-video` como `connected`. Nenhuma conta, chave ou geração foi criada nesta inspeção.
+
+O [OpenAPI público desse modelo](https://api.auray.ai/v1/models/auray-ai/minimax-h3/text-to-video/openapi.json) aceita prompt, `first_frame_path` ou até nove `reference_image_paths` (enviadas antes pelo endpoint de upload), semente e clipes de 5–15 s. O único `tier` documentado é `fast`, descrito como oito passos; não há parâmetro de WAV/voz própria. Portanto, pode animar personagens e criar áudio do próprio modelo, mas **não** está provado que reproduza a voz, atuação e sincronização aprovadas com Wan S2V no Modal. O site estima quatro clipes de 15 s com 50 créditos; conferir o preço retornado pela conta antes de cada job. Plano Free não habilita todos os modelos de terceiros do catálogo.
+
+Os [termos da Auray](https://app.auray.ai/terms) dizem que resultados podem ser usados comercialmente na medida permitida pela licença do modelo; para MiniMax exigem atribuição e divulgação de IA. Confirmar esses termos no cadastro e na licença aplicável ao output antes de publicação. A rota só passa de **candidata** a **fallback de produção** depois de uma tomada com nossa imagem, auditoria quadro a quadro, teste da fala em português e verificação de saldo/cota reais da conta. A API pode ser integrada à fila atual com upload, chave restrita ao vídeo, teto mensal por chave, idempotência, polling e download; não acionar compras ou outros modelos por engano.
+
+Google AI Pro também anuncia [US$10/mês em crédito Cloud](https://developers.google.com/profile/help/benefits) aplicável a Vertex AI, que expõe Veo por API. Porém, a conta de faturamento exibida pelo operador está **fechada** e o benefício não foi resgatado. A segunda conta Pro ainda não foi verificada; só será uma terceira rota depois de confirmar crédito aplicado, conta ativa e ausência de pré-pagamento. Os [spend caps](https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps) incluem Vertex AI, mas sua aplicação pode atrasar e cobrar excedente: não equivalem a garantia absoluta de custo zero. Créditos de vídeo do Flow são outra carteira e não têm API de débito demonstrada.
+
+Outras verificações: a [fal](https://fal.ai/minimax-h3-max) oferece cinco gerações diárias no sandbox do navegador, mas declara que chamar o modelo pela API é pago; [PixVerse](https://docs.platform.pixverse.ai/subscribe-api-plans-882969m0) separa a assinatura/API do site e exige contratação para créditos da API; [Replicate](https://replicate.com/docs/topics/billing/) permite alguns testes sem cobrança, mas pede faturamento após uso limitado. Nenhum entra como fallback automático gratuito recorrente comprovado.
+
 Atualização: o token HF foi configurado e uma nova tomada FlashHead foi produzida e auditada no mesmo dia. Consulte [ADR-067](../ADR/ADR-067-close-gratuito-flashhead-com-hls-e-voz-original.md) e [capacidade gratuita verificável](capacidade-gratuita-novelas-2026-10-08.md). As frases abaixo sobre token ausente e geração ainda não realizada descrevem o estado anterior a esse teste.
+
+**Correção de elegibilidade (08/10):** Kaggle não entra como executor da novela ou do Studio. Seus [termos de uso vigentes](https://www.kaggle.com/terms) restringem o serviço a uso interno, pessoal e não comercial, sem benefício de terceiros. GPU e API técnica não substituem autorização para o produto que publicará e monetizará vídeos ou atenderá clientes. Não solicitar cadastro/chave Kaggle ao operador para produção.
 
 Data: 08/10/2026. Decisão explícita do operador: aceitar apenas serviço gratuito ou franquia gratuita renovável. Benefícios de entrada, mesmo com saldo, não compensam e ficam fora. Este documento substitui as prioridades de cadastro/teste do levantamento anterior.
 
@@ -11,7 +25,7 @@ Data: 08/10/2026. Decisão explícita do operador: aceitar apenas serviço gratu
 | Modal Functions Starter | US$30 de compute por mês | Recorrente; execução de fala já demonstrada, com bloqueio de desembolso. Shared Endpoints não são essa franquia |
 | Hugging Face ZeroGPU | Cinco minutos/dia por conta gratuita | Recorrente; I2V demonstrado em prévia. MuseTalk/LatentSync ainda precisam demonstrar fala com o elenco. Endpoints compartilham cota |
 | Hugging Face Inference Providers roteado | US$0,10/mês para usuário gratuito, sujeito a mudança | Recorrente, mas pequeno; não há rota de nosso diálogo com custo total e qualidade demonstrados nessa reserva |
-| Kaggle GPU | GPU gratuita sujeita a disponibilidade e cota | Candidato para execução em lote; adequação ao modelo e ao uso do projeto ainda pendente. Não habilitado |
+| Kaggle GPU | GPU gratuita sujeita a disponibilidade e cota | Excluído para produção comercial/terceiros pelos termos; não habilitado |
 
 Fontes: [Modal](https://modal.com/pricing), [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu), [Inference Providers](https://huggingface.co/docs/inference-providers/en/pricing), [Kaggle](https://www.kaggle.com/docs/notebooks), [API de notebooks](https://github.com/Kaggle/kaggle-cli).
 

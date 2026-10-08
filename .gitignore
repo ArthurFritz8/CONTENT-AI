@@ -30,6 +30,7 @@ output/
 
 # rascunhos locais (não fazem parte do pipeline versionado)
 tmp/
+/TEMP/
 
 # supabase local
 supabase/.temp/

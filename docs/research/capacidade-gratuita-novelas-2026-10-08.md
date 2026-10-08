@@ -2,6 +2,8 @@
 
 Atualização editorial no mesmo dia: o operador reprovou olhos e fluidez do FlashHead bruto e da variante interpolada. Novas falas nesse provedor foram bloqueadas pelo [ADR-069](../ADR/ADR-069-veto-editorial-do-flashhead-e-proxima-rota.md). As medições técnicas abaixo continuam válidas como histórico, mas FlashHead não é rota aprovada de capítulos. OmniAvatar é candidato sem teste visual; não contá-lo como capacidade disponível.
 
+**Correção de elegibilidade:** Kaggle não pode ser provedor de produção desta novela monetizável ou do Studio para clientes: os [termos oficiais](https://www.kaggle.com/terms) limitam seu uso a fins internos, pessoais e não comerciais e vedam o uso em benefício de terceiros. A linha Kaggle abaixo permanece apenas como histórico de capacidade técnica, não como opção de integração.
+
 Levantamento e teste em 08/10/2026. O requisito é gerar capítulos novos automaticamente, com personagens próprios, áudio sincronizado, gestos e mais de um cenário, sem pagamento ou crédito que expire após o cadastro. Uma demo acessível não equivale a uma franquia adicional ou a um master aprovado.
 
 ## O que foi medido
@@ -19,7 +21,7 @@ Levantamento e teste em 08/10/2026. O requisito é gerar capítulos novos automa
 | [Hugging Face ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) | Conta gratuita: 5 min de GPU/dia, reinício 24 h após o primeiro uso; quota compartilhada por todos os Spaces da conta | Wan I2V para reação/ação curta; SoulX FlashHead Lite para close falado | Ambas têm prévia real; a cota externa restante e a quantidade de tomadas possíveis não são expostas pelo adaptador. Trocar de Space não cria outra quota |
 | [Modal Starter](https://modal.com/pricing) | US$30 de compute incluídos por mês no plano atual | Wan S2V de qualidade aprovada, para falas/gestos em tomadas importantes | Funciona, mas a tomada medida foi cara; saldo atual curto, sem novo teste nesta rodada |
 | [HF Inference Providers](https://huggingface.co/docs/inference-providers/en/pricing) | Crédito mensal gratuito de US$0,10 | Talvez serviços auxiliares | Não há modelo/preço/qualidade provados para uma tomada de novela; não contar como um terceiro gerador de capítulos |
-| [Kaggle Notebooks](https://www.kaggle.com/docs/notebooks) e [CLI oficial](https://github.com/Kaggle/kaggle-cli) | GPU gratuita sujeita a disponibilidade e cota da conta | Pesquisa em lote de modelos abertos menores | Memória, execução automática contínua e adequação a um produto SaaS pendentes; fora do roteador |
+| [Kaggle Notebooks](https://www.kaggle.com/docs/notebooks) e [CLI oficial](https://github.com/Kaggle/kaggle-cli) | GPU gratuita sujeita a disponibilidade e cota da conta | Pesquisa pessoal não comercial, fora do produto | Excluído para produção comercial e clientes pelos [termos](https://www.kaggle.com/terms); fora do roteador |
 
 O [SoulX-FlashHead 1.3B](https://huggingface.co/Soul-AILab/SoulX-FlashHead-1_3B) tem licença Apache-2.0 e versões Lite/Pro. A velocidade de 96 FPS Lite em RTX 4090 é resultado divulgado pelos autores, não a nossa medição nem promessa para ZeroGPU. O Space testado disponibiliza **Lite** e retorna HLS. O adaptador fixa revisão, endpoint e parâmetros; só aceita URLs/segmentos do próprio host; remuxa localmente sem entregar token ao FFmpeg; recoloca o WAV original antes do QA. Saída permanece `preview` e close de diálogo.
 

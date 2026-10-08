@@ -4,6 +4,8 @@ Pesquisa: 08/10/2026. Escopo: documentação oficial, repositórios dos autores,
 
 **Decisão posterior do operador, ADR-066:** excluir créditos de entrada e ofertas sem recorrência comprovada. WaveSpeed, cotas iniciais Alibaba e créditos iniciais Lightning permanecem neste levantamento como histórico, sem recomendação de cadastro ou integração vigente. A ordem de testes abaixo foi substituída por Modal mensal + ZeroGPU diário; Kaggle depende de adequação demonstrada. [Política atual](gratuidade-recorrente-video-2026-10-08.md).
 
+**Correção posterior de elegibilidade:** Kaggle fica excluído da produção desta novela e do Studio para clientes. Os [termos oficiais](https://www.kaggle.com/terms) restringem os serviços a uso interno, pessoal e não comercial, sem benefício de terceiros. Qualquer menção abaixo à GPU Kaggle como candidata é histórica e não constitui recomendação de cadastro ou teste para produção.
+
 ## Veredito e referência de qualidade
 
 Há caminhos legítimos para ampliar a capacidade gratuita. Ainda não foi comprovado um conjunto que sustente capítulos novos ilimitados, automáticos e com a qualidade aprovada. Créditos de entrada ajudam agora; GPU gratuita recorrente exige adaptação, filas e avaliação artística. Quantidade de APIs não equivale a quantidade de franquias independentes.
