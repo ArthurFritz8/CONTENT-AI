@@ -2,6 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const patterns = [
+  /\b(?:ak|as)-[A-Za-z0-9]{20,}/,
+  /\bhf_[A-Za-z0-9]{20,}/,
   /AIza[\w-]{35}/,
   /(?:ghp|gho|ghu|ghs|github_pat)_[A-Za-z0-9_]{30,}/,
   /sk-(?:or-v1-)?[A-Za-z0-9]{32,}/,

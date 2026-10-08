@@ -56,6 +56,19 @@ jobs:
           npm test
           node scripts/test-render.mjs
 
+  test-story-video-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install modal==1.6.1 Pillow==11.3.0
+      - run: bash scripts/setup-ffmpeg.sh
+      - name: Worker offline, sem credenciais ou GPU
+        run: python -m unittest discover -s scripts -p test_story_video_worker.py
+
   test-database:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,7 +82,7 @@ jobs:
           for migration in supabase/migrations/*.sql; do
             sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f "$migration"
           done
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/youtube-shorts.sql -f supabase/tests/buffer-tiktok.sql -f supabase/tests/buffer-youtube.sql -f supabase/tests/telegram-queue.sql -f supabase/tests/web-panel.sql -f supabase/tests/growth.sql -f supabase/tests/studio.sql -f supabase/tests/stories.sql -f supabase/tests/story-video.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/youtube-shorts.sql -f supabase/tests/buffer-tiktok.sql -f supabase/tests/buffer-youtube.sql -f supabase/tests/telegram-queue.sql -f supabase/tests/web-panel.sql -f supabase/tests/growth.sql -f supabase/tests/studio.sql -f supabase/tests/stories.sql -f supabase/tests/story-video.sql -f supabase/tests/story-video-worker.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-video-concurrency-setup.sql
           video_pids=()
@@ -79,6 +92,14 @@ jobs:
           done
           for pid in "${video_pids[@]}"; do wait "$pid"; done
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-video-concurrency-verify.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-worker-concurrency-setup.sql
+          worker_pids=()
+          for i in $(seq 1 12); do
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -v slot="$i" -f supabase/tests/story-worker-concurrency-call.sql > /tmp/content-ai-worker-$i.log &
+            worker_pids+=($!)
+          done
+          for pid in "${worker_pids[@]}"; do wait "$pid"; done
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-worker-concurrency-verify.sql
           pids=()
           for i in $(seq 1 12); do
             sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-call.sql > /tmp/content-ai-concurrency-$i.log &

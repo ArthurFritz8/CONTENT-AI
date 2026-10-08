@@ -4,7 +4,7 @@ Data: 08/10/2026. Estado: proposta para revisão do operador; não representa fu
 
 Revisão 2, em 08/10: incorpora criação automática de conceito e estrutura da novela, padrão audiovisual fixado por novela (inclusive entre capítulos), distinção entre infraestrutura e modelo, capacidade específica para continuidade e validação de migração antes de trocar o gerador. Substitui a preferência anterior de apenas manter uma fonte por capítulo.
 
-Andamento após autorização para implementar: criação automática, contratos de identidade/capacidade e base transacional de reservas implementados e testados localmente. Consulte [ADR-068](ADR/ADR-068-criacao-automatica-e-reserva-de-video.md) para evidências e pendências. A animação pelo painel e a segunda fonte continuam pendentes; o restante deste documento descreve a entrega final planejada.
+Andamento após autorização para implementar: criação automática, contratos de identidade/capacidade e base transacional de reservas implementados e testados localmente. A etapa seguinte extraiu o motor genérico e implementou o worker assíncrono com transporte privado e retomada de tarefas. Consulte [ADR-068](ADR/ADR-068-criacao-automatica-e-reserva-de-video.md) e [ADR-069](ADR/ADR-069-worker-duravel-de-animacao.md) para evidências e pendências. A animação pelo painel, implantação e segunda fonte continuam pendentes; o restante deste documento descreve a entrega final planejada.
 
 ## 1. Decisão de produto
 

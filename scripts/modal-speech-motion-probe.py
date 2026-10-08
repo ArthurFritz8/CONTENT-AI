@@ -16,26 +16,14 @@ import sys
 import time
 
 import modal
+from story_video_engine import ModelSession, generate_speech as engine_generate_speech, STEPS, SEED, MAX_AREA, GENERATION_SETTINGS, NEGATIVE
+from story_video_weights import MODEL, MODEL_REVISION, WAN_COMMIT, RIFE_COMMIT, RIFE_REVISION, RIFE_SHA, FLASH_WHEEL
+from story_video_image import image as production_image
 from story_motion_contract import FRAMES, NATIVE_FPS, OUTPUT_FPS, REFERENCE_SHA, validate_inputs, interpolation_schedule
 import suitcase_story_contract as suitcase_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output/audio-driven-motion-probe"
-MODEL = "Wan-AI/Wan2.2-S2V-14B"
-MODEL_REVISION = "dab4e9c55bbe4c8c4d03db1c2c98c7f0ac9c454b"
-WAN_COMMIT = "1ea34ff48f87168174e12956e200b1d908b1c5ff"
-RIFE_COMMIT = "bbfd2ea90910789a860ea3e2b32a240cd577b75e"
-RIFE_REVISION = "01fdc7e97404120c243c3ea7b427046e5dc7643e"
-RIFE_SHA = "1fa9b9cda3d9b8c3e301359e2595960902f97bf926c08598b0e9957a3f3f760e"
-FLASH_WHEEL = (
-    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/"
-    "flash_attn-2.8.3%2Bcu12torch2.8cxx11abiTRUE-cp311-cp311-linux_x86_64.whl"
-    "#sha256=3d41b2fc55753faa7f45d6568ea73a96b96afb48b82994ab9b49bcbcb6c87588"
-)
-STEPS, SEED, MAX_AREA = 40, 2007, 720 * 1280
-GENERATION_SETTINGS = {"num_repeat": 1, "max_area": MAX_AREA, "shift": 3.0,
-    "sample_solver": "unipc", "sampling_steps": STEPS, "guide_scale": 4.5,
-    "offload_model": True, "init_first_frame": True}
 PROMPT = (
     "A cinematic stylized realistic 3D close-up of the exact adult apple woman in the reference, "
     "speaking the provided Portuguese dialogue to the man out of focus on the right. Her lips and jaw "
@@ -45,11 +33,6 @@ PROMPT = (
     "skin texture, adult human facial proportions, chestnut wavy hair, gold earrings, floral cream "
     "dress and the realistic Brazilian street at golden hour. Only the woman speaks, the man remains "
     "a blurred silent foreground shoulder. Stable camera, continuous coherent fluid acting."
-)
-NEGATIVE = (
-    "changing face, changing identity, distorted lips, extra teeth, missing mouth, permanently open "
-    "mouth, motionless, blinking flicker, changing clothing, deformed hands, extra fingers, fast "
-    "shaking, face morphing, plastic skin, low detail, watermark, text, subtitles, camera cuts"
 )
 EXPRESSIVE_PROMPT = (
     "Cinematic stylized realistic 3D medium close-up of the exact adult apple woman in the reference, "
@@ -107,102 +90,8 @@ def validate_pose(data, expected_sha, frames=FRAMES):
         subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-f", "null", "-"], check=True, timeout=30)
 
 
-def build_models():
-    """CPU build only; pinned public weights and an explicit archive whitelist."""
-    import zipfile
-    from unittest.mock import patch
-    from huggingface_hub import snapshot_download, hf_hub_download
-    sys.path[:0] = ["/opt/wan", "/opt/rife"]
-    # Upstream evaluates the default GPU index at import (T5/CLIP/VAEs).
-    # CPU import preflight does not instantiate these classes; runtime is unpatched.
-    with patch("torch.cuda.current_device", return_value=0):
-        from wan.speech2video import WanS2V
-    assert WanS2V
-    snapshot_download(MODEL, revision=MODEL_REVISION, local_dir="/opt/s2v-model", max_workers=4,
-        allow_patterns=["*.json", "diffusion_pytorch*.safetensors", "models_t5_umt5-xxl-enc-bf16.pth",
-            "Wan2.1_VAE.pth", "google/umt5-xxl/*", "wav2vec2-large-xlsr-53-english/*.json",
-            "wav2vec2-large-xlsr-53-english/model.safetensors", "README.md", "LICENSE*"])
-    archive = Path(hf_hub_download("hzwer/RIFE", "RIFEv4.26_0921.zip", revision=RIFE_REVISION))
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != RIFE_SHA:
-        raise ValueError("RIFE author release fingerprint mismatch")
-    destination = Path("/opt/rife/train_log")
-    destination.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(archive) as package:
-        for name in ("flownet.pkl", "IFNet_HDv3.py", "refine.py", "RIFE_HDv3.py"):
-            (destination / name).write_bytes(package.read("RIFEv4.26_0921/" + name))
-    # Imports are verified before allocating a GPU; no FlashAttention build is required.
-    sys.path[:0] = ["/opt/wan", "/opt/rife"]
-    from train_log.IFNet_HDv3 import IFNet
-    assert WanS2V and IFNet
-    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=s=64x64",
-        "-frames:v", "1", "-c:v", "libx264", "-f", "null", "-"], check=True, timeout=30)
-
-
-def load_interpolator(device="cpu"):
-    import torch
-    sys.path.insert(0, "/opt/rife")
-    from train_log.IFNet_HDv3 import IFNet
-    net = IFNet().eval()
-    state = torch.load("/opt/rife/train_log/flownet.pkl", map_location="cpu", weights_only=True)
-    state = {key.removeprefix("module."): value for key, value in state.items()}
-    # Author checkpoint includes two training-only heads, commented out in IFNet.
-    # All active inference parameters must still match exactly (not blanket strict=False).
-    state = {key: value for key, value in state.items() if not key.startswith(("teacher.", "caltime."))}
-    net.load_state_dict(state, strict=True)
-    return net.to(device)
-
-
-def check_interpolator():
-    load_interpolator()
-    logger.info("RIFE active weights match author inference architecture")
-
-
-image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .apt_install("ffmpeg", "git", "libgl1", "libglib2.0-0")
-    .uv_pip_install("torch==2.8.0", "torchvision==0.23.0", "torchaudio==2.8.0",
-        "numpy==1.26.4", "transformers==4.51.3", "diffusers==0.33.1", "tokenizers==0.21.4",
-        "accelerate==1.11.0", "huggingface_hub==0.36.0", "decord==0.6.0", "librosa==0.11.0",
-        "soundfile==0.13.1", "scipy==1.15.3", "opencv-python-headless==4.11.0.86",
-        "einops==0.8.1", "easydict==1.13", "tqdm==4.67.1", "ftfy==6.3.1",
-        "imageio==2.37.0", "imageio-ffmpeg==0.6.0", "safetensors==0.5.3",
-        "Pillow==11.3.0", "sentencepiece==0.2.1", "protobuf==5.29.5", "peft==0.15.2")
-    .run_commands(
-        "git clone https://github.com/Wan-Video/Wan2.2.git /opt/wan && git -C /opt/wan checkout " + WAN_COMMIT,
-        "git clone https://github.com/hzwer/Practical-RIFE.git /opt/rife && git -C /opt/rife checkout " + RIFE_COMMIT)
-    .add_local_file(ROOT / "scripts/story_motion_contract.py", "/root/story_motion_contract.py", copy=True)
-    .add_local_file(ROOT / "scripts/suitcase_story_contract.py", "/root/suitcase_story_contract.py", copy=True)
-    .run_function(build_models, timeout=1800, cpu=4, memory=16384)
-    # S2V cross-attention calls flash_attention directly, unlike TI2V's SDPA fallback.
-    .uv_pip_install(FLASH_WHEEL)
-    .run_commands("python -c 'import torch, flash_attn; assert torch._C._GLIBCXX_USE_CXX11_ABI; print(flash_attn.__version__)'")
-    .run_function(check_interpolator, timeout=60, cpu=2, memory=2048)
-    .env({"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false",
-        "PYTHONPATH": "/opt/wan:/opt/rife:/opt/experiment"})
-)
+image = production_image.add_local_file(ROOT / "scripts/story_motion_contract.py", "/root/story_motion_contract.py", copy=True).add_local_file(ROOT / "scripts/suitcase_story_contract.py", "/root/suitcase_story_contract.py", copy=True)
 app = modal.App("content-ai-audio-driven-motion-probe")
-
-
-def encode(frames, destination: Path, width: int, height: int, fps: int):
-    """Stream pixels to FFmpeg without retaining another full uncompressed video."""
-    process = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
-        "-s", f"{width}x{height}", "-r", str(fps), "-i", "pipe:0", "-an", "-c:v", "libx264",
-        "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(destination)],
-        stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    try:
-        for frame in frames:
-            if frame.shape != (height, width, 3):
-                raise ValueError("Unexpected frame dimensions")
-            process.stdin.write(frame.tobytes())
-        process.stdin.close()
-        error = process.stderr.read()
-        if process.wait(timeout=120) != 0:
-            raise RuntimeError(error.decode("utf-8", errors="replace")[-2000:])
-    finally:
-        if process.poll() is None:
-            process.kill()
-            process.wait()
-        process.stderr.close()
 
 
 def validate_request(png, wav, audio_sha, *, frames_count=FRAMES,
@@ -216,31 +105,6 @@ def validate_request(png, wav, audio_sha, *, frames_count=FRAMES,
     if not isinstance(prompt, str) or not 100 <= len(prompt) <= 2000 or type(seed) is not int or not 0 <= seed <= 10000:
         raise ValueError("Invalid bounded acting direction")
     return seconds
-
-
-class ModelSession:
-    """Retain weights only inside one two-take experiment, never a warm service."""
-    def __init__(self):
-        self.pipeline = None
-        self.uses = 0
-        self.closed = False
-
-    def acquire(self, factory):
-        if self.closed or self.uses >= 2:
-            raise ValueError("Model session exhausted or closed")
-        reused = self.pipeline is not None
-        self.uses += 1
-        try:
-            if not reused:
-                self.pipeline = factory()
-        except BaseException:
-            self.close()  # no hidden reload/retry after failed construction
-            raise
-        return self.pipeline, reused
-
-    def close(self):
-        self.pipeline = None
-        self.closed = True
 
 
 def validate_batch(requests):
@@ -258,114 +122,12 @@ def validate_batch(requests):
 def generate_speech(png: bytes, wav: bytes, audio_sha: str, *, frames_count=FRAMES,
                     reference_sha=REFERENCE_SHA, prompt=PROMPT, seed=SEED, pose=None, pose_sha=None,
                     model_session=None):
-    entry_start = time.perf_counter()
-    import tempfile
-    import numpy as np
-    import torch
-    import torch.nn.functional as F
-    from PIL import Image, ImageOps
-    from wan.speech2video import WanS2V
-    from wan.configs.wan_s2v_14B import s2v_14B
-    import io
-    imported = time.perf_counter()
-    seconds = validate_request(png, wav, audio_sha, frames_count=frames_count,
+    # Legacy auditions retain their original approved-reference allowlist.
+    validate_request(png, wav, audio_sha, frames_count=frames_count,
         reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha)
-    start = time.perf_counter()
-    stage_seconds = {"imports": imported-entry_start, "input_validation": start-imported}
-    yield {"kind": "progress", "stage": "loading-audio-driven-model"}
-    with tempfile.TemporaryDirectory() as directory:
-        directory = Path(directory)
-        reference = directory / "reference.png"
-        ImageOps.fit(Image.open(io.BytesIO(png)).convert("RGB"), (704, 1248)).save(reference)
-        voice = directory / "voice.wav"
-        voice.write_bytes(wav)
-        pose_path = directory / "pose.mp4" if pose is not None else None
-        if pose_path is not None:
-            pose_path.write_bytes(pose)
-        load_start = time.perf_counter()
-        stage_seconds["input_preparation"] = load_start-start
-        def load_pipeline():
-            return WanS2V(config=s2v_14B, checkpoint_dir="/opt/s2v-model", device_id=0,
-                t5_cpu=True, init_on_cpu=True, convert_model_dtype=True)
-        pipeline, reused = model_session.acquire(load_pipeline) if model_session else (load_pipeline(), False)
-        generation_start = time.perf_counter()
-        stage_seconds["model_loading"] = generation_start-load_start
-        torch.cuda.reset_peak_memory_stats()
-        yield {"kind": "progress", "stage": "audio-conditioned-generation", "steps": STEPS}
-        tensor = pipeline.generate(input_prompt=prompt, ref_image_path=str(reference), audio_path=str(voice),
-            enable_tts=False, tts_prompt_audio=None, tts_prompt_text=None, tts_text=None,
-            pose_video=str(pose_path) if pose_path else None, infer_frames=frames_count, n_prompt=NEGATIVE,
-            seed=seed, **GENERATION_SETTINGS)
-        frames = (tensor.clamp(-1, 1).permute(1, 2, 3, 0).float().add(1).mul(127.5).round().byte().numpy())
-        raw_hash = hashlib.sha256()
-        for frame in frames:
-            raw_hash.update(frame.tobytes())
-        raw_native_sha = raw_hash.hexdigest()
-        peak_gpu_bytes = torch.cuda.max_memory_allocated()
-        generated = time.perf_counter()
-        stage_seconds["generation_and_frame_transfer"] = generated-generation_start
-        del pipeline, tensor
-        gc.collect()
-        torch.cuda.empty_cache()
-        if len(frames) != frames_count:
-            raise ValueError("Unexpected S2V frame count; refuse ambiguous timing")
-        height, width = frames.shape[1:3]
-        encode(frames, directory / "native-silent.mp4", width, height, NATIVE_FPS)
-        interpolation_start = time.perf_counter()
-        stage_seconds["model_release_and_native_encode"] = interpolation_start-generated
-        yield {"kind": "progress", "stage": "neural-frame-interpolation", "native_frames": len(frames)}
-        net = load_interpolator("cuda")
-        pad_w, pad_h = (-width) % 64, (-height) % 64
-        interpolated_count = 0
-        inferred_count = 0
-        def smooth_frames():
-            nonlocal interpolated_count, inferred_count
-            pair = None
-            inputs = None
-            with torch.inference_mode():
-                for left, right, alpha in interpolation_schedule(len(frames), NATIVE_FPS, OUTPUT_FPS):
-                    interpolated_count += 1
-                    if alpha == 0:
-                        yield frames[left]
-                        continue
-                    if pair != (left, right):
-                        inputs = torch.from_numpy(np.stack((frames[left], frames[right]))).permute(0, 3, 1, 2).cuda().float() / 255
-                        inputs = F.pad(inputs, (0, pad_w, 0, pad_h))
-                        pair = (left, right)
-                    merged = net(torch.cat((inputs[0:1], inputs[1:2]), 1), alpha, [16, 8, 4, 2, 1])[2][-1]
-                    inferred_count += 1
-                    yield (merged[0, :, :height, :width].clamp(0, 1).permute(1, 2, 0) * 255).round().byte().cpu().numpy()
-        encode(smooth_frames(), directory / "fluid-silent.mp4", width, height, OUTPUT_FPS)
-        mux_start = time.perf_counter()
-        stage_seconds["interpolator_loading_and_fluid_encode"] = mux_start-interpolation_start
-        for name in ("native", "fluid"):
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(directory / f"{name}-silent.mp4"),
-                "-i", str(voice), "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac",
-                "-b:a", "96k", "-movflags", "+faststart", str(directory / f"{name}.mp4")], check=True, timeout=60)
-        finished = time.perf_counter()
-        stage_seconds["audio_mux"] = finished-mux_start
-        report = {"audio_conditioned": True, "lip_sync_validated": False, "human_review_required": True,
-            "pose_conditioned": pose is not None, "pose_sha256": pose_sha,
-            "input_audio_sha256": audio_sha, "input_audio_seconds": seconds, "audio_offset_seconds": 0,
-            "init_first_frame": True, "native_fps": NATIVE_FPS, "native_frames": len(frames),
-            "output_fps": OUTPUT_FPS, "output_frames": interpolated_count, "neural_intermediate_frames": inferred_count,
-            "width": width, "height": height, "steps": STEPS, "seed": seed, "acting_prompt": prompt,
-            "model": MODEL, "model_revision": MODEL_REVISION, "wan_commit": WAN_COMMIT,
-            "rife_revision": RIFE_REVISION, "rife_weights_sha256": RIFE_SHA,
-            "model_reused": reused, "model_retained_for_batch": model_session is not None,
-            "generation_settings": dict(GENERATION_SETTINGS), "negative_prompt": NEGATIVE,
-            "raw_native_rgb_sha256": raw_native_sha, "generation_peak_gpu_allocated_bytes": peak_gpu_bytes,
-            "gpu_name": torch.cuda.get_device_name(0),
-            "reference_sha256": hashlib.sha256(png).hexdigest(), "worker_seconds": time.perf_counter() - start,
-            "stage_seconds":stage_seconds,"worker_entry_seconds":finished-entry_start,
-            "timing_scope":"worker_seconds excludes imports/validation for historic comparability; entry includes them; both exclude boot/image build/transport/idle",
-            "no_loop_no_speed_change": True, "license": {"wan": "Apache-2.0", "rife": "MIT"}}
-        yield {"kind": "report", "report": report}
-        for name in ("native", "fluid"):
-            data = (directory / f"{name}.mp4").read_bytes()
-            yield {"kind": "manifest", "name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-            for offset in range(0, len(data), 128 * 1024):
-                yield {"kind": "chunk", "name": name, "offset": offset, "data": data[offset:offset + 128 * 1024]}
+    yield from engine_generate_speech(png, wav, audio_sha, frames_count=frames_count,
+        reference_sha=reference_sha, prompt=prompt, seed=seed, pose=pose, pose_sha=pose_sha,
+        model_session=model_session)
 
 
 @app.function(image=image, gpu="H100", cpu=(4, 4), memory=(65536, 65536),

@@ -6,3 +6,6 @@ verify_jwt = false # Telegram authenticates via secret header + chat/user allowl
 
 [functions.studio-telegram-hook]
 verify_jwt = false # Authenticated by per-workspace Telegram secret header.
+
+[functions.studio-video-worker]
+verify_jwt = false # Expiring, hashed, per-job capability; never the service-role key.
