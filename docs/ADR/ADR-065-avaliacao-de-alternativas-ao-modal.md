@@ -2,6 +2,8 @@
 
 Data: 2026-10-08. Status: pesquisa concluída; proposta de ampliação, sem habilitação de novas rotas em produção.
 
+Atualização: o ADR-066 substitui a prioridade de créditos introdutórios pela exigência explícita do operador de gratuidade recorrente. Este ADR mantém o histórico da pesquisa; WaveSpeed/Alibaba/Lightning introdutórios não fazem parte da seleção vigente.
+
 ## O — Objetivo
 
 Investigar métodos independentes do Modal que ampliem a produção gratuita das novelas humanizadas, preservando a qualidade aceita pelo operador. Diferenciar cota recorrente, crédito inicial, modelo aberto, endpoint público e capacidade realmente comprovada. A solicitação desta rodada é pesquisa aprofundada, não uma nova inferência.

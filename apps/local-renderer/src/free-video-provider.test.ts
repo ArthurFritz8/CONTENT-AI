@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import { strictEqual, deepStrictEqual, throws, rejects, ok } from "node:assert";
 import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, freeVideoQuotaLedger } from "./free-video-provider.ts";
+import { routeVideoShot } from "../../../packages/core/src/stories/video-routing.ts";
 
 test("changed model revision and non-free hardware disable the provider", () => {
   const base = { sha: HF_VIDEO.revision, host: HF_VIDEO.host, runtime: { stage: "RUNNING", hardware: { current: "zero-a10g" } } };
@@ -88,4 +89,21 @@ test("MuseTalk submits audio before image and never claims prompt/seed control",
   strictEqual(await provider.submit(shot, ["/tmp/gradio/image.png", "/tmp/gradio/voice.wav"]), "a".repeat(32));
   await rejects(provider.submit({ ...shot, kind: "action" }, ["/tmp/gradio/image.png", "/tmp/gradio/voice.wav"]), /contract_changed/);
   strictEqual(calls, 1);
+});
+
+test("sponsored S2V without recurring evidence is blocked before any generation", () => {
+  const base = { sha: HF_SPEECH.revision, host: HF_SPEECH.host,
+    runtime: { stage: "RUNNING", hardware: { current: "cpu-basic" } } };
+  const capacity = inspectSpaceMetadata(base, HF_SPEECH);
+  strictEqual(capacity.available, true);
+  strictEqual(capacity.free_tier, "unknown");
+  const shot = { version: "1.0.0", id: "speech", kind: "dialogue", reference_path: "own.png",
+    reference_sha256: "a".repeat(64), audio_sha256: "b".repeat(64),
+    prompt: "A personagem fala com surpresa mantendo sua identidade.", seconds: 3, seed: 42,
+    quality: "preview", min_short_edge: 480, min_output_fps: 16 };
+  const result = routeVideoShot(shot, [capacity], capacity.checked_at);
+  strictEqual(result.selected, null);
+  deepStrictEqual(result.reasons, [{ provider: HF_SPEECH.id, reason: "unverified_free_access" }]);
+  for (const profile of [HF_VIDEO, HF_LIPSYNC])
+    strictEqual(inspectSpaceMetadata(null, profile).free_tier, "recurring");
 });

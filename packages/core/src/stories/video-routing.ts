@@ -38,6 +38,8 @@ export interface VideoProvider {
   // No USD/Pollen/quota-seconds conversion. Each provider uses its own unit.
   free_remaining: number | null;
   billing: "free_service" | "credits";
+  // Introductory credits are not an eligible zero-budget production route.
+  free_tier: "recurring" | "permanent" | "trial" | "unknown";
   reserved: number;
   required: number;
   cash_cost: number;
@@ -56,6 +58,8 @@ export function routeVideoShot(raw: unknown, providers: VideoProvider[], now = D
     if (!p.adapter_ready || !p.available) reason = "unavailable";
     else if (!Number.isFinite(p.checked_at) || now < p.checked_at || now - p.checked_at > 300_000) reason = "stale_capacity";
     else if (!Number.isFinite(p.cooldown_until) || p.cooldown_until > now) reason = "cooldown";
+    else if (p.free_tier === "trial") reason = "non_recurring_offer";
+    else if (p.free_tier !== "recurring" && p.free_tier !== "permanent") reason = "unverified_free_access";
     else if (p.cash_cost !== 0) reason = "cash_not_allowed";
     else if (!p.capabilities.includes(shot.kind)) reason = "incompatible_task";
     else if (!p.quality.includes(shot.quality) || p.short_edge < shot.min_short_edge ||

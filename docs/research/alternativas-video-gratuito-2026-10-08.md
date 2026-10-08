@@ -2,6 +2,8 @@
 
 Pesquisa: 08/10/2026. Escopo: documentação oficial, repositórios dos autores, metadados e schemas públicos de endpoints. Nenhuma inferência, nova conta, credencial, alteração de faturamento ou publicação nesta pesquisa.
 
+**Decisão posterior do operador, ADR-066:** excluir créditos de entrada e ofertas sem recorrência comprovada. WaveSpeed, cotas iniciais Alibaba e créditos iniciais Lightning permanecem neste levantamento como histórico, sem recomendação de cadastro ou integração vigente. A ordem de testes abaixo foi substituída por Modal mensal + ZeroGPU diário; Kaggle depende de adequação demonstrada. [Política atual](gratuidade-recorrente-video-2026-10-08.md).
+
 ## Veredito e referência de qualidade
 
 Há caminhos legítimos para ampliar a capacidade gratuita. Ainda não foi comprovado um conjunto que sustente capítulos novos ilimitados, automáticos e com a qualidade aprovada. Créditos de entrada ajudam agora; GPU gratuita recorrente exige adaptação, filas e avaliação artística. Quantidade de APIs não equivale a quantidade de franquias independentes.
@@ -124,7 +126,7 @@ A adaptação proposta mantém:
 
 O limite local de duas submissões por grupo/dia UTC do avaliador é proteção interna; não corresponde ao reset externo ZeroGPU. `animated_available` continua falso em produção: ainda falta rota de fala gratuita estável e aprovada.
 
-## 8. Ordem prática dos próximos testes
+## 8. Ordem de testes original — substituída pelo ADR-066
 
 1. **Contas e cotas:** verificar WaveSpeed, Alibaba Singapore com Free Quota Only e Lightning sem cartão. Não enviar imagens/voz até demonstrar saldo elegível e ausência de cobrança. Dependência externa real: cadastro/eligibilidade/credencial.
 2. **Mesmo modelo em outro serviço:** uma fala curta Wan2.2 S2V na WaveSpeed; em Lightning, verificar primeiro se existe GPU de memória suficiente para o worker fixado. Sem retake automático.

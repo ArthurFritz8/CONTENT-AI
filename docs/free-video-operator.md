@@ -2,6 +2,8 @@
 
 Ferramenta do operador, fora da produção do Studio. Gadgets e histórias ilustradas seguem seus fluxos atuais. Os testes não são episódios nem publicações.
 
+Política vigente desde ADR-066: somente gratuidade recorrente ou serviço gratuito comprovado entra no roteador. Créditos introdutórios são recusados com `non_recurring_offer`; recorrência não comprovada com `unverified_free_access`. A classificação não substitui saldo, qualidade, quota, revisão ou ausência de cobrança.
+
 ## Conferir as rotas
 
 ```powershell
@@ -20,6 +22,8 @@ node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/st
 ```
 
 O tipo da tomada seleciona automaticamente I2V para ação/reação ou S2V para diálogo. Não usar a primeira rota para simular lipsync. O S2V público só recebe imagem/áudio/resolução, não o prompt de movimento nem seed; sua descrição é contexto editorial. A saída é uma avaliação de 480p. Não é troca automática da qualidade já aprovada.
+
+O comando de diálogo acima está preservado como referência do avaliador, mas novas submissões ao S2V patrocinado ficam bloqueadas: não há prova de franquia recorrente. `available: true` na inspeção não o libera. Checkpoints anteriores continuam conciliáveis com `--resume`; nenhuma chamada aceita é reenviada. ZeroGPU I2V/MuseTalk recebem classificação recorrente, porém MuseTalk continua sem resultado visual aprovado.
 
 MuseTalk 1.5 é uma avaliação explícita de boca, não uma troca automática após falha:
 

@@ -42,6 +42,8 @@ export function inspectSpaceMetadata(value: unknown, profile: FreeVideoProfile =
   return { id: profile.id, quota_group: profile.mode === "s2v" ? "wan-sponsored-demo" : "huggingface-account", capabilities: [...profile.kinds],
     quality: ["preview"], short_edge: 480, output_fps: profile.mode === "lipsync" ? 25 : 16, max_seconds: 5,
     available: parsed.success, adapter_ready: true, checked_at: Date.now(), cooldown_until: 0,
+    // Sponsored public S2V has no verified recurring allowance; a live endpoint is not proof.
+    free_tier: profile.mode === "s2v" ? "unknown" : "recurring",
     free_remaining: null, billing: "free_service", reserved: 0, required: 1, cash_cost: 0 };
 }
 const params = ["input_image", "prompt", "steps", "negative_prompt", "duration_seconds", "guidance_scale", "guidance_scale_2", "seed", "randomize_seed"];
