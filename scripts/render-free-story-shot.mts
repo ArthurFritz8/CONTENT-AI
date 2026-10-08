@@ -38,7 +38,10 @@ if (mode === "--inspect") {
       const capacity = await new FreeVideoProvider(token, fetch, profile).inspect();
       await save(join(out, `${profile.id}-capacity.json`), capacity);
       await report("provider_checked", { ...capacity, authenticated: Boolean(token), remaining_generations: null,
-        note: "Cota externa não exposta; não estimar vídeos. API gratuita experimental, sem certificação visual." });
+        editorial_status: profile.mode === "flashhead" ? "rejected_by_operator" :
+          profile.mode === "lipsync" ? "unvalidated" : profile.mode === "s2v" ? "free_access_unverified" : "preview_only",
+        new_dialogue_submissions_enabled: false,
+        note: "Cota externa não exposta; não estimar vídeos. Endpoint acessível não equivale a qualidade aprovada." });
     } catch (e) { await report("provider_unavailable", { provider: profile.id, code: e instanceof FreeVideoError ? e.code : "unknown" }); }
   }
   process.exit(0);
@@ -48,8 +51,8 @@ const shot = videoShotSchema.parse(JSON.parse(await readFile(resolve(path), "utf
 const providerArg = process.argv.find(v => v.startsWith("--provider="))?.split("=")[1];
 if (providerArg && ![HF_LIPSYNC.id, HF_FLASHHEAD.id, HF_SPEECH.id].includes(providerArg))
   throw new Error("Provedor explícito não reconhecido");
-if (providerArg === HF_SPEECH.id && mode === "--run")
-  throw new Error("S2V patrocinado sem gratuidade recorrente comprovada; somente retomar chamadas existentes");
+if (shot.kind === "dialogue" && mode === "--run")
+  throw new Error("Novo diálogo bloqueado: FlashHead foi reprovado por olhos e fluidez; MuseTalk não passou; S2V patrocinado não tem gratuidade recorrente comprovada. Apenas --resume de chamadas existentes.");
 if (providerArg && shot.kind !== "dialogue") throw new Error("Este provedor só recebe diálogo; não gera atuação corporal");
 // A previously accepted S2V call keeps its original fingerprint and can still be reconciled.
 const { min_output_fps: legacyMinFps, ...legacyShot } = shot;

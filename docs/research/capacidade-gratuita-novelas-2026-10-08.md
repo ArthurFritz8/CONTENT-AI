@@ -1,5 +1,7 @@
 # Capacidade gratuita verificável para novelas novas
 
+Atualização editorial no mesmo dia: o operador reprovou olhos e fluidez do FlashHead bruto e da variante interpolada. Novas falas nesse provedor foram bloqueadas pelo [ADR-069](../ADR/ADR-069-veto-editorial-do-flashhead-e-proxima-rota.md). As medições técnicas abaixo continuam válidas como histórico, mas FlashHead não é rota aprovada de capítulos. OmniAvatar é candidato sem teste visual; não contá-lo como capacidade disponível.
+
 Levantamento e teste em 08/10/2026. O requisito é gerar capítulos novos automaticamente, com personagens próprios, áudio sincronizado, gestos e mais de um cenário, sem pagamento ou crédito que expire após o cadastro. Uma demo acessível não equivale a uma franquia adicional ou a um master aprovado.
 
 ## O que foi medido

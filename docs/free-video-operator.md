@@ -12,28 +12,21 @@ node --experimental-strip-types scripts/render-free-story-shot.mts --inspect
 
 Consulta quatro apps públicos. `available` significa endpoint/modelo conferido; não significa quota contratada nem qualidade aprovada. O contador externo permanece desconhecido. Não precisa instalar GPU/modelo local. `HF_TOKEN` fica em `.env.cloud`; nunca em arquivo versionado, URL ou código do navegador. Um token só autentica a própria quota, não multiplica capacidade.
 
-## Avaliar ação e diálogo
+## Avaliar ação
 
 Os planos abaixo reutilizam referências próprias e WAV já existentes em `output/suitcase-story-preview`. Um clone do repositório sem esses assets não tem os pré-requisitos: o executor recusa ausência/hash diferente.
 
 ```powershell
 node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/stories/free-action-audition.json
-node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/stories/free-dialogue-audition.json
 ```
 
-O tipo da tomada seleciona I2V para ação/reação ou FlashHead Lite para um close de diálogo. FlashHead recebe imagem, WAV e seed; o texto de direção é contexto editorial e não controla gestos, roupa ou cenário. A saída nativa é quadrada de 512×512 a 25 FPS. O avaliador recompõe a faixa de áudio com o WAV original, recorta a duração à fala medida e exige auditoria de transporte. Isto não substitui a qualidade da novela aprovada nem anima o corpo inteiro.
+I2V para ação/reação continua uma avaliação isolada. Após a revisão do operador em 08/10/2026, **novas chamadas de diálogo estão bloqueadas** neste executor: FlashHead foi reprovado por olhos borrados e fluidez, MuseTalk não tem resultado aprovado e o S2V patrocinado não tem gratuidade recorrente comprovada. `--inspect` distingue disponibilidade técnica de aprovação editorial. Tomadas já aceitas continuam conciliáveis por `--resume`, sem reenvio.
 
-Novas submissões ao S2V patrocinado ficam bloqueadas: não há prova de franquia recorrente. `available: true` na inspeção não o libera. Checkpoints anteriores continuam conciliáveis com `--resume` e seu fingerprint original; nenhuma chamada aceita é reenviada. ZeroGPU I2V/MuseTalk/FlashHead compartilham a quota da mesma conta. MuseTalk continua sem resultado visual aprovado.
+O S2V patrocinado também não tem prova de franquia recorrente. `available: true` na inspeção não libera geração. Checkpoints anteriores continuam conciliáveis com `--resume` e seu fingerprint original; nenhuma chamada aceita é reenviada. ZeroGPU I2V/MuseTalk/FlashHead compartilham a quota da mesma conta.
 
-Em 08/10/2026, uma tomada FlashHead Lite da Malu foi gerada no Space público com o WAV existente: 3,28 s normalizados, 512×512, 25 FPS, 82 quadros. O remux HLS puro atrasou a voz 64 ms e obteve correlação PCM 0,911; a recomposição com o WAV original reduziu o atraso medido a zero e elevou a correlação a 0,9999. A inspeção dos quadros encontrou identidade/figurino estáveis, mas isto não certifica sincronia fonética nem a atuação do capítulo. Arquivo local para revisão: `output/provider-research-deep-2026-10-08/flashhead-audition-2/normalized.mp4`. Não registrar como master aprovado.
+Em 08/10/2026, uma tomada FlashHead Lite da Malu foi gerada no Space público com o WAV existente: 3,28 s normalizados, 512×512, 25 FPS, 82 quadros. O remux HLS puro atrasou a voz 64 ms e obteve correlação PCM 0,911; a recomposição com o WAV original reduziu o atraso medido a zero e elevou a correlação a 0,9999. O operador reprovou olhos e movimento na montagem original e na variante interpolada. A falha visual também aparece no bruto: transporte de voz correto não aprova a imagem. Não registrar como master aprovado.
 
-MuseTalk 1.5 é uma avaliação explícita de boca, não uma troca automática após falha:
-
-```powershell
-node --experimental-strip-types scripts/render-free-story-shot.mts --run docs/stories/free-lipsync-audition.json --provider=hf-musetalk --wait-seconds=45
-```
-
-Recebe o PNG e o WAV já existentes e não cria gestos/cenários nem recebe prompt/seed. O Space aplica edição de rosto de 256×256 sobre o quadro original, com saída a 25 FPS. Pode perder detalhes de boca, pele e identidade. Usa o MESMO `quota.json` e grupo ZeroGPU do I2V: trocar o endpoint não gera saldo. A primeira chamada foi aceita e devolveu erro terminal antes de gerar arquivo; causa não informada. Não repetir esse job nem declarar lipsync validado.
+MuseTalk 1.5 é apenas uma avaliação anterior de boca. Recebe o PNG e o WAV, mas não cria gestos/cenários nem recebe prompt/seed. Usa o MESMO `quota.json` e grupo ZeroGPU do I2V; a primeira chamada foi aceita e devolveu erro terminal sem arquivo. Não repetir esse job nem declará-lo validado.
 
 Arquivos/checkpoints ficam em `output/free-video-jobs/<hash>/`. `events.jsonl` informa aceitação/pronto/bloqueio. Cada grupo tem limite local de duas submissões por dia UTC, independente da quota externa; mudar de Space/token não renova esse limite. As duas chamadas de pesquisa FlashHead em 08/10 foram contabilizadas nesse ledger. Não gera em duplicidade, não usa Modal, não acrescenta método de pagamento. Apenas serviços públicos autorizados, sem scraping.
 
@@ -47,7 +40,7 @@ node --experimental-strip-types scripts/render-free-story-shot.mts --resume docs
 
 Sem identificador após envio incerto, não reenvie: concilie antes. Resultado pronto é reutilizado por hash. Se o processo terminar abruptamente com `provider.lock`, confira o PID e o estado do job antes de remover o lock órfão; não remova durante processamento. Nunca altere o ledger para contornar limite externo.
 
-Pode limitar uma consulta a `--wait-seconds=30`. Isso apenas consulta a mesma chamada; não cancela nem reenvia uma inferência. Erro terminal exige inspeção, não nova tentativa automática. O teste S2V patrocinado anterior falhou após aceitação. A rota I2V gerou uma reação corporal em cerca de um minuto, mas continua em avaliação de qualidade. FlashHead Lite passou no transporte e na inspeção inicial de quadros; continua restrito à prévia até revisão audiovisual da fala, gestos e integração em uma história completa.
+Pode limitar uma consulta a `--wait-seconds=30`. Isso apenas consulta a mesma chamada; não cancela nem reenvia uma inferência. Erro terminal exige inspeção, não nova tentativa automática. O teste S2V patrocinado anterior falhou após aceitação. A rota I2V gerou uma reação corporal em cerca de um minuto, mas continua em avaliação de qualidade. FlashHead Lite fica arquivado como prévia reprovada, não como opção de geração nova.
 
 `qa.json` verifica transporte/decode/cobertura/resolução/FPS codificado e registra revisão pendente. Assistir todos os segundos e conferir identidade, oclusões, mãos, emoção, início/fim da ação e fala/boca. FPS de arquivo não comprova FPS nativo ou poses novas. Aprovação audiovisual continua humana.
 
@@ -63,7 +56,7 @@ node --experimental-strip-types scripts/assemble-free-story-preview.mts --flashh
 
 O primeiro comando mantém a prévia anterior com diálogo Modal. `--flashhead` monta uma segunda prévia de 6,817 s com **apenas tomadas geradas em rotas gratuitas**: reação I2V anterior e fala FlashHead desta pesquisa. Guarda resultado em `output/free-story-sequence-flashhead/a-mala-acao-fala-reacao-flashhead.mp4`. O WAV, os hashes, os 409 quadros, decode e transporte temporal são conferidos; a fala final teve atraso medido zero e correlação PCM 0,9999. Os 60 FPS são formato de montagem: I2V parte de 16 FPS e FlashHead de 25 FPS, portanto há duplicação de quadros, sem novos gestos. Nenhum comando gera um episódio, chama GPU novamente, escreve banco, Telegram ou publicação. A reação foi reutilizada e o close ainda requer revisão artística; não declarar história inteira nova ou qualidade master aprovada.
 
-`--flashhead-enhanced` é uma comparação experimental de custo monetário zero: intercala quadros por estimativa de movimento no FFmpeg e amplia menos o quadro quadrado da fala. Salva em `output/free-story-sequence-flashhead-enhanced/`, sem sobrescrever o original. A voz, os três cortes e a duração continuam auditados. O borrão dos olhos aparece **no arquivo bruto** e permanece na variante; nitidez ou Real-ESRGAN não recriam pupilas confiáveis. O resultado não entra automaticamente no Studio nem recebe status de master. Detalhes e prova no [ADR-068](ADR/ADR-068-enquadramento-e-interpolacao-experimentais-flashhead.md).
+`--flashhead-enhanced` é uma comparação histórica de custo monetário zero: intercala quadros por estimativa de movimento no FFmpeg e amplia menos o quadro quadrado da fala. Salva em `output/free-story-sequence-flashhead-enhanced/`, sem sobrescrever o original. A voz, os três cortes e a duração continuam auditados. O borrão dos olhos aparece **no arquivo bruto** e permanece na variante; nitidez ou Real-ESRGAN não recriam pupilas confiáveis. O operador reprovou também a fluidez desta versão. O resultado não entra no Studio nem recebe status de master. Detalhes no [ADR-068](ADR/ADR-068-enquadramento-e-interpolacao-experimentais-flashhead.md) e no [ADR-069](ADR/ADR-069-veto-editorial-do-flashhead-e-proxima-rota.md).
 
 ## Preparar acesso autenticado para uma futura avaliação
 
