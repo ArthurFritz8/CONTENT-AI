@@ -58,9 +58,12 @@ O novo avaliador `assessStoryCoverage` do core mede cobertura no modo `animated_
 ```powershell
 node --experimental-strip-types scripts/assemble-free-story-preview.mts
 node --experimental-strip-types scripts/assemble-free-story-preview.mts --flashhead
+node --experimental-strip-types scripts/assemble-free-story-preview.mts --flashhead-enhanced
 ```
 
 O primeiro comando mantém a prévia anterior com diálogo Modal. `--flashhead` monta uma segunda prévia de 6,817 s com **apenas tomadas geradas em rotas gratuitas**: reação I2V anterior e fala FlashHead desta pesquisa. Guarda resultado em `output/free-story-sequence-flashhead/a-mala-acao-fala-reacao-flashhead.mp4`. O WAV, os hashes, os 409 quadros, decode e transporte temporal são conferidos; a fala final teve atraso medido zero e correlação PCM 0,9999. Os 60 FPS são formato de montagem: I2V parte de 16 FPS e FlashHead de 25 FPS, portanto há duplicação de quadros, sem novos gestos. Nenhum comando gera um episódio, chama GPU novamente, escreve banco, Telegram ou publicação. A reação foi reutilizada e o close ainda requer revisão artística; não declarar história inteira nova ou qualidade master aprovada.
+
+`--flashhead-enhanced` é uma comparação experimental de custo monetário zero: intercala quadros por estimativa de movimento no FFmpeg e amplia menos o quadro quadrado da fala. Salva em `output/free-story-sequence-flashhead-enhanced/`, sem sobrescrever o original. A voz, os três cortes e a duração continuam auditados. O borrão dos olhos aparece **no arquivo bruto** e permanece na variante; nitidez ou Real-ESRGAN não recriam pupilas confiáveis. O resultado não entra automaticamente no Studio nem recebe status de master. Detalhes e prova no [ADR-068](ADR/ADR-068-enquadramento-e-interpolacao-experimentais-flashhead.md).
 
 ## Preparar acesso autenticado para uma futura avaliação
 

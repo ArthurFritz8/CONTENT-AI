@@ -7,9 +7,12 @@ import { buildAssSubtitles, resolveWordTimings, SUBTITLE_STYLE_PORTRAIT } from "
 import { buildConcatList, escapeFfmpegFilterPath } from "../apps/local-renderer/src/render-utils.ts";
 
 const root = resolve(import.meta.dirname, "..");
-const freeDialogue = process.argv.includes("--flashhead");
-if (process.argv.slice(2).some(arg => arg !== "--flashhead")) throw new Error("Opção permitida: --flashhead");
-const out = join(root, freeDialogue ? "output/free-story-sequence-flashhead" : "output/free-story-sequence");
+const enhanced = process.argv.includes("--flashhead-enhanced");
+const freeDialogue = enhanced || process.argv.includes("--flashhead");
+if (process.argv.slice(2).length > 1 || process.argv.slice(2).some(arg => !["--flashhead", "--flashhead-enhanced"].includes(arg)))
+  throw new Error("Opções permitidas: --flashhead ou --flashhead-enhanced");
+const out = join(root, enhanced ? "output/free-story-sequence-flashhead-enhanced" :
+  freeDialogue ? "output/free-story-sequence-flashhead" : "output/free-story-sequence");
 await mkdir(out, { recursive: true });
 const reactionDir = join(root, "output/free-video-jobs/44966b220d5b6d2b2a44b6038d87067b2aba56f9d47e4f34ef40e87cca57bc34");
 const dialogueDir = join(root, "output/suitcase-story-preview/02");
@@ -70,9 +73,17 @@ const timeline: Array<Record<string, unknown>> = [];
 for (const cut of cuts) {
   const seconds = cut.frames / fps, target = join(out, `${cut.id}.mp4`);
   const audioArgs = cut.voice ? ["-i", voice] : ["-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono"];
-  const videoGraph = `[0:v]trim=start=${cut.start}:end=${cut.end},setpts=PTS-STARTPTS,` +
+  const subtitlesFilter = cut.voice ? `,ass='${escapeFfmpegFilterPath(subtitles)}'` : "";
+  // Motion interpolation omits the last source interval; pad only its tail to preserve the verified cut length.
+  const motion = enhanced ? "tpad=stop_mode=clone:stop_duration=0.125,minterpolate=fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1," : "";
+  const videoGraph = enhanced && cut.voice
+    ? `[0:v]${motion}trim=start=${cut.start}:end=${cut.end},setpts=PTS-STARTPTS,split[bg][fg];` +
+      `[bg]scale=480:832:force_original_aspect_ratio=increase,crop=480:832,boxblur=30:2[bb];` +
+      `[fg]scale=672:672:flags=lanczos,crop=480:672,unsharp=5:5:0.4[ff];` +
+      `[bb][ff]overlay=0:80,trim=end_frame=${cut.frames}${subtitlesFilter}[v]`
+    : `[0:v]${motion}trim=start=${cut.start}:end=${cut.end},setpts=PTS-STARTPTS,` +
     `scale=480:832:force_original_aspect_ratio=increase,crop=480:832,setsar=1,fps=${fps},trim=end_frame=${cut.frames}` +
-    (cut.voice ? `,ass='${escapeFfmpegFilterPath(subtitles)}'` : "") + "[v]";
+    subtitlesFilter + "[v]";
   command("ffmpeg", ["-v", "error", "-y", "-i", cut.source, ...audioArgs, "-filter_complex",
     `${videoGraph};[1:a]atrim=end=${seconds},asetpts=PTS-STARTPTS[a]`, "-map", "[v]", "-map", "[a]",
     "-c:v", "libx264", "-crf", "16", "-preset", "fast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-ar", "16000",
@@ -84,12 +95,17 @@ for (const cut of cuts) {
   timeline.push({ id: cut.id, function: cut.kind, start_seconds: cursor, seconds, source_start: cut.start, source_end: cut.end,
     source_sha256: hash(await readFile(cut.source)), dialogue_from_existing_modal_take: cut.voice && !freeDialogue,
     dialogue_from_free_flashhead: cut.voice && freeDialogue,
-    source_encoded_fps: cut.voice ? (freeDialogue ? 25 : 60) : 16, new_body_frames_generated: false });
+    source_encoded_fps: cut.voice ? (freeDialogue ? 25 : 60) : 16,
+    interpolation: enhanced ? "ffmpeg_motion_compensated" :
+      cut.voice && !freeDialogue ? "source_60fps" : "frame_duplication_to_60fps",
+    visual_restoration: enhanced && cut.voice ? "less_crop_and_mild_sharpen_not_eye_reconstruction" : "none",
+    new_body_frames_generated: false });
   cursor += seconds;
 }
 const list = join(out, "concat.txt");
 await writeFile(list, paths.map((path, i) => buildConcatList([path]) + `duration ${(cuts[i]!.frames / fps).toFixed(6)}\n`).join(""));
-const final = join(out, freeDialogue ? "a-mala-acao-fala-reacao-flashhead.mp4" : "a-mala-acao-fala-reacao.mp4");
+const final = join(out, enhanced ? "a-mala-acao-fala-reacao-flashhead-enhanced.mp4" :
+  freeDialogue ? "a-mala-acao-fala-reacao-flashhead.mp4" : "a-mala-acao-fala-reacao.mp4");
 const dialogueOffset = cuts[0]!.frames / fps;
 // Original PCM placed at the exact dialogue cut; AAC intermediate tracks are not reused.
 command("ffmpeg", ["-v", "error", "-y", "-copyts", "-f", "concat", "-safe", "0", "-i", list, "-i", voice,
@@ -109,7 +125,9 @@ await writeFile(join(out, "qa.json"), JSON.stringify({ title: "A mala na porta �
   sha256: hash(await readFile(final)), decode_verified: true, audio_alignment: audioAlignment,
   zero_new_cloud_calls: true, cash_charge_usd: 0, reused_modal_dialogue: !freeDialogue,
   dialogue_from_free_flashhead: freeDialogue,
-  new_free_lipsync_validated: false, fps_conversion_duplicates_frames: true,
+  local_enhancement_experiment: enhanced, blurry_source_eyes_restored: false,
+  new_free_lipsync_validated: false, fps_conversion_duplicates_frames: !enhanced,
+  fps_conversion_estimates_intermediate_frames: enhanced, interpolation_tail_padding: enhanced,
   body_source_native_fps_from_model: 16, head_and_body_acting_not_invented_by_fps_conversion: true,
   human_review_required: true, lip_sync_certified: false, production_enabled: false,
   database_writes: false, published: false, mode: "artistic_preview_not_episode" }, null, 2));
