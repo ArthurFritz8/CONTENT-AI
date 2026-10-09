@@ -28,7 +28,8 @@ begin
       raise exception 'Missing table or RLS: %',tbl;
     end if;
   end loop;
-  foreach tbl in array array['studio_video_wallets','studio_video_wallet_access','studio_series_production','studio_video_compatibility','studio_video_requests','studio_video_jobs','studio_video_worker_tickets'] loop
+  foreach tbl in array array['studio_video_wallets','studio_video_wallet_access','studio_series_production','studio_video_compatibility','studio_video_requests','studio_video_jobs','studio_video_worker_tickets',
+   'studio_animated_renders','studio_modal_wallet_config','studio_modal_observations','studio_animation_preparations','studio_animation_audio','studio_animation_dispatches'] loop
     if not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=tbl and c.relrowsecurity) then
       raise exception 'Video production table missing RLS: %',tbl;
     end if;
@@ -38,6 +39,13 @@ begin
     or has_function_privilege('authenticated','public.begin_video_worker(uuid,text,text)','execute')
     or has_function_privilege('anon','public.complete_video_worker(uuid,text,jsonb,jsonb,boolean)','execute') then
     raise exception 'Video production worker RPC is exposed';
+  end if;
+  if has_function_privilege('authenticated','public.observe_modal_wallet(uuid,jsonb)','execute') or
+    has_function_privilege('anon','public.save_animation_draft(uuid,text,text,jsonb)','execute') or
+    has_function_privilege('authenticated','public.claim_animation_preparation(uuid,uuid)','execute') or
+    has_function_privilege('anon','public.studio_animation_step(uuid)','execute') or
+    has_function_privilege('service_role','public.studio_reserve_video_before_billing(uuid,uuid,uuid,uuid,text,jsonb)','execute') then
+    raise exception 'Animated preparation or financial bypass RPC exposed';
   end if;
   if not exists(select 1 from pg_trigger where tgname='episodes_z_gate' and not tgisinternal) then raise exception 'Approval gate missing'; end if;
   if has_function_privilege('anon','public.consume_next_idea()','execute') then raise exception 'Unsafe RPC permissions'; end if;

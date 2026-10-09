@@ -12,11 +12,26 @@ export async function advancePipeline(
   if (error) throw new AppError("Erro ao selecionar trabalho", 500, "DB_ERROR");
   const episode = data?.[0];
   if (!episode) return null;
+  async function animationStep() {
+    const {data:step,error}=await db.rpc("studio_animation_step",{p_episode:episode.id});
+    if(error)throw new AppError("Falha ao preparar a próxima etapa animada",409,"ANIMATION_STEP_FAILED");
+    if(step.code==="dispatch") {
+      const workflow=step.workflow==="prepare" ? "story-prepare.yml" : step.workflow==="balance" ? "story-balance.yml" : "story-video.yml";
+      await dispatchGithub(workflow,step.target);
+    }
+    return {episode_id:episode.id,animated_chapter:true,...step};
+  }
+  if(episode.status==="research" && Deno.env.get("CONTENT_AI_ANIMATION_PREPARATION_ENABLED")==="true") {
+    const {data:prepared,error}=await db.from("studio_animation_preparations").select("episode_id").eq("episode_id",episode.id).maybeSingle();
+    if(error)throw new AppError("Preparação animada indisponível",503,"ANIMATION_SETUP_REQUIRED");
+    if(prepared)return await animationStep();
+  }
   if (episode.status === "script" && episode.script_json?.fiction?.animation) {
     const { data: mounted, error: mountError } = await db.rpc("mount_animated_chapter", {
       p_episode: episode.id, p_origin: Deno.env.get("SUPABASE_URL")?.replace(/\/$/, ""),
     });
     if (mountError) throw new AppError("Plano animado não corresponde aos clipes concluídos", 409, "ANIMATED_PLAN_MISMATCH");
+    if(["awaiting_plan","waiting_for_clips"].includes(mounted.code) && Deno.env.get("CONTENT_AI_VIDEO_DISPATCH_ENABLED")==="true")return await animationStep();
     return { episode_id: episode.id, animated_chapter: true, ...mounted };
   }
   if (episode.status === "rendered") {

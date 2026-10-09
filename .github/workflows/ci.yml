@@ -32,10 +32,15 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install Pillow==11.3.0
+      - run: bash scripts/setup-ffmpeg.sh
       - name: Testes unitários (_shared)
         run: |
           deno check --config supabase/functions/deno.json supabase/functions/*/index.ts
-          deno test --node-modules-dir=auto --allow-env --config supabase/functions/deno.json supabase/functions/_shared/
+          deno test --node-modules-dir=auto --allow-env --allow-read --allow-write --allow-run=python,ffmpeg,ffprobe --config supabase/functions/deno.json supabase/functions/_shared/
 
   test-core:
     runs-on: ubuntu-latest
@@ -68,6 +73,8 @@ jobs:
       - run: bash scripts/setup-ffmpeg.sh
       - name: Worker offline, sem credenciais ou GPU
         run: python -m unittest discover -s scripts -p test_story_video_worker.py
+      - name: Saldo e orçamento offline, sem acesso ao Modal
+        run: python -m unittest discover -s scripts -p test_story_modal_budget.py
 
   test-database:
     runs-on: ubuntu-latest
@@ -82,7 +89,7 @@ jobs:
           for migration in supabase/migrations/*.sql; do
             sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f "$migration"
           done
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/youtube-shorts.sql -f supabase/tests/buffer-tiktok.sql -f supabase/tests/buffer-youtube.sql -f supabase/tests/telegram-queue.sql -f supabase/tests/web-panel.sql -f supabase/tests/growth.sql -f supabase/tests/studio.sql -f supabase/tests/stories.sql -f supabase/tests/story-video.sql -f supabase/tests/story-video-worker.sql -f supabase/tests/animated-chapter.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/youtube-shorts.sql -f supabase/tests/buffer-tiktok.sql -f supabase/tests/buffer-youtube.sql -f supabase/tests/telegram-queue.sql -f supabase/tests/web-panel.sql -f supabase/tests/growth.sql -f supabase/tests/studio.sql -f supabase/tests/stories.sql -f supabase/tests/story-video.sql -f supabase/tests/story-video-worker.sql -f supabase/tests/animated-chapter.sql -f supabase/tests/modal-billing.sql -f supabase/tests/animated-preparation.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-video-concurrency-setup.sql
           video_pids=()

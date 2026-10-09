@@ -1,0 +1,29 @@
+# ADR-071 — Preparo automático, saldo e envio do capítulo
+
+Data: 09/10/2026. Estado: implementado e testado localmente; **não implantado nem ativado na conta**. Complementa [ADR-070](ADR-070-planejamento-e-montagem-de-capitulos-animados.md).
+
+## Comportamento
+
+A série com perfil registrado ganha um caminho próprio de roteiro curto: cinco tomadas com uma fala e um personagem visível por tomada. O roteirista recebe a bíblia, o arco atual, os resumos aprovados e o padrão audiovisual. Não substitui o perfil por ilustrações. O rascunho fica salvo antes da síntese, para uma retomada não consumir novamente a cota de texto.
+
+O workflow `story-prepare.yml` usa voz Edge cadastrada, versão `edge-tts-7.2.8-rate0` e velocidade original. Não usa a cadeia de fallback do modo ilustrado. Faz conversão para PCM16 mono/16 kHz, mede o WAV, verifica o PNG e seus hashes e só aceita a fala com até 3,9375 s. Cada tomada possui checkpoint privado imutável; retomada verifica e reutiliza os arquivos existentes. O perfil deve cobrir todo o elenco. Uma interrupção temporária mantém o episódio retomável; três dispatches de preparo sem conclusão encerram a tentativa, preservando os arquivos. Erros não alteram um script já concluído por outro retorno.
+
+O SDK Modal 1.6.1 oferece `Workspace.from_context().billing.summary(cycle)` e `billing.rates()`. O observador verifica o nome da conta antes da leitura, sem inferência ou implantação. A franquia recorrente é uma política cadastrada com evidência separada: o resumo não descobre plano ou saldo exato. A sobra conservadora usa franquia menos custo bruto medido; ignora descontos e grants adicionais, arredonda para baixo e expira em cinco minutos ou no fim do mês UTC. O faturamento pode chegar com atraso. [SDK](https://modal.com/docs/sdk/py/latest/Workspace), [faturamento](https://modal.com/docs/guide/billing).
+
+`observe_modal_wallet` grava somente evidência de consulta. Não habilita a carteira, não concede compatibilidade e não libera reservas de cobrança pendente. Produção exige implantação confirmada, carteira habilitada, prova vigente de franquia e limite de gastos zero. O SDK público inspecionado não expõe esse limite na API de settings; faturamento líquido zero não prova que o limite está configurado. A prova deve ser conferida separadamente. [Limites do Modal](https://modal.com/docs/guide/budgets).
+
+O preço por tomada inclui as tarifas atuais de H100, CPU e memória nos limites do worker, tempo de inicialização e desligamento, relay CPU, saída de até 120 MiB e US$ 0,50 de margem operacional. É uma **estimativa conservadora de reserva**, não teto garantido de fatura ou custo artístico observado. Preempção pode acrescentar computação; o bloqueio de desembolso depende também do provedor. Aumentos de tarifa recusam uma reserva antiga inferior antes do claim ou início da GPU.
+
+`studio_animation_step` usa o script preparado, encontra uma carteira Modal implantada e compatível, consulta saldo vencido por workflow somente de leitura e reserva todas as cenas na mesma transação. Prefere uma carteira com capacidade para o capítulo após descontar reservas globais e margem. Nesta primeira rota automática, um capítulo usa uma carteira; o contrato transacional/core já permite planos distribuídos, mas não se apresenta distribuição automática entre provedores como disponível.
+
+Após reservar, o tick envia uma única tarefa durável e aguarda seu resultado antes da seguinte. Dispatch repetido é limitado no banco e sempre usa o mesmo ID; trabalhos aceitos/incertos são consultados antes de novas cenas. O runner atualiza a consulta de saldo antes de reivindicar uma cena em fila. Contrato, identidade, tarifa, saldo e política são conferidos novamente antes da GPU. Reserva insuficiente cria zero jobs, sem iniciar um capítulo parcial. Todos os clipes concluídos seguem a montagem/revisão da ADR-070.
+
+O painel separa sobra estimada, reservas e disponibilidade efetiva; mostra falas preparadas, tomadas concluídas e orçamento de capítulos cujo áudio já foi medido. Não estima capítulos desconhecidos como se fossem vídeos prontos, não soma unidades incompatíveis e não infere aprovação artística do FPS. Next/retry só abrem para séries animadas após o gate de preparo. Retry de um capítulo que já tem jobs exige retomar/conferir o trabalho existente, evitando uma segunda cobrança; capítulos anteriores aprovados não bloqueiam o retry de um capítulo novo sem jobs.
+
+## Evidência e limites
+
+Consulta de leitura em 09/10: custo bruto de outubro US$ 26,10206004, faturado US$ 0. Com franquia de US$ 30 verificada separadamente, a sobra conservadora calculada foi US$ 3,897939. Esta observação local não foi inserida como carteira de produção e não é um saldo permanente. O novo formato de cinco tomadas não cabe nesse orçamento conservador. Nenhuma GPU, build Modal, upload em produção ou débito de créditos de vídeo foi executado nesta implementação.
+
+Verificação local: testes do core, Python, Edge e painel; PCM/PNG reais com FFmpeg/Pillow e TTS substituído por fixture, retomada apenas das falas faltantes, áudio longo recusado; banco PostgreSQL isolado com migrations completas, políticas/saldo, capítulo inteiro, exclusividade/idempotência, envio sequencial, tarifa alterada e revogação antes da GPU. Build e navegação pública/mobile passaram. Fixtures comprovam contratos e montagem, não qualidade artística nova de inferência.
+
+Ainda faltam cadastro visual das referências/amostras/perfil aprovado, correção por cena, conciliação de cobrança comprovada, implantação/configuração e validação final pelo painel. Voz Edge é um serviço remoto: fixar cliente, ID e amostra não congela seus pesos internos. Aprovação humana continua necessária. Não há segunda fonte de animação homologada. GitHub/Supabase também precisam ter suas franquias verificadas antes da ativação. Não habilitar flags para produzir uma demonstração com saldo insuficiente.

@@ -6,6 +6,8 @@ import { extractJson } from "./gemini.ts";
 import { writeStory } from "./story-writer.ts";
 import { AppError, jsonResponse } from "./error-handler.ts";
 import { createServiceClient } from "./supabase-client.ts";
+import { animatedChapterPrompt, validateAnimatedDraft, preparationFingerprint, validatePreparationProfile } from "../../../packages/core/src/stories/animated-preparation.ts";
+import { productionProfileHash } from "../../../packages/core/src/stories/production.ts";
 import { loadScriptQualityChecker, recordScriptQuality } from "./script-quality.ts";
 import { markEpisodeFailed } from "./episode-utils.ts";
 import type { JobLogger } from "./logger.ts";
@@ -14,9 +16,31 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   episode: { id: string; briefing: { story_context: unknown }; research_evidence: unknown }): Promise<Response> {
   const context = storyContextSchema.parse(episode.briefing.story_context);
   if (!fictionPlanMatches(context, episode.research_evidence)) throw new AppError("Plano narrativo alterado", 422, "RESEARCH_EVIDENCE_INVALID");
-  const { data: production, error: profileError } = await db.from("studio_series_production").select("series_id").eq("series_id", context.series_id).maybeSingle();
+  const { data: production, error: profileError } = await db.from("studio_series_production").select("series_id,profile,profile_sha256").eq("series_id", context.series_id).maybeSingle();
   if (profileError) throw new AppError("Não foi possível conferir o padrão audiovisual", 503, "PRODUCTION_PROFILE_UNAVAILABLE");
-  if (production) throw new AppError("Esta novela exige planejamento animado; o roteirista ilustrado não pode substituir seu padrão audiovisual", 409, "ANIMATION_SETUP_REQUIRED");
+  if (production) {
+    if (Deno.env.get("CONTENT_AI_ANIMATION_PREPARATION_ENABLED") !== "true")
+      throw new AppError("Esta novela exige planejamento animado; ative a preparação após cadastrar referências e vozes", 409, "ANIMATION_SETUP_REQUIRED");
+    const {data:prior,error:readError}=await db.from("studio_animation_preparations").select("fingerprint").eq("episode_id",episode.id).maybeSingle();
+    if(readError)throw new AppError("Preparação indisponível",503,"ANIMATION_SETUP_REQUIRED");
+    if(prior)return jsonResponse({episode_id:episode.id,animation_preparation:true,code:"awaiting_audio"});
+    try {validatePreparationProfile(context,production.profile);}
+    catch {throw new AppError("Cadastre referências e vozes suportadas para preparar este capítulo",422,"PRODUCTION_PROFILE_INVALID");}
+    if(await productionProfileHash(production.profile)!==production.profile_sha256)throw new AppError("Padrão audiovisual alterado",422,"PRODUCTION_PROFILE_INVALID");
+    let correction="";
+    for(const attempt of [1,2]) {
+      const result=await writeStory(db,logger,`${animatedChapterPrompt(context,production.profile)}${correction ? `\nCorrija: ${correction}`:""}`,episode.id);
+      let draft;
+      try { draft=validateAnimatedDraft(extractJson(result.text),context,production.profile); }
+      catch(e) { correction=e instanceof Error ? e.message.slice(0,1200):"Rascunho inválido";continue; }
+      const {data,error}=await db.rpc("save_animation_draft",{p_episode:episode.id,p_profile:production.profile_sha256,
+        p_fingerprint:await preparationFingerprint(draft,context,production.profile),p_draft:draft});
+      if(error)throw new AppError("Falha ao salvar o plano de falas",500,"DB_ERROR");
+      return jsonResponse({episode_id:episode.id,animation_preparation:true,code:data.code});
+    }
+    await markEpisodeFailed(db,logger,episode.id,"animated_draft_invalid",correction.slice(0,1000),"research");
+    throw new AppError("Falas do capítulo precisam ser corrigidas antes da preparação",422,"ANIMATED_DRAFT_INVALID");
+  }
   const quality = await loadScriptQualityChecker(db);
   let errors = "";
   for (const attempt of [1, 2]) {

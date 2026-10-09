@@ -7,6 +7,8 @@ import {writeStory} from "./story-writer.ts";
 import {createServiceClient} from "./supabase-client.ts";
 import {JobLogger} from "./logger.ts";
 import {AppError} from "./error-handler.ts";
+import {animatedFixtureInput} from "../../../packages/core/src/testing/animated-fixture.ts";
+import {productionProfileHash} from "../../../packages/core/src/stories/production.ts";
 const policy={blocked_patterns:{medical:["\\mcura\\M"]},require_source_per_claim:true};
 async function envTest(run:()=>Promise<void>) {
  const names=["SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","GEMINI_API_KEY","OPENROUTER_API_KEY"],previous=names.map(n=>Deno.env.get(n)),fetch=globalThis.fetch;
@@ -63,6 +65,30 @@ Deno.test("illustrated writer refuses an animated profile or an unavailable regi
  assertEquals((await handleScript(req())).status,409);
  unavailable=true;assertEquals((await handleScript(req())).status,503);
  assertEquals(quotaCalls,0);
+}));
+Deno.test("enabled animation writes its short draft once and waits for measured audio, without illustrated assets",async()=>await envTest(async()=>{
+ const a=animatedFixtureInput(),id=a.episodeId;
+ a.profile.voices=a.profile.voices.map((v,i)=>({...v,version:"edge-tts-7.2.8-rate0",voice_id:i ? "pt-BR-AntonioNeural":"pt-BR-FranciscaNeural"}));
+ const profileHash=await productionProfileHash(a.profile);let calls=0,saved=false;
+ const previous=Deno.env.get("CONTENT_AI_ANIMATION_PREPARATION_ENABLED");Deno.env.set("CONTENT_AI_ANIMATION_PREPARATION_ENABLED","true");
+ try {
+  globalThis.fetch=(async(input,init)=>{
+   const u=new URL(input instanceof Request?input.url:String(input)),body=typeof init?.body==="string" ? JSON.parse(init.body):null;
+   if(u.pathname.endsWith("/rpc/claim_episode"))return json(true);
+   if(u.pathname.endsWith("/episode_leases"))return new Response(null,{status:204});
+   if(u.pathname.endsWith("/episodes"))return json({id,status:"research",briefing:{story_context:a.context},research_evidence:{type:"fiction_plan",context:a.context}});
+   if(u.pathname.endsWith("/studio_series_production"))return json([{series_id:a.context.series_id,profile:a.profile,profile_sha256:profileHash}]);
+   if(u.pathname.endsWith("/studio_animation_preparations"))return json(saved ? [{fingerprint:"persisted"}]:[]);
+   if(u.pathname.endsWith("/rpc/save_animation_draft")) {assertEquals(body.p_draft.scenes.length,5);assertEquals(body.p_profile,profileHash);saved=true;return json({code:"saved"});}
+   if(u.pathname.endsWith("/system_config"))return json({value:{}});
+   if(u.pathname.endsWith("/rpc/reserve_gemini_call"))return json(true);
+   if(u.hostname==="generativelanguage.googleapis.com") {calls++;return json({candidates:[{content:{parts:[{text:JSON.stringify(a.draft)}]}}]});}
+   if(u.pathname.endsWith("/job_events"))return new Response(null,{status:201});
+   throw Error("Unexpected assets, voice fallback or video provider request");
+  }) as typeof fetch;
+  const req=()=>new Request("https://worker.test",{method:"POST",headers:{Authorization:"Bearer test-service-key"},body:JSON.stringify({episode_id:id})});
+  assertEquals((await handleScript(req())).status,200);assertEquals((await handleScript(req())).status,200);assertEquals(calls,1);
+ } finally {previous===undefined ? Deno.env.delete("CONTENT_AI_ANIMATION_PREPARATION_ENABLED"):Deno.env.set("CONTENT_AI_ANIMATION_PREPARATION_ENABLED",previous);}
 }));
 Deno.test("writer refuses paid/unknown models and pauses on OpenRouter account limits",async()=>await envTest(async()=>{
  Deno.env.delete("GEMINI_API_KEY");Deno.env.set("OPENROUTER_API_KEY","test-router-key");let apiCalls=0,reservations=0;let model="paid/model";

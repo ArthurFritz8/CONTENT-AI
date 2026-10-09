@@ -1,0 +1,30 @@
+name: Studio read-only Modal balance
+on:
+  workflow_dispatch:
+    inputs:
+      wallet_id:
+        description: Carteira Modal cadastrada e verificada no Studio
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: story-balance-${{ inputs.wallet_id }}
+  cancel-in-progress: false
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VIDEO_WALLET_ID: ${{ inputs.wallet_id }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install modal==1.6.1 Pillow==11.3.0
+      - run: python scripts/observe-modal-wallet.py --wallet "$VIDEO_WALLET_ID"

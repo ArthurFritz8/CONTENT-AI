@@ -269,6 +269,8 @@ Pronto significa: criar uma novela nova, estimar o orçamento, gerar e revisar u
 
 ## 11. Dependências e decisões propostas
 
+Atualização de 09/10 em [ADR-071](ADR/ADR-071-preparo-automatico-e-saldo-conservador-modal.md): roteiro curto próprio, áudio por checkpoint medido, observador de faturamento sem inferência, política de gastos zero, reserva integral e dispatcher sequencial agora estão ligados no código. O painel distingue estimativa de saldo e orçamento por capítulo preparado. Tudo permanece local/desativado; a consulta desta rodada apontou cerca de US$ 3,90 conservadores e não consumiu créditos de vídeo. Cadastro do perfil, conciliação, implantação e segunda fonte continuam pendentes. As afirmações de diagnóstico acima registram a situação inicial, antes dessas entregas.
+
 Avanço local registrado em [ADR-070](ADR/ADR-070-planejamento-e-montagem-de-capitulos-animados.md): planejador por tomada vincula referências/vozes/PCM, capítulos curtos mantêm 60 FPS, conclusão de todos os clipes habilita montagem privada e revisão, e o painel recebe progresso de cenas. Ainda não está implantado nem ligado à preparação automática de áudio/orçamento; capacidade futura não é exibida como confirmada.
 
 Decisões recomendadas: criação manual ou automática completa; capacidade específica para continuar cada novela e detalhamento por fonte; estimativa por plano; orçamento conservador; um capítulo por revisão inicialmente; qualidade e identidade aprovadas como piso; padrão audiovisual fixado por novela, não apenas por capítulo; troca de modelo condicionada a compatibilidade demonstrada; modo gratuito recorrente como padrão; uma orientação por projeto; continuidade além de seis capítulos; geração e publicação separadas.

@@ -148,6 +148,7 @@ def dispatch(db, job, function=None):
     request = request_for(db, job)
     # Resolve deployed function before the claim: missing deployments consume no reservation lease.
     function = function or modal.Function.from_name(APP_NAME, "deliver")
+    function.hydrate()
     claim = db.rpc("claim_video_job", p_job=job["id"])
     if claim.get("code") != "claimed":
         return {"code": claim.get("code", "invalid_claim")}
@@ -188,6 +189,10 @@ def main():
         raise ValueError("A durable job ID is required")
     db = Studio()
     job = one(db.table("studio_video_jobs", select="*", id="eq." + args.job))
+    if job["state"] == "queued":
+        # Expired billing never gets revived from a cached amount; this only reads the provider.
+        from story_modal_budget import refresh
+        refresh(db, job["wallet_id"])
     print(json.dumps({"job_id": job["id"], **dispatch(db, job)}))
 
 

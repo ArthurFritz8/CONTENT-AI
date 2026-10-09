@@ -1,5 +1,15 @@
 # Histórias opcionais no Studio
 
+Atualização de implementação em 09/10: [ADR-071](ADR/ADR-071-preparo-automatico-e-saldo-conservador-modal.md) liga o caminho animado ao preparo de falas, orçamento e fila; ainda **não foi implantado/ativado**. As instruções abaixo continuam descrevendo o fluxo ilustrado disponível. Criar novela automaticamente também cria conceito/elenco/arco, sem obrigar a escrever uma premissa.
+
+Para uma série animada configurada, a futura ativação mostra separadamente saldo estimado, reservas, disponibilidade e orçamento do capítulo preparado. A fala é medida antes de reservar a GPU; um saldo insuficiente aguarda capacidade, sem começar apenas as primeiras cenas. Retomadas consultam os arquivos e jobs existentes. Publicação e continuação continuam dependendo da aprovação do capítulo anterior.
+
+Ativação do operador: aplicar primeiro todas as migrations de vídeo de 08/10 e as três de 09/10; implantar as versões correspondentes das funções e workflows. Registrar referências PNG privadas e amostras/vozes aprovadas por personagem, calcular o hash do perfil e cadastrar compatibilidade para a execução implantada. Não promover placeholders ou evidência de outro modelo ao perfil aprovado.
+
+Cadastrar carteira Modal em USD micro, `quota_group=modal:NOME_REAL`, acesso ao workspace e margem; mantê-la desativada enquanto faltar evidência. `studio_modal_wallet_config` exige franquia mensal verificada, validade, prova vigente do limite de gastos zero e confirmação de implantação. `story-balance.yml` recebe o ID dessa carteira, verifica a conta das credenciais e apenas lê o faturamento. Essa consulta não gera vídeo nem habilita a fonte. Os secrets Modal/Supabase ficam no servidor/Actions.
+
+O gate SQL `system_config.story_production.animated_preparation_enabled`, o secret/ambiente Edge `CONTENT_AI_ANIMATION_PREPARATION_ENABLED` e a variável Actions de mesmo nome devem concordar. Envio de GPU tem flag independente `CONTENT_AI_VIDEO_DISPATCH_ENABLED`, no Edge e Actions. Defaults são false. Verificar franquias Actions/Storage e orçamento integral antes de ativar. Não aumentar limite ou pagar para cumprir o requisito gratuito. A conciliação financeira continua explícita: resumo agregado não libera sozinho as reservas de cada job, inclusive após mudança de mês.
+
 Em **Pautas e produtos**, a opção inicial **Vídeo de assunto** continua pesquisando gadgets e os outros temas existentes. Pode alternar de formato a qualquer momento: escolher uma história não transforma suas pautas normais.
 
 Para uma história, escolha **História original** ou **Novela de frutas**, o tom e 1, 3 ou 6 capítulos. Descreva a ideia e clique **Criar proposta**. Confira o elenco, a prévia das ilustrações e **Ver plano dos capítulos**. Ainda não há vídeo.
