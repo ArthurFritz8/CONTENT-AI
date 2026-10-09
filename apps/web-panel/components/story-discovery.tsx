@@ -7,7 +7,8 @@ import { storyArtwork } from "../../../packages/core/src/stories/art";
 import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories/schema";
 type Chapter = { number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean };
 type Series = { id: string; bible: SeriesBible; chapters: Chapter[] };
-type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null; balance_kind?: string; billing_may_lag?: boolean; source_ready?: boolean };
+type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null; balance_kind?: string; billing_may_lag?: boolean; source_ready?: boolean; balance_fresh?: boolean; source_blockers?: string[];
+  minimum_chapter_estimate?: { shots: number; planned_seconds: number; required_units: number; shortfall_units: number | null; comparison_only: true } };
 type Overview = { series: Series[]; remaining: number; daily_cap: number; generated_today: number; active: number; proposals_remaining: number; capacity: { unavailable?: boolean };
   animationProgress?: { chapters: Array<{ episode_id: string; completed_shots: number; total_shots: number; planned_seconds: number; output_fps: number; stage: string; prepared_audio?: number }>; unavailable?: boolean };
   videoCapacity?: { wallets: VideoWallet[]; series_profiles: Array<{ series_id: string; profile_sha256: string; compatible_wallets: string[] }>; unavailable?: boolean;
@@ -21,6 +22,11 @@ function walletAmount(value: number | null, unit: string) {
 const genres = { comedy: "Comédia", mystery: "Mistério", drama: "Drama leve", adventure: "Aventura" };
 const progress: Record<string,string> = { idea: "Preparando capítulo", research: "Conferindo continuidade", script: "Criando roteiro e ilustrações", assets: "Renderizando vídeo", rendered: "Conferindo qualidade", review: "Pronto para revisão", failed: "Geração interrompida — veja os detalhes", published: "Publicado", analyze: "Publicado" };
 const animationStages: Record<string,string> = { awaiting_capacity:"Aguardando saldo ou configuração da fonte", preparing_audio: "Preparando e medindo falas", awaiting_plan: "Conferindo orçamento e disponibilidade", generating_clips: "Animando cenas", reconciliation_required: "Conferindo resultado antes de continuar", ready_for_assembly: "Cenas prontas para montagem", assembling: "Montando capítulo", rendered: "Conferindo capítulo", review: "Pronto para revisão", published: "Publicado", analyze: "Publicado", failed: "Geração interrompida" };
+const sourceBlockers: Record<string,string> = {
+  source_disabled: "Fonte ainda não ativada para geração.", balance_stale: "O saldo precisa de uma nova consulta; o valor exibido é da última verificação.",
+  runtime_unverified: "A integração de animação ainda precisa ser implantada e validada.", entitlement_unverified: "A franquia gratuita precisa ser conferida novamente.",
+  spend_limit_unverified: "Falta confirmar o limite de gastos de US$ 0 na conta.", billing_unverified: "Falta confirmar que não há cobranças em dinheiro neste período."
+};
 
 export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refresh: number }) {
   const [kind,setKind] = useState<"factual" | "original" | "fruits">("factual");
@@ -29,6 +35,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   const [data,setData] = useState<Overview | null>(null), [error,setError] = useState(""), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false);
   const request = useRef<{ key: string; id: string } | null>(null);
   const [version,setVersion] = useState(0);
+  const [balanceBusy,setBalanceBusy] = useState<string | null>(null);
   useEffect(() => {
     if (kind === "factual") return;
     const controller = new AbortController();
@@ -59,6 +66,17 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
       request.current=null;setVersion(v=>v+1);setNotice("Proposta criada. Confira os personagens e capítulos abaixo antes de gerar.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível criar a proposta."); }
     finally { setBusy(false); }
+  }
+  async function refreshBalance(walletId: string) {
+    setBalanceBusy(walletId);setError("");setNotice("");
+    try {
+      const result=await jsonPost("/api/stories",{action:"balance",walletId});
+      if(result.code==="entitlement_unverified")throw Error("O administrador precisa conferir a franquia gratuita desta conta antes da próxima consulta.");
+      if(!["dispatch","waiting"].includes(result.code))throw Error("Não foi possível solicitar a consulta de saldo.");
+      setNotice(result.code==="waiting" ? "Uma consulta foi solicitada recentemente. Aguarde até dois minutos; o painel atualiza o resultado automaticamente." : "Consulta de saldo solicitada. O resultado aparecerá automaticamente quando estiver pronto. Nenhum vídeo será gerado.");
+      setVersion(v=>v+1);
+    } catch(e) {setError(e instanceof Error ? e.message : "Saldo indisponível.");}
+    finally {setBalanceBusy(null);}
   }
   async function next(s: Series) {
     setBusy(true);setError("");setNotice("");
@@ -97,9 +115,14 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
         <p className="muted">Esta estimativa é de roteiros e do limite diário do Studio. A capacidade de animação depende de saldo e fontes compatíveis com sua novela. Contadores do Studio renovam à 0h UTC (21h em Brasília).</p>
         <details><summary>Fontes e saldo para animação</summary>
           {!data?.videoCapacity?.wallets.length ? <p>Saldo de animação ainda não conectado ao Studio. A integração do Modal está em preparação.</p> : data.videoCapacity.wallets.map(w=><div key={w.id}>
-            <p><strong>{w.label}</strong> · {w.balance_kind==="conservative_monthly_estimate" ? "Sobra estimada conservadora" : "Saldo"}: {walletAmount(w.remaining_units,w.unit)} · Reservado: {walletAmount(w.reserved_units,w.unit)} · Disponível para novos trabalhos: {walletAmount(w.available_units,w.unit)}</p>
+            <p><strong>{w.label}</strong> · {w.balance_fresh===false ? "Último valor consultado" : w.balance_kind==="conservative_monthly_estimate" ? "Sobra estimada conservadora" : "Saldo"}: {walletAmount(w.remaining_units,w.unit)} · Reservado: {walletAmount(w.reserved_units,w.unit)} · Disponível para novos trabalhos: {walletAmount(w.available_units,w.unit)}</p>
             <p className="muted">{w.checked_at ? `Consultado em ${new Date(w.checked_at).toLocaleString("pt-BR")}. ` : "Consulta de saldo pendente. "}{w.renews_at ? `Renovação prevista: ${new Date(w.renews_at).toLocaleString("pt-BR")}.` : "Renovação ainda não confirmada."}</p>
+            {w.balance_kind==="conservative_monthly_estimate" && <button className="button" disabled={!!balanceBusy} onClick={()=>void refreshBalance(w.id)}>{balanceBusy===w.id ? "Solicitando consulta…" : "Atualizar saldo"}</button>}
             {w.billing_may_lag && <p className="muted">O faturamento pode ter atraso. A estimativa desconta reservas e margem antes de liberar novos capítulos.{w.source_ready===false ? " Fonte aguardando configuração ou verificação; saldo exibido ainda não autoriza geração." : ""}</p>}
+            {!!w.source_blockers?.length && <><strong>O que falta para liberar esta fonte</strong><ul>{w.source_blockers.map(code=><li key={code}>{sourceBlockers[code] || "Verificação da fonte pendente."}</li>)}</ul></>}
+            {w.minimum_chapter_estimate && <p>Formato mínimo de {w.minimum_chapter_estimate.shots} tomadas / {w.minimum_chapter_estimate.planned_seconds.toLocaleString("pt-BR")}s: reserva estimada de {walletAmount(w.minimum_chapter_estimate.required_units,w.unit)}.
+              {w.minimum_chapter_estimate.shortfall_units===null ? " Atualize a consulta para comparar com o saldo." : w.minimum_chapter_estimate.shortfall_units>0 ? ` Faltam ${walletAmount(w.minimum_chapter_estimate.shortfall_units,w.unit)} após reservas e margem.` : " O último saldo comporta essa estimativa mínima."}
+              <small className="muted"> Comparação de orçamento. A quantidade de capítulos liberados depende do roteiro preparado e da aprovação da fonte para esta novela.</small></p>}
           </div>)}
           <p className="muted">Segundos e capítulos dependem do plano de cenas e da compatibilidade com o padrão da novela.</p>
         </details>

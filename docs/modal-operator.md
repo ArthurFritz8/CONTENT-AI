@@ -261,3 +261,9 @@ Execução concluída: uma animação de Malu na H200, 64 quadros nativos/237 de
 O motor genérico e o worker assíncrono preparados para produção estão descritos na [ADR-069](ADR/ADR-069-worker-duravel-de-animacao.md). O código é compartilhado com as audições abaixo, mas o novo worker não usa seus personagens/paths fixos. Ainda não há ativação do fluxo animado no painel.
 
 O hash atual da execução pode ser consultado sem acesso à nuvem com `python scripts/run-story-video-worker.py --execution`. O workflow `story-video.yml` recebe um job já reservado, nunca um prompt solto. Exige identidade/compatibilidade, inputs privados, saldo fresco e habilitação explícita do dispatcher. Não executar deploy/build ou habilitar a variável apenas para testar configuração: o build da imagem e o relay CPU também podem consumir franquia.
+
+## Consultar a integração de produção sem consumir GPU
+
+O painel publicado permite **Atualizar saldo** em **Fontes e saldo para animação**. O servidor verifica associação ao workspace e carteira; o workflow consulta o saldo e a presença das funções, sem construir imagem ou gerar vídeo. Solicitações repetidas compartilham cooldown de dois minutos. Uma franquia cuja evidência expirou exige conferência operacional antes de nova consulta. A fonte permanece desativada até validação independente de conta, implantação e qualidade por novela.
+
+O operador também pode executar `python scripts/check-story-modal-source.py --wallet UUID_DA_CARTEIRA` com as credenciais já configuradas no ambiente. Esse comando apenas lê a política e consulta as funções na conta autenticada; não aceita personagens, não chama inferência e não ativa a fonte. Não preencher `adapter_ready=true` apenas porque a função existe. Ver [ADR-073](ADR/ADR-073-checagem-da-fonte-e-comparacao-de-orcamento.md).

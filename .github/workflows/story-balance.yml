@@ -28,3 +28,5 @@ jobs:
           python-version: '3.11'
       - run: pip install modal==1.6.1 Pillow==11.3.0
       - run: python scripts/observe-modal-wallet.py --wallet "$VIDEO_WALLET_ID"
+      - name: Verificar funções sem construir imagem ou gerar vídeo
+        run: python scripts/check-story-modal-source.py --wallet "$VIDEO_WALLET_ID"

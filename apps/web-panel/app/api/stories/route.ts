@@ -28,6 +28,9 @@ export async function POST(request: Request) {
   try {
     assertOrigin(request, appUrl());
     const user = await requireUser(), input = await body(request);
+    if (input.action === "balance") {
+      return Response.json(await edge({action:"balance",workspace:user.workspaceId,actor:user.id,wallet_id:uuid(input.walletId)}), {headers:{"Cache-Control":"no-store"}});
+    }
     if (["retry","archive"].includes(input.action)) {
       return Response.json(await studioRpc("studio_story_manage", { p_workspace:user.workspaceId,p_actor:user.id,p_series:uuid(input.seriesId),p_action:input.action }), { headers:{"Cache-Control":"no-store"} });
     }
