@@ -1980,3 +1980,13 @@ blockquote {
 .story-chapters>div { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:14px; font-size:13px; }
 .story-chapters .button { margin-left:auto; }
 @media(max-width:760px){.content-type-options{grid-template-columns:1fr}.story-proposal-layout{grid-template-columns:1fr}.story-art-preview{width:150px}.content-type-card{padding:16px}}
+
+.story-production-setup { margin:20px 0; padding:18px; border:1px solid var(--line); border-radius:12px; }
+.story-production-setup summary { cursor:pointer; font-weight:600; }
+.story-profile-cast { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:18px; }
+.story-profile-cast section { padding:16px; border:1px solid var(--line); border-radius:10px; min-width:0; }
+.story-profile-cast h5 { margin:0 0 12px; font-size:16px; }
+.story-profile-cast img { display:block; max-width:100%; height:auto; max-height:340px; object-fit:contain; border-radius:8px; }
+.story-profile-cast audio { width:100%; }
+
+.story-proposal-animated { grid-template-columns:1fr; }

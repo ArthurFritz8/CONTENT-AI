@@ -1,0 +1,34 @@
+name: Studio character voice previews
+on:
+  workflow_dispatch:
+    inputs:
+      series_id:
+        description: Novela com elenco aprovado, antes do primeiro capítulo
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: story-profile-voices-${{ inputs.series_id }}
+  cancel-in-progress: false
+jobs:
+  voices:
+    if: vars.CONTENT_AI_PROFILE_VOICES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SERIES_ID: ${{ inputs.series_id }}
+      CONTENT_AI_PROFILE_VOICES_ENABLED: ${{ vars.CONTENT_AI_PROFILE_VOICES_ENABLED }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install edge-tts==7.2.8
+      - run: bash scripts/setup-ffmpeg.sh
+      - run: env -u LD_LIBRARY_PATH deno run --config supabase/functions/deno.json --allow-env --allow-net --allow-read --allow-write --allow-run=python,ffmpeg,ffprobe scripts/run-story-profile-voices.ts

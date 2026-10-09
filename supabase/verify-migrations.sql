@@ -29,7 +29,7 @@ begin
     end if;
   end loop;
   foreach tbl in array array['studio_video_wallets','studio_video_wallet_access','studio_series_production','studio_video_compatibility','studio_video_requests','studio_video_jobs','studio_video_worker_tickets',
-   'studio_animated_renders','studio_modal_wallet_config','studio_modal_observations','studio_animation_preparations','studio_animation_audio','studio_animation_dispatches'] loop
+   'studio_animated_renders','studio_modal_wallet_config','studio_modal_observations','studio_animation_preparations','studio_animation_audio','studio_animation_dispatches','studio_production_media','studio_production_setup'] loop
     if not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname=tbl and c.relrowsecurity) then
       raise exception 'Video production table missing RLS: %',tbl;
     end if;
@@ -40,7 +40,10 @@ begin
     or has_function_privilege('anon','public.complete_video_worker(uuid,text,jsonb,jsonb,boolean)','execute') then
     raise exception 'Video production worker RPC is exposed';
   end if;
-  if has_function_privilege('authenticated','public.observe_modal_wallet(uuid,jsonb)','execute') or
+  if has_function_privilege('anon','public.claim_profile_voices(uuid,uuid)','execute') or
+    has_function_privilege('authenticated','public.studio_production_finalize(uuid,uuid,uuid,jsonb,text)','execute') or
+    has_function_privilege('service_role','public.studio_story_next_before_setup(uuid,uuid,uuid)','execute') or
+    has_function_privilege('authenticated','public.observe_modal_wallet(uuid,jsonb)','execute') or
     has_function_privilege('anon','public.save_animation_draft(uuid,text,text,jsonb)','execute') or
     has_function_privilege('authenticated','public.claim_animation_preparation(uuid,uuid)','execute') or
     has_function_privilege('anon','public.studio_animation_step(uuid)','execute') or

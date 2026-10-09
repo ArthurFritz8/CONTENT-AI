@@ -129,6 +129,8 @@ set_supabase_secrets() {
     "GITHUB_BRANCH=$GITHUB_BRANCH"
     "BUDGET_CEILING=$BUDGET_CEILING"
     "TTS_PREFERRED_ENGINE=$TTS_PREFERRED_ENGINE"
+    "CONTENT_AI_ANIMATION_PREPARATION_ENABLED=${CONTENT_AI_ANIMATION_PREPARATION_ENABLED:-false}"
+    "CONTENT_AI_VIDEO_DISPATCH_ENABLED=${CONTENT_AI_VIDEO_DISPATCH_ENABLED:-false}"
     "CONTENT_AI_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
   )
 
@@ -173,6 +175,12 @@ set_github_actions_secrets() {
   log "Configurando GitHub Actions secrets para $GITHUB_REPO"
   printf '%s' "$SUPABASE_URL" | gh secret set SUPABASE_URL --repo "$GITHUB_REPO"
   printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | gh secret set SUPABASE_SERVICE_ROLE_KEY --repo "$GITHUB_REPO"
+  local story_flag
+  for story_flag in CONTENT_AI_PROFILE_VOICES_ENABLED CONTENT_AI_ANIMATION_PREPARATION_ENABLED CONTENT_AI_VIDEO_DISPATCH_ENABLED; do
+    local story_value="${!story_flag:-false}"
+    [[ "$story_value" == "true" || "$story_value" == "false" ]] || fail "$story_flag must be true or false"
+    gh variable set "$story_flag" --body "$story_value" --repo "$GITHUB_REPO"
+  done
   local name
   for name in YOUTUBE_CLIENT_ID YOUTUBE_CLIENT_SECRET YOUTUBE_REFRESH_TOKEN YOUTUBE_CHANNEL_ID; do
     if [[ -n "${!name:-}" ]]; then printf '%s' "${!name}" | gh secret set "$name" --repo "$GITHUB_REPO"; fi
@@ -180,7 +188,7 @@ set_github_actions_secrets() {
 }
 
 deploy_functions() {
-  local required=(orchestrator generate-research generate-script generate-assets trigger-render telegram-bot publish-youtube recommend-idea studio-discover studio-story studio-help studio-telegram studio-telegram-hook)
+  local required=(orchestrator generate-research generate-script generate-assets trigger-render telegram-bot publish-youtube recommend-idea studio-discover studio-story studio-video-worker studio-help studio-telegram studio-telegram-hook)
   local optional=(publish-tiktok collect-analytics heartbeat affiliate-catalog discover-trends)
 
   log "Deployando Edge Functions obrigatórias"

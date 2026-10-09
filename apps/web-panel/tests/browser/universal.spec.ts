@@ -6,6 +6,8 @@ test("new Studio endpoints deny anonymous and cross-origin writes", async ({
     "/api/review?episode=12345678-1234-4234-9234-123456789abc",
     "/api/connections",
     "/api/stories",
+    "/api/stories/production",
+    "/api/stories/production/media",
   ]) {
     const r = await request.get(path);
     expect(r.status()).toBe(401);
@@ -14,6 +16,8 @@ test("new Studio endpoints deny anonymous and cross-origin writes", async ({
     "/api/review",
     "/api/discovery",
     "/api/stories",
+    "/api/stories/production",
+    "/api/stories/production/media",
     "/api/help",
     "/api/connections",
     "/api/buffer/connect",

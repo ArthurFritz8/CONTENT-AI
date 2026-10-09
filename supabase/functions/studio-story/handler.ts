@@ -9,9 +9,11 @@ import { extractJson } from "../_shared/gemini.ts";
 import { getGeminiBudgetRemaining } from "../_shared/budget-guard.ts";
 import { storyRequestSchema, proposalBibleSchema } from "../../../packages/core/src/stories/schema.ts";
 import { biblePrompt } from "../../../packages/core/src/stories/prompts.ts";
+import { dispatchGithub } from "../_shared/github-dispatch.ts";
 
 const base = { workspace: z.string().uuid(), actor: z.string().uuid() };
 const schema = z.discriminatedUnion("action", [z.object({ ...base, action: z.literal("capacity") }),
+  z.object({ ...base, action: z.literal("profile_voices"), series_id: z.string().uuid() }),
   z.object({ ...base, action: z.literal("propose"), request_id: z.string().uuid(), input: storyRequestSchema })]);
 export async function handleStory(req: Request): Promise<Response> {
   let logger: JobLogger | undefined;
@@ -22,6 +24,12 @@ export async function handleStory(req: Request): Promise<Response> {
     logger = new JobLogger(db, "studio-story");
     const { error: auth } = await db.rpc("studio_assert_member", { p_workspace: input.workspace, p_actor: input.actor });
     if (auth) throw new AppError("Acesso negado", 403, "FORBIDDEN");
+    if (input.action === "profile_voices") {
+      const {data,error}=await db.rpc("studio_profile_voices_request",{p_workspace:input.workspace,p_actor:input.actor,p_series:input.series_id});
+      if(error)throw new AppError("Prévia de voz indisponível",502,"DB_ERROR");
+      if(data.code==="dispatch")await dispatchGithub("story-profile-voices.yml",input.series_id);
+      return jsonResponse(data);
+    }
     if (input.action === "capacity") {
       const cfg = await getSystemConfig<{ text_model?: string }>(db, "gemini", {});
       const storyCfg = await getSystemConfig<{ gemini_model?: string }>(db, "story_production", {});

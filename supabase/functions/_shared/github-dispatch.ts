@@ -1,6 +1,6 @@
 import { AppError } from "./error-handler.ts";
 
-export async function dispatchGithub(workflow: "render.yml" | "assets.yml" | "publish-youtube.yml" | "publish-youtube-shorts.yml" | "story-prepare.yml" | "story-video.yml" | "story-balance.yml", episodeId: string): Promise<void> {
+export async function dispatchGithub(workflow: "render.yml" | "assets.yml" | "publish-youtube.yml" | "publish-youtube-shorts.yml" | "story-prepare.yml" | "story-video.yml" | "story-balance.yml" | "story-profile-voices.yml", episodeId: string): Promise<void> {
   const repo = Deno.env.get("GITHUB_REPO");
   const token = Deno.env.get("GITHUB_TOKEN");
   if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) throw new AppError("GitHub não configurado", 500, "CONFIG_MISSING");
@@ -8,7 +8,7 @@ export async function dispatchGithub(workflow: "render.yml" | "assets.yml" | "pu
   const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
     method: "POST", signal: AbortSignal.timeout(15_000),
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
-    body: JSON.stringify({ ref: Deno.env.get("GITHUB_BRANCH") ?? "main", inputs: { [workflow==="story-video.yml" ? "job_id" : workflow==="story-balance.yml" ? "wallet_id" : "episode_id"]: episodeId } }),
+    body: JSON.stringify({ ref: Deno.env.get("GITHUB_BRANCH") ?? "main", inputs: { [workflow==="story-video.yml" ? "job_id" : workflow==="story-balance.yml" ? "wallet_id" : workflow==="story-profile-voices.yml" ? "series_id" : "episode_id"]: episodeId } }),
   });
   if (res.status !== 204) throw new AppError(`Dispatch recusado (${res.status})`, 502, "GITHUB_DISPATCH_FAILED");
 }
