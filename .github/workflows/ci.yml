@@ -40,7 +40,7 @@ jobs:
       - name: Testes unitários (_shared)
         run: |
           deno check --config supabase/functions/deno.json supabase/functions/*/index.ts
-          deno test --node-modules-dir=auto --allow-env --allow-read --allow-write --allow-run=python,ffmpeg,ffprobe --config supabase/functions/deno.json supabase/functions/_shared/
+          env -u LD_LIBRARY_PATH deno test --node-modules-dir=auto --allow-env --allow-read --allow-write --allow-run=python,ffmpeg,ffprobe --config supabase/functions/deno.json supabase/functions/_shared/
 
   test-core:
     runs-on: ubuntu-latest
@@ -91,6 +91,13 @@ jobs:
           done
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/seed.sql -f supabase/verify-migrations.sql -f supabase/tests/audit.sql -f supabase/tests/review.sql -f supabase/tests/youtube.sql -f supabase/tests/youtube-shorts.sql -f supabase/tests/buffer-tiktok.sql -f supabase/tests/buffer-youtube.sql -f supabase/tests/telegram-queue.sql -f supabase/tests/web-panel.sql -f supabase/tests/growth.sql -f supabase/tests/studio.sql -f supabase/tests/stories.sql -f supabase/tests/story-video.sql -f supabase/tests/story-video-worker.sql -f supabase/tests/animated-chapter.sql -f supabase/tests/modal-billing.sql -f supabase/tests/animated-preparation.sql -f supabase/tests/production-setup.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
+          pids=()
+          for i in $(seq 1 12); do
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-call.sql > /tmp/content-ai-concurrency-$i.log &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-verify.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-video-concurrency-setup.sql
           video_pids=()
           for i in $(seq 1 12); do
@@ -107,13 +114,6 @@ jobs:
           done
           for pid in "${worker_pids[@]}"; do wait "$pid"; done
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/story-worker-concurrency-verify.sql
-          pids=()
-          for i in $(seq 1 12); do
-            sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-call.sql > /tmp/content-ai-concurrency-$i.log &
-            pids+=("$!")
-          done
-          for pid in "${pids[@]}"; do wait "$pid"; done
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-verify.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/review-concurrency-setup.sql
           pids=()
           for i in $(seq 1 12); do
