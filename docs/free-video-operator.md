@@ -48,6 +48,8 @@ O novo avaliador `assessStoryCoverage` do core mede cobertura no modo `animated_
 
 ## Montagem sem novas chamadas
 
+O caminho produtivo genérico, distinto dos comandos históricos abaixo, está registrado no [ADR-070](ADR/ADR-070-planejamento-e-montagem-de-capitulos-animados.md). Monta somente tarefas duráveis concluídas do mesmo perfil, preserva 60 FPS e PCM, e exige todas as cenas. Foi testado localmente; não está implantado nem habilita o botão de criação automática com saldo ainda desconhecido.
+
 ```powershell
 node --experimental-strip-types scripts/assemble-free-story-preview.mts
 node --experimental-strip-types scripts/assemble-free-story-preview.mts --flashhead

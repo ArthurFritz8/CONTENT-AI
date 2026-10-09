@@ -12,6 +12,13 @@ export async function advancePipeline(
   if (error) throw new AppError("Erro ao selecionar trabalho", 500, "DB_ERROR");
   const episode = data?.[0];
   if (!episode) return null;
+  if (episode.status === "script" && episode.script_json?.fiction?.animation) {
+    const { data: mounted, error: mountError } = await db.rpc("mount_animated_chapter", {
+      p_episode: episode.id, p_origin: Deno.env.get("SUPABASE_URL")?.replace(/\/$/, ""),
+    });
+    if (mountError) throw new AppError("Plano animado não corresponde aos clipes concluídos", 409, "ANIMATED_PLAN_MISMATCH");
+    return { episode_id: episode.id, animated_chapter: true, ...mounted };
+  }
   if (episode.status === "rendered") {
     const { error: updateError } = await db
       .from("episodes")

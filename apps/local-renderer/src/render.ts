@@ -2,6 +2,7 @@
 import { spawn } from "node:child_process";
 import { rasterizeArtwork } from "./artwork.ts";
 import { assertClipCoverage, buildClipSceneFilterGraph, isSceneClip } from "./clip-render.ts";
+import { renderAnimatedChapter, type AnimatedLocalTake } from "./animated-render.ts";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
@@ -133,6 +134,10 @@ class SupabaseRestClient {
     return await this.rest<AssetRow[]>(
       `assets?episode_id=eq.${encodeURIComponent(episodeId)}&select=type,url,metadata`,
     );
+  }
+
+  async rpc(name: string, body: Record<string, unknown>): Promise<Record<string, any>> {
+    return this.rest(`rpc/${name}`, { method: "POST", body });
   }
 
   async getSystemConfig<T>(key: string, fallback: T): Promise<T> {
@@ -759,6 +764,10 @@ async function renderEpisode(episodeId: string): Promise<void> {
   }
 
   const script = scriptJsonSchema.parse(episode.script_json);
+  if (script.fiction?.animation) {
+    await renderAnimatedEpisode(client, episode, script);
+    return;
+  }
   if (!isRenderReady(script))
     throw new Error("script_json não está render-ready");
 
@@ -899,6 +908,32 @@ async function renderEpisode(episodeId: string): Promise<void> {
         JSON.stringify({ level: "info", msg: "tmp preservado", workDir }),
       );
   }
+}
+
+async function renderAnimatedEpisode(client: SupabaseRestClient, episode: EpisodeRow, script: ScriptJson) {
+  const token = crypto.randomUUID(), claim = await client.rpc("claim_animated_render", { p_episode: episode.id, p_token: token });
+  if (claim.code === "completed") return;
+  if (claim.code !== "claimed") throw Error("Montagem animada já está em execução");
+  const directory = await mkdtemp(join(tmpdir(), `content-ai-animation-${episode.id}-`));
+  try {
+    const takes: AnimatedLocalTake[] = [];
+    for (const scene of [...script.scenes].sort((a, b) => a.order - b.order)) {
+      const source = claim.sources.find((s: { shot_id: string }) => s.shot_id === scene.id);
+      if (!source || source.audio_sha256 !== scene.animation!.audio_sha256) throw Error("Tomada sem vínculo com o plano reservado");
+      const path = join(directory, `take_${scene.order}.mp4`), audioPath = join(directory, `take_${scene.order}.wav`);
+      await downloadUrl(client.storagePublicUrl("studio-private", source.output_path), path);
+      await downloadUrl(client.storagePublicUrl("studio-private", scene.animation!.audio_path), audioPath);
+      takes.push({ path, sha256: source.output_sha256, audioPath, audio_sha256: source.audio_sha256 });
+    }
+    const rendered = await renderAnimatedChapter(script, takes, directory), bytes = await readFile(rendered.path),
+      hash = createHash("sha256").update(bytes).digest("hex"),
+      path = `${episode.workspace_id}/animated/${episode.id}/${claim.source_sha256}/${hash}.mp4`;
+    await client.uploadObject("studio-private", path, rendered.path, "video/mp4");
+    const result = await client.rpc("complete_animated_render", { p_episode: episode.id, p_token: token,
+      p_source: claim.source_sha256, p_path: path, p_hash: hash, p_quality: rendered.quality, p_origin: requireEnv("SUPABASE_URL").replace(/\/$/, "") });
+    if (result.code !== "saved") throw Error("Conclusão da montagem não confirmada");
+    await client.event({ episode_id: episode.id, event_type: "render_completed", metadata: { strategy: "animated_chapter", ...rendered.quality } });
+  } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
 async function main(): Promise<void> {

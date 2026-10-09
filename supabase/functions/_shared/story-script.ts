@@ -14,6 +14,9 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   episode: { id: string; briefing: { story_context: unknown }; research_evidence: unknown }): Promise<Response> {
   const context = storyContextSchema.parse(episode.briefing.story_context);
   if (!fictionPlanMatches(context, episode.research_evidence)) throw new AppError("Plano narrativo alterado", 422, "RESEARCH_EVIDENCE_INVALID");
+  const { data: production, error: profileError } = await db.from("studio_series_production").select("series_id").eq("series_id", context.series_id).maybeSingle();
+  if (profileError) throw new AppError("Não foi possível conferir o padrão audiovisual", 503, "PRODUCTION_PROFILE_UNAVAILABLE");
+  if (production) throw new AppError("Esta novela exige planejamento animado; o roteirista ilustrado não pode substituir seu padrão audiovisual", 409, "ANIMATION_SETUP_REQUIRED");
   const quality = await loadScriptQualityChecker(db);
   let errors = "";
   for (const attempt of [1, 2]) {

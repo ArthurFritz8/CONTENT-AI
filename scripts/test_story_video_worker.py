@@ -203,11 +203,21 @@ class WorkerTests(unittest.TestCase):
             "reference_sha256":self.request["reference_sha"],"audio_path":workspace+"/voice.wav","audio_sha256":self.request["audio_sha"],
             "prompt":self.request["prompt"],"seed":self.request["seed"],"seconds":2,"min_short_edge":704,"min_output_fps":60,
             "continuity":{"series_id":bundle_for(self.request)["job_id"],"profile_sha256":profile_sha}}
-        job={"provider_id":PROVIDER,"execution_sha256":execution_hash(),"workspace_id":workspace,"shot_id":"dialogue","input":shot}
+        job={"provider_id":PROVIDER,"execution_sha256":execution_hash(),"workspace_id":workspace,"episode_id":bundle_for(self.request)["job_id"],"shot_id":"dialogue","input":shot}
         db=Mock()
-        db.table.return_value=[{"profile":profile,"profile_sha256":profile_sha}]
+        script={}
+        db.table.side_effect=lambda table,**kwargs: [{"profile":profile,"profile_sha256":profile_sha}] if table=="studio_series_production" else [{"script_json":script}]
         db.download.side_effect=lambda path,*args:self.request["png"] if path==reference_path else self.request["wav"]
         self.assertEqual(runner.request_for(db,job),self.request)
+        voice_sha=hashlib.sha256(json.dumps(profile["voices"][0],sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+        binding={**shot,"character_id":"malu","voice_sha256":voice_sha,"audio_seconds":2}
+        scene={"id":"dialogue","animation":binding,"story_visual":{"speaker_id":"malu"}}
+        script.update(fiction={"animation":{"profile_sha256":profile_sha}},scenes=[scene]+[{"id":f"other-{i}"} for i in range(4)])
+        self.assertEqual(runner.request_for(db,job),self.request)
+        for field,value in (("voice_sha256","0"*64),("audio_seconds",1.5),("character_id","laran")):
+            original=binding[field]; binding[field]=value
+            with self.assertRaises(ValueError): runner.request_for(db,job)
+            binding[field]=original
         for changed in ({**shot,"reference_path":workspace+"/other.png"},{**shot,"seconds":1.9},
                         {**shot,"continuity":{**shot["continuity"],"profile_sha256":"0"*64}}):
             with self.assertRaises(ValueError): runner.request_for(db,{**job,"input":changed})

@@ -1062,6 +1062,7 @@ export async function handleAssets(req: Request): Promise<Response> {
     }
 
     const script = scriptJsonSchema.parse(episode.script_json);
+    if (script.fiction?.animation) throw new AppError("Capítulo animado aguarda suas tomadas reservadas; não é permitido gerar ilustrações como substituição", 409, "ANIMATED_CLIPS_REQUIRED");
     const quality = await loadScriptQualityChecker(db);
     const isStory = Boolean(script.fiction);
     if (isStory && (!fictionPlanMatches(episode.briefing?.story_context, episode.research_evidence) ||

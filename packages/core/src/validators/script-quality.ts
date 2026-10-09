@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { ResearchData } from "../schemas/research.ts";
 import type { ScriptJson } from "../schemas/script-json.ts";
 
-export const SCRIPT_QUALITY_VERSION = "1.2.0";
+export const SCRIPT_QUALITY_VERSION = "1.3.0";
 export const MIN_NARRATION_WORDS = 175;
 
 export const factCheckConfigSchema = z.object({
@@ -82,10 +82,12 @@ export function createScriptQualityChecker(rawConfig: unknown) {
       error("NARRATION_MISMATCH", "narration.full_text", "full_text deve concatenar exatamente as narrações na ordem das cenas");
     }
     const spokenWords = normalize(script.narration.full_text).match(/[\p{L}\p{N}]+/gu)?.length ?? 0;
-    if (spokenWords < MIN_NARRATION_WORDS) {
+    if (!script.fiction?.animation && spokenWords < MIN_NARRATION_WORDS) {
       error("NARRATION_TOO_SHORT", "narration.full_text",
         `Narração com ${spokenWords} palavras; escreva pelo menos ${MIN_NARRATION_WORDS} palavras substantivas para sustentar 60s reais`);
     }
+    if (script.fiction?.animation && scenes.some(s => !s.narration_text.trim() || !s.animation ||
+      s.animation.audio_seconds > 63 / 16)) error("ANIMATED_DIALOGUE_INVALID", "scenes", "Falas animadas exigem áudio medido dentro da tomada");
     if (script.fiction) {
       const cast = new Set(script.fiction.context.bible.cast.map(c => c.id));
       for (const scene of scenes) {

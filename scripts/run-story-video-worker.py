@@ -82,6 +82,24 @@ def request_for(db, job):
     duration = validate_request(**request)
     if duration > shot["seconds"]:
         raise ValueError("Measured dialogue exceeds reserved shot duration")
+    episode = one(db.table("episodes", select="script_json", id="eq." + job["episode_id"], workspace_id="eq." + job["workspace_id"]))
+    script = episode.get("script_json")
+    if not isinstance(script, dict):
+        raise ValueError("Missing prepared episode script")
+    if script.get("fiction", {}).get("animation"):
+        scenes = script.get("scenes", [])
+        scene = one([s for s in scenes if s.get("id") == shot["id"]])
+        binding = scene.get("animation", {})
+        character = binding.get("character_id")
+        voice = one([v for v in profile["voices"] if v["character_id"] == character])
+        voice_sha = hashlib.sha256(json.dumps(voice, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+        if not 5 <= len(scenes) <= 8 or binding.get("voice_sha256") != voice_sha or scene.get("story_visual", {}).get("speaker_id") != character or any(
+            binding.get(field) != shot.get(field) for field in ("reference_path", "reference_sha256", "audio_path", "audio_sha256", "prompt", "seed")) or not any(
+            r["character_id"] == character and r["path"] == shot["reference_path"] and r["sha256"] == shot["reference_sha256"] for r in profile["references"]):
+            raise ValueError("Reserved shot differs from the prepared character and voice")
+        measured = binding.get("audio_seconds")
+        if type(measured) not in (int, float) or abs(measured - duration) > 1 / 16000:
+            raise ValueError("Prepared audio duration differs from actual PCM")
     return request
 
 

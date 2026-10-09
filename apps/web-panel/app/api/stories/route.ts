@@ -15,12 +15,13 @@ async function edge(payload: Record<string, unknown>) {
 export async function GET() {
   try {
     const user = await requireUser();
-    const [overview, capacity, videoCapacity] = await Promise.all([
+    const [overview, capacity, videoCapacity, animationProgress] = await Promise.all([
       studioRpc("studio_story_overview", { p_workspace: user.workspaceId, p_actor: user.id }),
       edge({ action: "capacity", workspace: user.workspaceId, actor: user.id }).catch(() => ({ estimated_script_capacity: 0, estimate: true, unavailable: true })),
       studioRpc("studio_video_overview", { p_workspace: user.workspaceId, p_actor: user.id }).catch(() => ({ wallets: [], series_profiles: [], unavailable: true, estimate_status: "setup_required" })),
+      studioRpc("studio_animated_progress", { p_workspace: user.workspaceId, p_actor: user.id }).catch(() => ({ chapters: [], unavailable: true })),
     ]);
-    return Response.json({ ...overview, capacity, videoCapacity, remaining: overview.active ? 0 : Math.min(overview.daily_remaining,capacity.estimated_script_capacity) }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ...overview, capacity, videoCapacity, animationProgress, remaining: overview.active ? 0 : Math.min(overview.daily_remaining,capacity.estimated_script_capacity) }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) { return errorResponse(e); }
 }
 export async function POST(request: Request) {

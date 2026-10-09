@@ -28,6 +28,7 @@ Deno.test("fiction script and image checkpoints use frozen context; no stock or 
   if(u.hostname==="generativelanguage.googleapis.com"){calls++;return json({candidates:[{content:{parts:[{text:JSON.stringify(draft)}]}}]});}
   if(u.pathname.endsWith("/rpc/claim_episode")||u.pathname.endsWith("/rpc/reserve_gemini_call"))return json(true);
   if(u.pathname.endsWith("/episode_leases"))return new Response(null,{status:204});
+  if(u.pathname.endsWith("/studio_series_production"))return json([]);
   if(u.pathname.endsWith("/episodes")){if(method==="PATCH"){Object.assign(episode,body);return body.status==="script"?json({id}):new Response(null,{status:204});}return json(episode);}
   if(u.pathname.endsWith("/system_config"))return json({value:u.searchParams.get("key")==="eq.fact_check"?policy:{}});
   if(u.pathname.endsWith("/assets")){if(method==="POST"){assets.push(...body);return new Response(null,{status:201});}return json(assets);}
@@ -42,6 +43,26 @@ Deno.test("fiction script and image checkpoints use frozen context; no stock or 
  assertEquals((await handleAssets(req())).status,202);assertEquals(episode.tts_engine,"edge");const count=uploads;
  episode.script_json.fiction.context.bible.cast[0].color="#abcdef";
  const response=await handleAssets(req());assertEquals(response.status,422);assertEquals(uploads,count);
+}));
+Deno.test("illustrated writer refuses an animated profile or an unavailable registry before text quota",async()=>await envTest(async()=>{
+ const {context}=storyFixture(),id="11111111-1111-4111-8111-111111111111";
+ let unavailable=false,quotaCalls=0;
+ globalThis.fetch=(async(input)=>{
+  const u=new URL(input instanceof Request?input.url:String(input));
+  if(u.pathname.endsWith("/rpc/claim_episode"))return json(true);
+  if(u.pathname.endsWith("/episode_leases"))return new Response(null,{status:204});
+  if(u.pathname.endsWith("/episodes"))return json({id,status:"research",briefing:{story_context:context},research_evidence:{type:"fiction_plan",context}});
+  if(u.pathname.endsWith("/studio_series_production")){
+   assertEquals(u.searchParams.get("series_id"),`eq.${context.series_id}`);
+   return unavailable ? json({code:"42P01",message:"registry missing"},400) : json([{series_id:context.series_id}]);
+  }
+  if(u.pathname.endsWith("/job_events"))return new Response(null,{status:201});
+  quotaCalls++;throw Error("Unexpected paid or text provider request");
+ }) as typeof fetch;
+ const req=()=>new Request("https://worker.test",{method:"POST",headers:{Authorization:"Bearer test-service-key"},body:JSON.stringify({episode_id:id})});
+ assertEquals((await handleScript(req())).status,409);
+ unavailable=true;assertEquals((await handleScript(req())).status,503);
+ assertEquals(quotaCalls,0);
 }));
 Deno.test("writer refuses paid/unknown models and pauses on OpenRouter account limits",async()=>await envTest(async()=>{
  Deno.env.delete("GEMINI_API_KEY");Deno.env.set("OPENROUTER_API_KEY","test-router-key");let apiCalls=0,reservations=0;let model="paid/model";
