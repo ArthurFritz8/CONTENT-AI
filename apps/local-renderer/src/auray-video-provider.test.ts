@@ -5,7 +5,7 @@ import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { AURAY, AurayError, AurayVideoProvider, aurayAuditionKey, aurayAuditionSchema,
   aurayStorageUrl, inspectAurayAccount, inspectAurayContract } from "./auray-video-provider.ts";
@@ -191,7 +191,7 @@ test("truncated downloads and malformed success bodies never become approved fil
 
 test("actual CLI saves before submit, resumes a single job, verifies FFmpeg output and reuses cache without HTTP", async () => {
   const root = resolve(import.meta.dirname,"../../.."), temporary = await mkdtemp(join(tmpdir(),"content-ai-auray-test-"));
-  let checkpointDirectory: string | undefined;
+  const sandbox = join(root,"output",`auray-cli-test-${randomUUID()}`);
   try {
     const reference = join(temporary,"reference.png"), video = join(temporary,"sample.mp4"), log = join(temporary,"http.jsonl");
     const image = await sharp({ create: { width:90,height:160,channels:3,background:"#a04d38" } }).png().toBuffer(); await writeFile(reference,image);
@@ -222,7 +222,7 @@ test("actual CLI saves before submit, resumes a single job, verifies FFmpeg outp
         if (url.startsWith('https://queue.auray.run/') && init.method === 'POST') {
           const body = JSON.parse(init.body), id = 'video_'+body.idempotency_key;
           // Durable checkpoint must exist BEFORE the queue sees this POST.
-          const state = JSON.parse(readFileSync(${JSON.stringify(join(root,"output","auray-video-jobs"))}+'/'+body.idempotency_key+'/state.json','utf8'));
+          const state = JSON.parse(readFileSync(${JSON.stringify(sandbox)}+'/'+body.idempotency_key+'/state.json','utf8'));
           if (state.phase !== 'submission_started' || state.job_id !== id) throw new Error('checkpoint absent');
           return json({request_id:id,job_id:id,model,product:'video',credits_charged:5,credits_quoted:5},202);
         }
@@ -241,10 +241,10 @@ test("actual CLI saves before submit, resumes a single job, verifies FFmpeg outp
     `);
     const execute = (args: string[], complete = false) => spawnSync(process.execPath,["--experimental-strip-types","--import",pathToFileURL(preload).href,
       join(root,"scripts","render-auray-story-shot.mts"),...args],{ cwd:root,encoding:"utf8",timeout:45_000,windowsHide:true,
-        env:{ ...process.env,AURAY_API_KEY:"dummy",AURAY_TEST_COMPLETE:complete ? "yes" : "no" } });
+        env:{ ...process.env,AURAY_API_KEY:"dummy",AURAY_TEST_COMPLETE:complete ? "yes" : "no",CONTENT_AI_AURAY_OUTPUT_DIR:sandbox } });
     const submitted = execute(["--run",plan,"--allow-free-audition"]);
     strictEqual(submitted.status,0,submitted.stderr); const waiting = JSON.parse(submitted.stdout.trim()); strictEqual(waiting.status,"queued");
-    const checkpoint = waiting.checkpoint as string; checkpointDirectory = resolve(checkpoint,"..");
+    const checkpoint = waiting.checkpoint as string;
     const state = JSON.parse(await readFile(checkpoint,"utf8")); strictEqual(state.phase,"waiting");
     const resumed = execute(["--resume",checkpoint],true); strictEqual(resumed.status,0,resumed.stderr);
     const result = JSON.parse(resumed.stdout.trim()); strictEqual(result.status,"review_pending"); strictEqual(result.production_ready,false);
@@ -257,12 +257,10 @@ test("actual CLI saves before submit, resumes a single job, verifies FFmpeg outp
     strictEqual(corrupted.status,1); ok(corrupted.stderr.includes("cached_output_changed")); strictEqual(await readFile(log,"utf8"),before);
   } finally {
     // Verify absolute confinement before recursive Windows cleanup. Never remove the shared output directory.
-    if (checkpointDirectory) {
-      const parent = join(root,"output","auray-video-jobs");
-      ok(checkpointDirectory.startsWith(parent+"\\") || checkpointDirectory.startsWith(parent+"/"));
-      ok(/^[a-f0-9]{64}$/.test(checkpointDirectory.slice(parent.length+1)));
-      await rm(checkpointDirectory,{ recursive:true,force:true });
-    }
+    const parent = join(root,"output");
+    ok(sandbox.startsWith(parent+"\\") || sandbox.startsWith(parent+"/"));
+    ok(/^auray-cli-test-[a-f0-9-]{36}$/.test(sandbox.slice(parent.length+1)));
+    await rm(sandbox,{ recursive:true,force:true });
     ok(temporary.startsWith(join(tmpdir(),"content-ai-auray-test-"))); await rm(temporary,{ recursive:true,force:true });
   }
 });

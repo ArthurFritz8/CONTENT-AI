@@ -1,13 +1,13 @@
 /** One bounded silent audition. No Studio wallet, production episode, publishing or Modal calls. */
 import { readFile, writeFile, mkdir, rename, open, unlink } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { resolve, join, relative, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import sharp from "sharp";
 import { z } from "zod";
 import { AURAY, AurayError, AurayVideoProvider, aurayAuditionKey, aurayAuditionSchema } from "../apps/local-renderer/src/auray-video-provider.ts";
 
-const root = resolve(import.meta.dirname,".."), out = join(root,"output","auray-video-jobs");
+const root = resolve(import.meta.dirname,".."), out = resolve(root,process.env.CONTENT_AI_AURAY_OUTPUT_DIR ?? "output/auray-video-jobs");
 const checkpointSchema = z.object({ version: z.literal(1), request_key: z.string().regex(/^[a-f0-9]{64}$/),
   account_id: z.string().uuid(), key_id: z.string().min(1), period: z.string().regex(/^\d{4}-\d{2}$/),
   contract_sha256: z.string().regex(/^[a-f0-9]{64}$/), shot: aurayAuditionSchema,
@@ -47,6 +47,8 @@ async function verifyMedia(path: string, shot: Checkpoint["shot"]) {
     note: "Arquivo original. FPS codificado não comprova fluidez, poses novas, anatomia ou identidade. Prévia isolada; não entra na novela." };
 }
 async function main() {
+  const inside = relative(join(root,"output"),out);
+  if (!inside || inside.startsWith("..") || isAbsolute(inside)) throw new AurayError("output_directory_outside_workspace");
   const mode = process.argv[2], input = process.argv[3];
   if (!["--inspect","--run","--resume"].includes(mode ?? "")) throw new AurayError("use_inspect_run_or_resume");
   await mkdir(out,{ recursive: true });
