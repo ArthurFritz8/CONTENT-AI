@@ -2,6 +2,8 @@
 
 Ferramenta do operador, fora da produção do Studio. Gadgets e histórias ilustradas seguem seus fluxos atuais. Os testes não são episódios nem publicações.
 
+A fonte candidata Auray tem executor próprio com inspeção de saldo autenticado e teste limitado de reação silenciosa: [auray-operator.md](auray-operator.md). Não usa a quota Hugging Face, não substitui diálogos e ainda não foi aprovada para produção.
+
 Política vigente desde ADR-066: somente gratuidade recorrente ou serviço gratuito comprovado entra no roteador. Créditos introdutórios são recusados com `non_recurring_offer`; recorrência não comprovada com `unverified_free_access`. A classificação não substitui saldo, qualidade, quota, revisão ou ausência de cobrança.
 
 ## Conferir as rotas

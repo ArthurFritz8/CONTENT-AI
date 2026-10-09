@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "kind": "reaction",
+  "reference_path": "output/suitcase-story-preview/references/entryway-wide-v1.png",
+  "reference_sha256": "ceb316b79b6dd66d721bcc7a1211b4331b6f9f253599aebc2f99755005836370",
+  "prompt": "Locked full-body two-shot in the same realistic apartment at sunset. The adult apple woman on the left slowly folds her arms across her chest and shifts her weight away from the orange man. Her angry expression turns into hurt suspicion. The orange man watches her and lowers his shoulders, keeping his hands down. Natural body balance, subtle breathing, coherent anatomy and five fingers per hand. Preserve both characters, hair, floral dress, cream linen shirt, shoes, suitcase, furniture and warm light exactly as in the reference. Both mouths stay closed. One continuous silent reaction, no speech, no cut, no new objects, no camera movement.",
+  "seconds": 5,
+  "aspect_ratio": "9:16",
+  "seed": 7007
+}
