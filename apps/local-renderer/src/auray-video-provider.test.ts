@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { AURAY, AurayError, AurayVideoProvider, aurayAuditionKey, aurayAuditionSchema,
+import { AURAY, AurayError, AurayVideoProvider, aurayAuditionKey, aurayAuditionSchema, aurayGenerationPrompt,
   aurayStorageUrl, inspectAurayAccount, inspectAurayContract } from "./auray-video-provider.ts";
 
 const accountId = "00000000-0000-4000-8000-000000000099";
@@ -98,6 +98,30 @@ test("semantic contract changes close the source; prose changes do not imply pin
   throws(() => inspectAurayContract(f.contract), /contract_changed/);
   throws(() => aurayAuditionSchema.parse({ ...shot, kind: "dialogue", audio_path: "voice.wav" }));
   throws(() => aurayAuditionSchema.parse({ ...shot, seconds: 15 }));
+});
+test("native speech is an explicit unapproved probe; never accepts a voice WAV or submits without opt-in", async () => {
+  const f = fixtures(new Date()), previous = report(f,new Date());
+  const native = { speaker:"Malu",language:"pt-BR",text:"Você fez as malas? Ia embora sem me contar?",
+    voice_description:"Adult Brazilian female voice, warm and natural, restrained hurt" };
+  const probe = aurayAuditionSchema.parse({ ...shot,kind:"native_dialogue_probe",native_dialogue:native });
+  throws(() => aurayAuditionSchema.parse({ ...shot,kind:"native_dialogue_probe" }));
+  throws(() => aurayAuditionSchema.parse({ ...shot,native_dialogue:native }));
+  throws(() => aurayAuditionSchema.parse({ ...probe,audio_path:"original-voice.wav" }));
+  strictEqual(aurayGenerationPrompt(shot),shot.prompt); ok(aurayGenerationPrompt(probe).includes(JSON.stringify(native.text)));
+  strictEqual(previous.dialogue_supported,false); strictEqual(previous.production_ready,false);
+  const id = aurayAuditionKey(probe,previous), calls: string[] = [];
+  const base = inspector(f);
+  const p = new AurayVideoProvider("dummy",async (url,init) => {
+    calls.push(String(url));
+    if (init?.method !== "POST") return base(url,init);
+    const body=JSON.parse(String(init.body)); strictEqual(body.duration_seconds,5); strictEqual(body.tier,"fast");
+    strictEqual(body.prompt,aurayGenerationPrompt(probe)); ok(!("native_dialogue" in body)); ok(!("audio_path" in body));
+    return json({request_id:`video_${id}`,job_id:`video_${id}`,model:AURAY.model,product:"video",credits_charged:5,credits_quoted:5},202);
+  });
+  await rejects(p.submit(probe,`${accountId}/api-${id}.png`,id,previous),/native_dialogue_probe_opt_in_required/);
+  strictEqual(calls.length,0);
+  strictEqual(await p.submit(probe,`${accountId}/api-${id}.png`,id,previous,{allowNativeDialogueProbe:true}),`video_${id}`);
+  strictEqual(calls.filter(url=>url.startsWith(AURAY.queue)).length,1);
 });
 test("missing key makes no HTTP call and cannot advertise capacity", async () => {
   const r = await new AurayVideoProvider(undefined,async () => { throw new Error("must not fetch"); }).inspect();

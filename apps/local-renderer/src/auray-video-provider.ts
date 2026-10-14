@@ -119,11 +119,25 @@ export function inspectAurayAccount(plansRaw: unknown, accountRaw: unknown, cont
 }
 
 export const aurayAuditionSchema = z.object({
-  version: z.literal("1.0"), kind: z.enum(["action", "reaction"]), prompt: z.string().min(40).max(2400),
+  version: z.literal("1.0"), kind: z.enum(["action", "reaction", "native_dialogue_probe"]), prompt: z.string().min(40).max(2400),
   reference_path: z.string().min(1).max(500), reference_sha256: z.string().regex(/^[a-f0-9]{64}$/),
   seconds: z.literal(5), aspect_ratio: z.enum(["9:16", "16:9"]), seed: integer.max(2147483647),
-}).strict();
+  native_dialogue: z.object({ speaker: z.string().min(1).max(100),language: z.literal("pt-BR"),
+    text: z.string().trim().min(4).max(120),voice_description: z.string().min(20).max(240) }).strict().optional(),
+}).strict().superRefine((shot,ctx) => {
+  if ((shot.kind === "native_dialogue_probe") !== Boolean(shot.native_dialogue))
+    ctx.addIssue({ code:z.ZodIssueCode.custom,message:"Native dialogue metadata is required only for an explicit probe",path:["native_dialogue"] });
+});
 export type AurayAudition = z.infer<typeof aurayAuditionSchema>;
+export function aurayGenerationPrompt(shot: AurayAudition): string {
+  if (!shot.native_dialogue) return shot.prompt;
+  const d = shot.native_dialogue;
+  return `${shot.prompt}\nNATIVE AUDIO EXPERIMENT: Only ${d.speaker} speaks, on camera, in Brazilian Portuguese (pt-BR). `+
+    `Say exactly once: ${JSON.stringify(d.text)} Voice direction: ${d.voice_description}. `+
+    `Synchronize visible mouth articulation with this sentence; finish before the clip ends, then rest the mouth naturally. `+
+    `No narrator, no other speaker, no extra words, no music, no captions or text on screen. `+
+    `This requests a provider-generated voice; it does not supply or reproduce an existing voice recording.`;
+}
 export function aurayAuditionKey(shot: AurayAudition, report: AurayInspection): string {
   if (!report.account_id || !report.period || !report.contract_sha256) throw new AurayError("inspection_required");
   return aurayHash({ shot, account: report.account_id, period: report.period, contract: report.contract_sha256 });
@@ -210,8 +224,10 @@ export class AurayVideoProvider {
     if (!exists) await this.request(aurayStorageUrl(ticket.data.upload_url).href, { method: "PUT", headers: { "Content-Type": "image/png" }, body: Buffer.from(image) },true,false);
     return ticket.data.path;
   }
-  async submit(shotRaw: AurayAudition, firstFramePath: string, requestKey: string, previous: AurayInspection): Promise<string> {
+  async submit(shotRaw: AurayAudition, firstFramePath: string, requestKey: string, previous: AurayInspection,
+    options: { allowNativeDialogueProbe?: boolean } = {}): Promise<string> {
     const shot = aurayAuditionSchema.parse(shotRaw); key.parse(requestKey);
+    if (shot.kind === "native_dialogue_probe" && !options.allowNativeDialogueProbe) throw new AurayError("native_dialogue_probe_opt_in_required");
     const now = new Date();
     if (!previous.financially_eligible || now.getTime() - Date.parse(previous.checked_at) < 0 ||
         now.getTime() - Date.parse(previous.checked_at) > 300_000 || aurayAuditionKey(shot,previous) !== requestKey ||
@@ -220,7 +236,7 @@ export class AurayVideoProvider {
     if (!current.financially_eligible || current.account_id !== previous.account_id || current.key_id !== previous.key_id ||
         current.period !== previous.period || current.contract_sha256 !== previous.contract_sha256) throw new AurayError("financial_gate_closed");
     const raw = await this.json(`${AURAY.queue}/${AURAY.model}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": requestKey },
-      body: JSON.stringify({ prompt: shot.prompt, duration_seconds: 5, tier: "fast", aspect_ratio: shot.aspect_ratio,
+      body: JSON.stringify({ prompt: aurayGenerationPrompt(shot), duration_seconds: 5, tier: "fast", aspect_ratio: shot.aspect_ratio,
         first_frame_path: firstFramePath, seed: shot.seed, idempotency_key: requestKey }) },true);
     const accepted = z.object({ request_id: z.literal(`video_${requestKey}`), job_id: z.literal(`video_${requestKey}`),
       model: z.literal(AURAY.model), product: z.literal("video"), credits_charged: integer.max(5), credits_quoted: z.literal(5) }).safeParse(raw);

@@ -37,6 +37,16 @@ Use o caminho informado pelo executor, sem substituir o identificador por um nov
 
 O arquivo MP4 original e `qa.json` permanecem em `output/auray-video-jobs/<hash>/`. O executor exige job concluído e cobrança liquidada, verifica tamanho/hash, duração, proporção, resolução, quadros decodificados e decodificação integral. Não interpola, reconstrói olhos, muda FPS ou chama uma aparência nova de melhoria aprovada. Links assinados não são persistidos, não recebem a chave de API e não podem redirecionar para outro servidor. Pedidos de URLs de download contam a franquia diária de tráfego da Auray, embora não consumam créditos de geração.
 
+## Avaliar fala gerada pelo serviço
+
+```powershell
+node --experimental-strip-types scripts/render-auray-story-shot.mts --run docs/stories/auray-native-dialogue-audition.json --allow-free-audition --allow-native-dialogue-probe --wait-seconds=2400
+```
+
+Experimento separado de cinco segundos/cinco créditos. Usa o retrato original de Malu e pede, pelo prompt, uma única fala em português brasileiro. O plano `native_dialogue_probe` declara texto, personagem e direção vocal; exige o opt-in adicional no CLI e no SDK. Não aceita WAV, referência vocal ou um campo de áudio inventado para o endpoint. Planos de ação/reação não aceitam essa declaração de fala.
+
+A resposta anterior continha áudio próprio, mas o contrato não garante que a frase solicitada será pronunciada. Este teste investiga essa possibilidade. Não é a voz original aprovada, nem uma rota de diálogo pronta. `dialogue_supported`, `dialogue_approved`, `voice_identity_approved` e `production_ready` continuam falsos. O QA registra o texto pedido, a origem vocal não verificada e a necessidade de revisar sincronismo. Ausência de faixa de áudio bloqueia a validação técnica; presença de áudio não comprova português, frase correta, identidade vocal ou boca sincronizada. Não substituir a trilha original por um WAV só para aparentar que o modelo obedeceu.
+
 ## Critério para entrar em uma novela
 
 Um clipe decodificado continua `review_pending`; resolução e FPS de arquivo não comprovam fluidez ou continuidade. Assistir todos os segundos e conferir personagens, roupa, cenário, olhos, anatomia das mãos, emoção e movimento. Ausência de fala neste teste é intencional. Não substitui as tomadas de diálogo com nossas vozes aprovadas. O hash identifica o contrato da API e a versão do conector; Auray não expõe uma revisão imutável dos pesos para atestar identidade por hash.

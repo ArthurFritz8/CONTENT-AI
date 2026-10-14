@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "kind": "native_dialogue_probe",
+  "reference_path": "output/suitcase-story-preview/references/malu-entryway-v1.png",
+  "reference_sha256": "d7ef0d3da2a31bd93f35988cab8b6d3fecf746cdf579277aea1e92b1e049776c",
+  "prompt": "One continuous medium close-up of Malu, the adult apple woman in the first frame, in the same Brazilian apartment at sunset. Preserve her face, sharp brown eyes, apple skin texture, curly brown hair, gold earrings, floral dress and warm light. She looks to the man just off camera on the right. Begin with a quiet breath, then speak with hurt suspicion, a small controlled head tilt and a subtle shoulder movement. Natural expressive acting and clear lip articulation. Keep hands below the frame. Locked camera, no cuts, no new objects, no exaggerated facial distortion.",
+  "seconds": 5,
+  "aspect_ratio": "9:16",
+  "seed": 7014,
+  "native_dialogue": {
+    "speaker": "Malu, the adult apple woman visible in the first frame",
+    "language": "pt-BR",
+    "text": "Você fez as malas? Ia embora sem me contar?",
+    "voice_description": "Adult Brazilian female voice, warm and natural, restrained hurt and disbelief, clear conversational diction, no shouting"
+  }
+}

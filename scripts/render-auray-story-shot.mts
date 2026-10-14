@@ -1,4 +1,4 @@
-/** One bounded silent audition. No Studio wallet, production episode, publishing or Modal calls. */
+/** One bounded visual/native-audio audition. No Studio wallet, production episode, publishing or Modal calls. */
 import { readFile, writeFile, mkdir, rename, open, unlink } from "node:fs/promises";
 import { resolve, join, relative, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
@@ -41,8 +41,12 @@ async function verifyMedia(path: string, shot: Checkpoint["shot"]) {
       Math.abs(width/height - (shot.aspect_ratio === "9:16" ? 9/16 : 16/9)) > .025) throw new AurayError("media_invalid");
   const decode = spawnSync("ffmpeg",["-v","error","-i",path,"-f","null","-"],{ encoding: "utf8",timeout: 30_000,windowsHide: true });
   if (decode.status !== 0) throw new AurayError("media_decode_failed");
+  const hasAudio = Boolean(media.streams?.some((s: { codec_type: string }) => s.codec_type === "audio"));
+  if (shot.kind === "native_dialogue_probe" && !hasAudio) throw new AurayError("native_dialogue_missing_audio");
   return { seconds: duration, width,height, encoded_fps: fps, decoded_frames: frames,
-    has_audio: Boolean(media.streams?.some((s: { codec_type: string }) => s.codec_type === "audio")),
+    has_audio: hasAudio,dialogue_requested:shot.kind === "native_dialogue_probe",
+    ...(shot.native_dialogue ? { expected_speech:shot.native_dialogue.text,requested_language:shot.native_dialogue.language,
+      voice_source:"provider_generated_unverified",voice_identity_approved:false,speech_transcription_verified:false,lip_sync_review_pending:true } : {}),
     native_motion_fps: null, dialogue_approved: false, continuity_approved: false, editorial_status: "review_pending",
     note: "Arquivo original. FPS codificado não comprova fluidez, poses novas, anatomia ou identidade. Prévia isolada; não entra na novela." };
 }
@@ -83,6 +87,8 @@ async function main() {
       if (["upload_pending","rejected"].includes(state.phase)) throw new AurayError("submission_not_authorized_to_resume");
     } else {
       const shot = aurayAuditionSchema.parse(JSON.parse(await readFile(resolve(input),"utf8")));
+      if (shot.kind === "native_dialogue_probe" && !process.argv.includes("--allow-native-dialogue-probe"))
+        throw new AurayError("native_dialogue_probe_opt_in_required");
       const report = await provider.inspect(); await save(join(out,"inspection.json"),report);
       if (!report.financially_eligible) throw new AurayError(`financial_gate_closed:${report.blockers.join(",")}`);
       const requestKey = aurayAuditionKey(shot,report), directory = join(out,requestKey);
@@ -101,7 +107,7 @@ async function main() {
       const firstFramePath = await provider.upload(image,requestKey,state.account_id);
       // Save the deterministic job ID BEFORE POST. A crash here requires read-only reconciliation, not another submit.
       await update({ phase:"submission_started" });
-      try { await provider.submit(shot,firstFramePath,requestKey,report); await update({ phase:"submitted" }); }
+      try { await provider.submit(shot,firstFramePath,requestKey,report,{ allowNativeDialogueProbe:process.argv.includes("--allow-native-dialogue-probe") }); await update({ phase:"submitted" }); }
       catch (e) { const unknown = !(e instanceof AurayError) || e.acceptance === "unknown";
         await update({ phase:unknown ? "submission_unknown" : "rejected",error_code:e instanceof AurayError ? e.code : "unknown" }); throw e; }
     }
