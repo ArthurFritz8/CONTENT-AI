@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "kind": "native_dialogue_probe",
+  "reference_path": "output/suitcase-story-preview/references/laranjito-entryway-v1.png",
+  "reference_sha256": "dc449ba584ca9dc252d4753e1eab76062c1055ebf6d5372ff4ebd546a832c32f",
+  "prompt": "One continuous medium close-up of Laranjito, the adult orange man in the first frame, in the same Brazilian apartment at sunset. Preserve his face, clear brown eyes, orange skin texture, dark curly hair, moustache, cream linen shirt and warm light. He looks to Malu just off camera on the left. With restrained guilt turning into sincerity, take a quiet breath and answer her, with a small controlled head movement and relaxed shoulders. Natural expressive acting and clear lip articulation. Keep hands below the frame. Locked camera, no cuts, no new objects, no exaggerated facial distortion.",
+  "seconds": 5,
+  "aspect_ratio": "9:16",
+  "seed": 7015,
+  "native_dialogue": {
+    "speaker": "Laranjito, the adult orange man visible in the first frame",
+    "language": "pt-BR",
+    "text": "Eu não ia sozinho. A outra passagem é sua.",
+    "voice_description": "Adult Brazilian male voice, warm mid-low register, natural conversational diction, restrained guilt and sincerity, no shouting"
+  }
+}

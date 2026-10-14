@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "title": "A outra passagem",
+  "mode": "native_voice_continuity_review",
+  "production_ready": false,
+  "max_new_generations": 2,
+  "max_new_free_credits": 10,
+  "shots": [
+    {
+      "speaker": "malu",
+      "source": "reuse_user_approved_clip",
+      "path": "output/auray-video-jobs/3f5defa1b909af32f6eba1c7d00910d8563c8076c64c3717a92f9a864053e81f/original.mp4",
+      "sha256": "4ddbdf6f7e236412b909fb86f27c05a45b95627059b11ed2bef9feacd402218d",
+      "text": "Você fez as malas? Ia embora sem me contar?"
+    },
+    {
+      "speaker": "laranjito",
+      "source": "new_bounded_audition",
+      "plan": "docs/stories/auray-continuity-laranjito.json",
+      "max_free_credits": 5
+    },
+    {
+      "speaker": "malu",
+      "source": "new_bounded_audition",
+      "plan": "docs/stories/auray-continuity-malu.json",
+      "max_free_credits": 5
+    }
+  ]
+}
