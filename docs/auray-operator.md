@@ -1,6 +1,6 @@
 # Auray: avaliação automática de uma fonte candidata
 
-Status em 14/10/2026: chave conectada localmente; quatro gerações concluídas por cinco créditos cada, com saldo final observado de 30. [Teste visual](research/auray-audition-2026-10-14.md), [fala nativa aprovada como amostra individual](research/auray-native-dialogue-2026-10-14.md) e [sequência entre personagens](research/auray-continuity-2026-10-14.md). A sequência revelou mudança de roupa/aparência no bruto masculino; continuidade e homologação da fonte continuam pendentes. O conector não habilita carteira nem fallback no Studio. A direção Modal anteriormente aprovada também depende das verificações de execução de produção descritas em `modal-operator.md`.
+Status em 14/10/2026: chave conectada localmente; quatro gerações concluídas por cinco créditos cada, com saldo final observado de 30. [Teste visual](research/auray-audition-2026-10-14.md), [fala nativa aprovada como amostra individual](research/auray-native-dialogue-2026-10-14.md) e [sequência entre personagens aprovada pelo usuário como amostra audiovisual](research/auray-continuity-2026-10-14.md). A aprovação geral da sequência não elimina a mudança de roupa/aparência observada no bruto masculino; continuidade técnica e homologação da fonte continuam pendentes. O conector não habilita carteira nem fallback no Studio. A direção Modal anteriormente aprovada também depende das verificações de execução de produção descritas em `modal-operator.md`.
 
 ## Conectar uma vez
 

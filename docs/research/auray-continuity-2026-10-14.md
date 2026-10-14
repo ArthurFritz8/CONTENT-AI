@@ -1,6 +1,6 @@
 # Auray — sequência de continuidade entre Malu e Laranjito
 
-Data: 14/10/2026. Resultado: sequência de revisão entregue; **continuidade visual reprovada na inspeção do take masculino**. Não liberar a fonte para capítulos por causa desta montagem.
+Data: 14/10/2026. Resultado: sequência entregue e aprovada pelo usuário como amostra audiovisual; **continuidade visual reprovada na inspeção do take masculino**. A aprovação desta montagem não libera automaticamente a fonte para capítulos.
 
 ## Pedido, história e orçamento
 
@@ -19,12 +19,18 @@ Entrega: `output/auray-dialogo-malu-laranjito-2026-10-14.mp4`. Recibos, QA, font
 
 Os arquivos nativos tinham origem de vídeo em cerca de 83,333 ms e lacunas/padding nos timestamps AAC. O montador normalizou a origem temporal de cada take, respeitando os tempos de áudio, e passou o áudio original por PCM antes de um único AAC final. A correlação do áudio montado com cada original normalizado foi 0,99992 / 0,98412 / 0,99990; maior desvio medido: um sample de 16 kHz (0,0625 ms). Isso verifica o transporte; não certifica fonemas/boca do material gerado.
 
-ASR local com faster-whisper-base detectou português nas três falas. Na montagem reconheceu “Você fez as malas, e embora sem me contar? Eu não ia sozinho, a outra passagem é sua. Minha? Então, por que você escondeu isso de mim?”. A confusão “Ia/E” já ocorria no controle com a voz anterior; não atestar pronúncia literal por essa transcrição. Identidade vocal e sincronismo fino continuam pendentes da revisão do usuário.
+ASR local com faster-whisper-base detectou português nas três falas. Na montagem reconheceu “Você fez as malas, e embora sem me contar? Eu não ia sozinho, a outra passagem é sua. Minha? Então, por que você escondeu isso de mim?”. A confusão “Ia/E” já ocorria no controle com a voz anterior; não atestar pronúncia literal por essa transcrição. A aprovação geral do usuário abaixo não constitui uma medição de sincronismo fino nem uma verificação da identidade vocal entre episódios.
+
+## Aprovação do usuário
+
+Após receber a sequência e o aviso sobre a mudança visual de Laranjito, o usuário respondeu **“perfeito!!!”**. Aprovação registrada para a qualidade audiovisual geral desta montagem, identificada pelo SHA-256 acima. O registro privado separado fica em `output/auray-continuity-preview/human-review.json`; a inspeção técnica original permanece preservada.
+
+Esta aprovação não autoriza novas gerações, publicação ou habilitação automática em produção. Não houve consumo adicional de créditos para registrá-la.
 
 ## Falha encontrada e consequência
 
 No bruto masculino, após os primeiros quadros corretos, a camisa de linho creme muda para xadrez verde; aparecem um caule/folhas na cabeça, mudam o enquadramento e o ambiente, e a fisionomia fica diferente. A alteração acontece **dentro da tomada original, antes de qualquer montagem**, apesar das instruções de preservar roupa/cenário e evitar cortes. Esse trecho foi mantido no teste de revisão, sem ocultar o erro ou gastar outra geração para substituí-lo.
 
-As duas tomadas de Malu conservam de modo geral vestido, cabelo e ambiente; isso não prova estabilidade da voz entre frases ou consistência futura. A aprovação anterior se limita à primeira amostra, não à sequência nova. `production_ready` e aprovação de continuidade permanecem falsos; não houve alteração de carteiras, perfis ou roteamento no Studio.
+As duas tomadas de Malu conservam de modo geral vestido, cabelo e ambiente; isso não prova estabilidade da voz entre frases ou consistência futura. A sequência agora tem aprovação geral do usuário, além da aprovação anterior da primeira amostra. `production_ready` e aprovação técnica de continuidade permanecem falsos devido à mudança visual observada; não houve alteração de carteiras, perfis ou roteamento no Studio.
 
 Próximo problema a resolver: ancoragem visual durante todo o take masculino e avaliação da estabilidade das duas vozes. O modo de referências visuais do serviço é uma hipótese para uma avaliação futura, não uma correção já testada. Não repetir esta rodada nem consumir mais créditos automaticamente.
