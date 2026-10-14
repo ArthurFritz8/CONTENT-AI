@@ -139,8 +139,10 @@ export type AurayJob = z.infer<typeof jobSchema>;
 export function aurayStorageUrl(raw: string): URL {
   let url: URL;
   try { url = new URL(raw); } catch { throw new AurayError("unsafe_storage_url"); }
+  const supabase = /^[a-z0-9-]+\.supabase\.co$/.test(url.hostname);
+  const r2 = /^[a-f0-9]{32}(?:\.(?:us|eu))?\.r2\.cloudflarestorage\.com$/.test(url.hostname);
   if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash ||
-      !/^[a-z0-9-]+\.(?:supabase\.co|r2\.cloudflarestorage\.com)$/.test(url.hostname)) throw new AurayError("unsafe_storage_url");
+      !(supabase || r2)) throw new AurayError("unsafe_storage_url");
   return url;
 }
 export class AurayVideoProvider {

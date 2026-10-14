@@ -1,6 +1,6 @@
 # Auray: avaliação automática de uma fonte candidata
 
-Status em 14/10/2026: chave conectada localmente e plano Free com 50 créditos do plano confirmado pela API; nenhuma aprovação artística da fonte. O conector não habilita carteira nem fallback no Studio. Modal continua sendo a única direção audiovisual anteriormente aprovada; sua execução de produção também depende das verificações descritas em `modal-operator.md`.
+Status em 14/10/2026: chave conectada localmente; primeira geração concluída por cinco créditos do plano, com saldo final de 45. [Relatório e limites da avaliação](research/auray-audition-2026-10-14.md). Nenhuma aprovação artística da fonte. O conector não habilita carteira nem fallback no Studio. Modal continua sendo a única direção audiovisual anteriormente aprovada; sua execução de produção também depende das verificações descritas em `modal-operator.md`.
 
 ## Conectar uma vez
 

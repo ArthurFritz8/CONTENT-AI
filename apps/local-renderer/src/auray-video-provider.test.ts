@@ -130,8 +130,12 @@ test("exact bounded payload and deterministic job ID; malformed successful respo
 });
 test("signed storage destinations refuse redirects, IPs, lookalikes and user credentials", () => {
   ok(aurayStorageUrl("https://project.supabase.co/storage/v1/object/x?token=signature"));
+  for (const jurisdiction of ["", ".us", ".eu"])
+    ok(aurayStorageUrl(`https://${"1".repeat(32)}${jurisdiction}.r2.cloudflarestorage.com/bucket/video?X-Amz-Signature=dummy`));
   for (const url of ["http://project.supabase.co/a", "https://127.0.0.1/a", "https://project.supabase.co.evil.test/a",
-    "https://user:password@project.supabase.co/a", "https://project.supabase.co:444/a", "https://evil.test/a"])
+    "https://user:password@project.supabase.co/a", "https://project.supabase.co:444/a", "https://evil.test/a",
+    `https://${"1".repeat(32)}.us.r2.cloudflarestorage.com.evil.test/a`,
+    `https://${"1".repeat(32)}.unknown.r2.cloudflarestorage.com/a`,"https://evil.us.r2.cloudflarestorage.com/a"])
     throws(() => aurayStorageUrl(url),/unsafe_storage_url/);
 });
 test("upload verifies account path; signed PUT has no bearer and resume reuses identical bytes", async () => {
@@ -149,11 +153,12 @@ test("upload verifies account path; signed PUT has no bearer and resume reuses i
 });
 test("polling/download never submit a job; settlement and exact asset size precede acceptance", async () => {
   const id = `video_${"b".repeat(64)}`; let settled = false;
+  const regionalAsset = `https://${"1".repeat(32)}.us.r2.cloudflarestorage.com/bucket/video?X-Amz-Signature=dummy`;
   const provider = new AurayVideoProvider("dummy",async (url,init) => {
     ok(!init?.method || init.method === "GET");
     if (String(url).endsWith("/assets")) return json({ id,object: "asset_list",product: "video",assets: [
-      { kind: "video", content_type: "video/mp4", bytes: 3,url: "https://project.supabase.co/video?token=signature" }] });
-    if (String(url).startsWith("https://project.supabase.co/")) { ok(!new Headers(init?.headers).has("Authorization")); return new Response(new Uint8Array([1,2,3])); }
+      { kind: "video", content_type: "video/mp4", bytes: 3,url: regionalAsset }] });
+    if (String(url) === regionalAsset) { ok(!new Headers(init?.headers).has("Authorization")); strictEqual(init?.redirect,"error"); return new Response(new Uint8Array([1,2,3])); }
     return json({ id,job_id:id,object:"job",product:"video",model:AURAY.model,status:"succeeded",settled,
       credits_charged:5,poll_after_seconds:0,created_at:now.toISOString(),error:"Do not retain private errors" });
   });
