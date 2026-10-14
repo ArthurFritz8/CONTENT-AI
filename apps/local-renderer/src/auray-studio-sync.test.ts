@@ -45,7 +45,7 @@ test("download interruption preserves accepted status and same ID on retry; neve
       if(name==="finish_auray_sync")finished.push(args.p_success as boolean);
       return null;
     }};
-  await rejects(syncAurayMonitor(wallet,token,deps),/interrupted/);strictEqual(saved.length,1);
+  await rejects(syncAurayMonitor(wallet,token,deps),/jobs_pending_reconciliation/);strictEqual(saved.length,1);
   failed=false;await syncAurayMonitor(wallet,token,deps);deepStrictEqual(ids,[j.external_id,j.external_id]);deepStrictEqual(finished,[false,true]);
 });
 test("busy lease, account change and different output bytes cannot publish a ready record",async()=>{
@@ -58,5 +58,12 @@ test("busy lease, account change and different output bytes cannot publish a rea
     }};
   strictEqual((await syncAurayMonitor(wallet,token,deps)).code,"waiting");strictEqual(collected,0);
   mode="account";await rejects(syncAurayMonitor(wallet,token,deps),/account_mismatch/);strictEqual(collected,0);
-  mode="hash";await rejects(syncAurayMonitor(wallet,token,deps),/asset_unverified/);strictEqual(ready.length,0);
+  mode="hash";await rejects(syncAurayMonitor(wallet,token,deps),/jobs_pending_reconciliation/);strictEqual(ready.length,0);
+});
+test("one unavailable old job cannot block collection of another completed job",async()=>{
+  const unavailable=job(),available={...job(),id:randomUUID(),external_id:`video_${"4".repeat(64)}`};let collected=0;
+  const deps={inspect:async()=>report(),status:async(id:string)=>{if(id===unavailable.external_id)throw Error("not found");return remote(available);},
+    collect:async()=>{collected++;return {output_sha256:available.expected_sha256!,bytes:100};},
+    rpc:async(name:string)=>name==="claim_auray_sync" ? {code:"claimed",account_sha256:fingerprint,jobs:[unavailable,available]} : null};
+  await rejects(syncAurayMonitor(wallet,token,deps),/jobs_pending_reconciliation/);strictEqual(collected,1);
 });

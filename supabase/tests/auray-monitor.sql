@@ -41,9 +41,19 @@ begin
  perform pg_temp.auray_assert(r#>>'{wallets,0,sync_failed}'='true' and r#>>'{wallets,0,budget_only_shots}' is null,'failed refresh hides numeric comparison');
  perform pg_temp.auray_assert(r#>>'{wallets,0,remaining_units}'='30','failed refresh preserves historical amount');
  perform public.claim_auray_sync(wallet,other_token);
+ r:=public.claim_auray_sync(wallet,gen_random_uuid());
+ perform pg_temp.auray_assert(r->>'code'='waiting','ready file does not remove the financial lease');
  begin perform public.finish_auray_sync(wallet,token,true);raise exception 'Old worker cleared new lease';exception when insufficient_privilege then null;end;
  snapshot:=snapshot||jsonb_build_object('plan_remaining',0,'key_remaining',0,'blockers',jsonb_build_array('insufficient_free_credits'));
  perform public.observe_auray_monitor(wallet,other_token,snapshot);perform public.finish_auray_sync(wallet,other_token,true);
+ r:=public.claim_auray_sync(wallet,other_token);
+ perform pg_temp.auray_assert(jsonb_array_length(r->'jobs')=0,'completed history never re-enters recovery');
+ perform public.finish_auray_sync(wallet,other_token,true);
+ insert into public.studio_auray_jobs(wallet_id,workspace_id,request_key,external_id,label,kind,aspect_ratio)
+ select wallet,workspace,lpad(to_hex(n),64,'0'),'video_'||lpad(to_hex(n),64,'0'),'Pending test','reaction','9:16' from generate_series(1,51) n;
+ r:=public.claim_auray_sync(wallet,other_token);
+ perform pg_temp.auray_assert(jsonb_array_length(r->'jobs')=50,'large pending queue stays bounded');
+ perform public.finish_auray_sync(wallet,other_token,true);
  r:=public.studio_video_overview(workspace,actor);
  perform pg_temp.auray_assert(r#>>'{wallets,0,remaining_units}'='0' and r#>>'{wallets,0,budget_only_shots}'='0','exhausted free balance is zero, not unknown');
  perform pg_temp.auray_assert(not exists(select 1 from public.studio_video_jobs where wallet_id=wallet),'monitor never creates production job');

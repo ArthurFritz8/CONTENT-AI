@@ -13,7 +13,7 @@ O serviço atualmente informa 50 créditos mensais no plano Free. A API comparti
 
 ## Saldo e trabalhos no Studio
 
-A [ADR-077](ADR/ADR-077-monitoramento-e-retomada-auray-no-studio.md) integra uma carteira monitorada, desativada para produção. O cadastro é feito pelo operador uma vez, depois da migração `20261014000000`, usando a chave local e o workspace autorizado:
+A [ADR-077](ADR/ADR-077-monitoramento-e-retomada-auray-no-studio.md) integra uma carteira monitorada, desativada para produção. O [relatório operacional](research/auray-studio-integration-2026-10-14.md) registra a importação real e a verificação dos arquivos privados. O cadastro é feito pelo operador uma vez, depois das migrações `20261014000000` e `20261014010000`, usando a chave local e o workspace autorizado:
 
 ```powershell
 node --experimental-strip-types scripts/sync-auray-studio.mts --register <workspace-uuid> output/auray-video-jobs/<hash>/state.json

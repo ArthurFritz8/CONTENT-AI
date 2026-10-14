@@ -48,12 +48,13 @@ export async function syncAurayMonitor(wallet:string, token:string, deps:AurayMo
     z.object({code:z.literal("claimed"),account_sha256:sha,jobs:z.array(monitoredJobSchema).max(50)}),
   ]).parse(raw);
   if(claim.code==="waiting")return {code:"waiting",production_ready:false};
-  let success=false, collected=0, checked=0;
+  let success=false, collected=0, checked=0, unresolved=0;
   try {
     const report=await deps.inspect();
     await deps.rpc("observe_auray_monitor",{...base,p_observation:aurayMonitorObservation(report,claim.account_sha256)});
     for(const job of claim.jobs) {
       if(job.ready || (job.settled && ["failed","cancelled"].includes(job.status)))continue;
+      try {
       const remote=await deps.status(job.external_id);checked++;
       if(remote.id!==job.external_id || remote.job_id!==job.external_id || remote.upstream_lost) throw new AurayError("job_unverified");
       const result={external_id:remote.id,status:remote.status,settled:remote.settled,charged_credits:remote.credits_charged};
@@ -65,7 +66,9 @@ export async function syncAurayMonitor(wallet:string, token:string, deps:AurayMo
           !Number.isSafeInteger(media.bytes) || media.bytes<=0 || media.bytes>64*1024*1024)throw new AurayError("asset_unverified");
         await deps.rpc("record_auray_job",{...base,p_job:job.id,p_result:{...result,...media}});collected++;
       }
+      } catch { unresolved++; /* One old or unavailable result must not block the other registered jobs. */ }
     }
+    if(unresolved)throw new AurayError("jobs_pending_reconciliation");
     success=true;return {code:"synced",checked_jobs:checked,collected_jobs:collected,production_ready:false};
   } finally {
     await deps.rpc("finish_auray_sync",{...base,p_success:success});
