@@ -1,12 +1,12 @@
 # Auray: avaliação automática de uma fonte candidata
 
-Status em 09/10/2026: conector implementado e testado offline; contrato público conferido; **sem chave, saldo autenticado, vídeo gerado ou aprovação artística**. Não habilita carteira nem fallback no Studio. Modal continua sendo a única direção audiovisual anteriormente aprovada; sua execução de produção também depende das verificações descritas em `modal-operator.md`.
+Status em 14/10/2026: chave conectada localmente e plano Free com 50 créditos do plano confirmado pela API; nenhuma aprovação artística da fonte. O conector não habilita carteira nem fallback no Studio. Modal continua sendo a única direção audiovisual anteriormente aprovada; sua execução de produção também depende das verificações descritas em `modal-operator.md`.
 
 ## Conectar uma vez
 
 1. Entre em [Auray](https://app.auray.ai/) e mantenha o plano **Free**. Confirme o e-mail. Não selecione teste de plano pago, compra de créditos ou checkout.
 2. Em **Settings → API Keys**, crie uma chave com `video:write`. `jobs:read` e `assets:read` são incluídos pelo serviço. Desative as demais permissões que não serão usadas. Escolha validade e anote a data de expiração.
-3. No campo **Cap**, informe **5 créditos por mês**, um limite fixo para a primeira avaliação. Campo em branco acompanha o plano; zero não significa gasto zero. O conector recusa um limite diferente de cinco nesta etapa.
+3. A chave pode acompanhar o teto do plano Free, desde que seja finito e não exceda a franquia mensal gratuita verificada. Não precisa mudar o campo **Cap** para conectar a chave padrão. Cada avaliação do executor continua limitada a cinco créditos. Zero não significa gasto zero e é recusado; um teto acima da franquia também é recusado. Quem desejar um teto remoto mais restrito pode usar cinco.
 4. Guarde a chave como `AURAY_API_KEY=...` no `.env.cloud` ignorado deste projeto, ou na variável de ambiente do executor. Não cole no chat, não envie ao navegador e não versione o arquivo.
 
 O serviço atualmente informa 50 créditos mensais no plano Free. A API compartilha a carteira com o aplicativo. O conector consulta o contrato e preço públicos e a conta autenticada antes de cada submissão; uma franquia publicada não é saldo da conta. Planos pagos, trials, promoções temporárias, carteiras com créditos comprados/concedidos, período anterior, preço alterado, e-mail não confirmado ou carteira incompleta bloqueiam a avaliação. Não compra nem recarrega saldo.

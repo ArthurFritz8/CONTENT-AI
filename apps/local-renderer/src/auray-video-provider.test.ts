@@ -64,7 +64,7 @@ test("paid, temporary, mixed, stale or unverified balances cannot fund a free au
     (f: ReturnType<typeof fixtures>) => { f.account.credits.monthly_allowance = 100; },
     (f: ReturnType<typeof fixtures>) => { f.account.address_proved = false; },
     (f: ReturnType<typeof fixtures>) => { f.account.key.credit_ceiling = 0; },
-    (f: ReturnType<typeof fixtures>) => { f.account.key.credit_ceiling = 50; },
+    (f: ReturnType<typeof fixtures>) => { f.account.key.credit_ceiling = 51; },
     (f: ReturnType<typeof fixtures>) => { f.account.key.scopes = ["assets:read"]; },
     (f: ReturnType<typeof fixtures>) => { f.plans.price_keys[0]!.value = 6; },
     (f: ReturnType<typeof fixtures>) => { f.plans.data[0]!.limits.api.may_generate = false; },
@@ -75,6 +75,20 @@ test("paid, temporary, mixed, stale or unverified balances cannot fund a free au
   strictEqual(report(f).audition_remaining,0); deepStrictEqual(report(f).blockers,["insufficient_free_credits"]);
   throws(() => inspectAurayAccount(f.plans, { ...f.account, credits: {} }, f.contract,now), /contract_changed/);
   strictEqual(inspectAurayAccount(f.plans,{ ...f.account,promotion: { unlimited: true } },f.contract,now).financially_eligible,false);
+});
+test("standard Free key needs no manual cap change and authorizes only the bounded five-credit audition", async () => {
+  const f = fixtures(new Date()); f.account.key.credit_ceiling = 50;
+  const previous = report(f,new Date()); strictEqual(previous.financially_eligible,true); strictEqual(previous.audition_remaining,5);
+  const id = aurayAuditionKey(shot,previous), calls: string[] = [];
+  const provider = new AurayVideoProvider("dummy",inspector(f,calls,async () => json({ request_id:`video_${id}`,job_id:`video_${id}`,
+    model:AURAY.model,product:"video",credits_charged:5,credits_quoted:5 },202)));
+  strictEqual(await provider.submit(shot,`${accountId}/api-${id}.png`,id,previous),`video_${id}`); strictEqual(calls.length,1);
+  f.account.key.credits_spent_period = 46;
+  strictEqual(report(f,new Date()).financially_eligible,false); strictEqual(report(f,new Date()).audition_remaining,4);
+  const before = calls.length;
+  await rejects(provider.submit(shot,`${accountId}/api-${id}.png`,id,previous),/financial_gate_closed/); strictEqual(calls.length,before);
+  f.account.key.credits_spent_period = 0; f.account.key.credit_ceiling = 0;
+  strictEqual(report(f,new Date()).financially_eligible,false);
 });
 test("semantic contract changes close the source; prose changes do not imply pinned model weights", () => {
   const f = fixtures(); const hash = inspectAurayContract(f.contract);

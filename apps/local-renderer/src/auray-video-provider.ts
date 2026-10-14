@@ -101,14 +101,17 @@ export function inspectAurayAccount(plansRaw: unknown, accountRaw: unknown, cont
       free.limits.video.max_duration_seconds < 5 || free.limits.video.max_concurrent < 1) report.blockers.push("free_video_unavailable");
   if (!a.key.scopes.some(s => ["video:write", "auray-ai-video:write"].includes(s)) ||
       !["jobs:read", "assets:read"].every(s => a.key.scopes.includes(s))) report.blockers.push("missing_scopes");
-  // A ceiling of zero means unlimited, never zero spending. Auditions require a provider-enforced cap of five.
-  if (a.key.credit_ceiling !== AURAY.credits || a.key.credits_spent_period > a.key.credit_ceiling) report.blockers.push("audition_key_cap_required");
+  // The ordinary Free key follows the recurring plan. Its remote ceiling may be higher
+  // than one audition, but never unlimited or above the verified free monthly allowance.
+  // Each request still has an exact five-credit price, fixed length and durable identity.
+  if (a.key.credit_ceiling <= 0 || a.key.credit_ceiling > (report.monthly_allowance ?? 0) ||
+      a.key.credits_spent_period > a.key.credit_ceiling) report.blockers.push("bounded_free_key_cap_required");
   const prices = plans.data.price_keys.filter(p => p.key === "video.fast.5");
   if (prices.length !== 1 || prices[0]?.value !== AURAY.credits || prices[0]?.address !== "minimax-h3" || prices[0]?.overridden !== false)
     report.blockers.push("price_changed");
   if (report.blockers.length === 0) {
     report.plan_remaining = Math.min(c.balance!, c.plan_credits!, report.monthly_allowance!);
-    report.audition_remaining = Math.min(report.plan_remaining, a.key.credit_ceiling - a.key.credits_spent_period);
+    report.audition_remaining = Math.min(AURAY.credits, report.plan_remaining, a.key.credit_ceiling - a.key.credits_spent_period);
     if (report.audition_remaining < AURAY.credits) report.blockers.push("insufficient_free_credits");
   }
   report.financially_eligible = report.blockers.length === 0;
