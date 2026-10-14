@@ -4,7 +4,7 @@ import { resolve,join,relative,isAbsolute } from "node:path";
 import { createHash,randomUUID } from "node:crypto";
 import { z } from "zod";
 import { AurayVideoProvider,AurayError,aurayAuditionSchema,aurayAuditionKey } from "../apps/local-renderer/src/auray-video-provider.ts";
-import { aurayAccountFingerprint,syncAurayMonitor,type MonitoredAurayJob } from "../apps/local-renderer/src/auray-studio-sync.ts";
+import { aurayAccountFingerprint,syncAurayMonitor,readAurayStudioBytes,aurayStudioRpcResult,type MonitoredAurayJob } from "../apps/local-renderer/src/auray-studio-sync.ts";
 import { verifyAurayMedia } from "../apps/local-renderer/src/auray-media.ts";
 
 const root=resolve(import.meta.dirname,".."), output=join(root,"output/auray-video-jobs");
@@ -17,13 +17,6 @@ async function settings() {
     if(m)values[m[1]!]=m[2]!.trim().replace(/^(['"])(.*)\1$/,"$2");
   }}catch(e){if((e as NodeJS.ErrnoException).code!=="ENOENT")throw new AurayError("credential_file_unavailable");}
   return {...values,...process.env};
-}
-async function limitedBytes(response:Response,limit:number) {
-  const reader=response.body?.getReader();if(!reader)throw new AurayError("storage_unavailable");
-  const chunks:Uint8Array[]=[];let total=0;
-  try {while(true){const r=await reader.read();if(r.done)break;total+=r.value.length;if(total>limit)throw new AurayError("response_too_large");chunks.push(r.value);}}
-  catch(e){void reader.cancel().catch(()=>{});throw e;}
-  return Buffer.concat(chunks);
 }
 async function main() {
   const mode=process.argv[2], arg=process.argv[3], cfg=await settings();
@@ -39,19 +32,19 @@ async function main() {
   };
   const rpc=async(name:string,args:Record<string,unknown>)=>{
     const r=await request(`/rest/v1/rpc/${name}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(args)});
-    if(!r.ok)throw new AurayError("studio_rpc_failed");
-    const b=await limitedBytes(r,4*1024*1024);return b.length ? JSON.parse(b.toString("utf8")) : null;
+    return aurayStudioRpcResult(r);
   };
   const provider=new AurayVideoProvider(cfg.AURAY_API_KEY);
+  let inspected:Awaited<ReturnType<typeof provider.inspect>>|undefined;
   let wallet=id;
   if(mode==="--connected") {
-    const inspection=await provider.inspect();if(!inspection.account_id)throw new AurayError("inspection_required");
-    const connected=await rpc("auray_monitor_wallet",{p_account:aurayAccountFingerprint(inspection.account_id)});
+    inspected=await provider.inspect();if(!inspected.account_id)throw new AurayError("inspection_required");
+    const connected=await rpc("auray_monitor_wallet",{p_account:aurayAccountFingerprint(inspected.account_id)});
     if(connected===null){process.stdout.write(JSON.stringify({code:"not_connected",production_ready:false})+"\n");return;}
     wallet=z.string().uuid().parse(connected);
   }
   if(mode==="--register") {
-    const report=await provider.inspect();if(!report.account_id)throw new AurayError("inspection_required");
+    const report=inspected=await provider.inspect();if(!report.account_id)throw new AurayError("inspection_required");
     const paths=process.argv.slice(4);if(paths.length>50)throw new AurayError("too_many_jobs");
     const jobs=[];
     for(const path of paths) {
@@ -79,11 +72,12 @@ async function main() {
     const uploaded=await request(storage,{method:"POST",headers:{"Content-Type":"video/mp4","x-upsert":"false"},body:new Uint8Array(bytes)}).catch(()=>null);
     if(!uploaded?.ok) {
       // An interrupted upload may have succeeded. Verify the immutable bytes; never overwrite.
-      const existing=await request(storage);if(!existing.ok || hash(await limitedBytes(existing,64*1024*1024))!==outputHash)throw new AurayError("storage_upload_unresolved");
+      const existing=await request(storage);if(!existing.ok || hash(await readAurayStudioBytes(existing,64*1024*1024))!==outputHash)throw new AurayError("storage_upload_unresolved");
     }
     return {output_sha256:outputHash,bytes:bytes.length};
   };
-  const result=await syncAurayMonitor(z.string().uuid().parse(wallet),randomUUID(),{inspect:()=>provider.inspect(),status:id=>provider.status(id),collect,rpc});
+  const inspect=async()=>inspected && Date.now()-Date.parse(inspected.checked_at)>=0 && Date.now()-Date.parse(inspected.checked_at)<60000 ? inspected : provider.inspect();
+  const result=await syncAurayMonitor(z.string().uuid().parse(wallet),randomUUID(),{inspect,status:id=>provider.status(id),collect,rpc});
   process.stdout.write(JSON.stringify({wallet_id:wallet,...result})+"\n");
 }
 try {await main();} catch(e) {

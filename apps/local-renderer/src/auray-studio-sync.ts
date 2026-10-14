@@ -11,6 +11,20 @@ export const monitoredJobSchema = z.object({
 });
 export type MonitoredAurayJob = z.infer<typeof monitoredJobSchema>;
 export const aurayAccountFingerprint = (id:string) => aurayHash({provider:"auray",account:z.string().uuid().parse(id)});
+export async function readAurayStudioBytes(response:Response,limit:number) {
+  const reader=response.body?.getReader();if(!reader)throw new AurayError("storage_unavailable");
+  const chunks:Uint8Array[]=[];let total=0;
+  try {while(true){const r=await reader.read();if(r.done)break;total+=r.value.length;if(total>limit)throw new AurayError("response_too_large");chunks.push(r.value);}}
+  catch(e){void reader.cancel().catch(()=>{});throw e;}
+  return Buffer.concat(chunks);
+}
+export async function aurayStudioRpcResult(response:Response):Promise<unknown> {
+  if(!response.ok)throw new AurayError("studio_rpc_failed");
+  // PostgREST returns 204 without a body for SQL functions returning void.
+  if(response.status===204)return null;
+  try {const bytes=await readAurayStudioBytes(response,4*1024*1024);return bytes.length ? JSON.parse(bytes.toString("utf8")) : null;}
+  catch {throw new AurayError("studio_rpc_invalid_response");}
+}
 export function aurayMonitorObservation(report:AurayInspection, expectedAccount:string) {
   if (!report.account_id || aurayAccountFingerprint(report.account_id)!==expectedAccount) throw new AurayError("account_mismatch");
   // Insufficient credits do not prevent a truthful zero balance or recovery of an old job.

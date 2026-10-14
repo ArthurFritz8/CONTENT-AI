@@ -1,12 +1,19 @@
 import {test} from "node:test";
 import {strictEqual,deepStrictEqual,rejects} from "node:assert";
 import {randomUUID} from "node:crypto";
-import {aurayAccountFingerprint,aurayMonitorObservation,syncAurayMonitor,type MonitoredAurayJob} from "./auray-studio-sync.ts";
+import {aurayAccountFingerprint,aurayMonitorObservation,syncAurayMonitor,aurayStudioRpcResult,type MonitoredAurayJob} from "./auray-studio-sync.ts";
 import {AURAY,missingAurayKey,type AurayJob} from "./auray-video-provider.ts";
 const account=randomUUID(),wallet=randomUUID(),token=randomUUID(),fingerprint=aurayAccountFingerprint(account);
 const report=()=>({...missingAurayKey(),account_id:account,period:new Date().toISOString().slice(0,7),monthly_allowance:50,plan_remaining:0,key_remaining:0,blockers:["insufficient_free_credits"]});
 const job=():MonitoredAurayJob=>({id:randomUUID(),external_id:`video_${"1".repeat(64)}`,kind:"native_dialogue_probe",aspect_ratio:"9:16",ready:false,status:"unknown",settled:false,expected_sha256:"2".repeat(64),output_sha256:null,bytes:null,path:null});
 const remote=(j:MonitoredAurayJob):AurayJob=>({id:j.external_id,job_id:j.external_id,object:"job",product:"video",model:AURAY.model,status:"succeeded",settled:true,credits_charged:5,poll_after_seconds:30,created_at:new Date().toISOString()});
+test("SQL void RPCs return 204; malformed and oversized replies never expose raw server prose",async()=>{
+  strictEqual(await aurayStudioRpcResult(new Response(null,{status:204})),null);
+  deepStrictEqual(await aurayStudioRpcResult(Response.json({code:"claimed"})),{code:"claimed"});
+  await rejects(aurayStudioRpcResult(new Response("private server details",{status:403})),/^AurayError: studio_rpc_failed$/);
+  await rejects(aurayStudioRpcResult(new Response("invalid json")),/^AurayError: studio_rpc_invalid_response$/);
+  await rejects(aurayStudioRpcResult(new Response("x".repeat(4*1024*1024+1))),/^AurayError: studio_rpc_invalid_response$/);
+});
 test("exhausted free balance is truthful; mixed funds become unknown and account replacement is rejected",async()=>{
   strictEqual(aurayMonitorObservation(report(),fingerprint).plan_remaining,0);
   const mixed={...report(),plan_remaining:900,blockers:["mixed_or_promotional_wallet"]};
