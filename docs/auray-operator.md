@@ -1,6 +1,6 @@
 # Auray: avaliação automática de uma fonte candidata
 
-Status em 14/10/2026: chave conectada localmente; quatro gerações concluídas por cinco créditos cada, com saldo final observado de 30. [Teste visual](research/auray-audition-2026-10-14.md), [fala nativa aprovada como amostra individual](research/auray-native-dialogue-2026-10-14.md) e [sequência entre personagens aprovada pelo usuário como amostra audiovisual](research/auray-continuity-2026-10-14.md). A aprovação geral da sequência não elimina a mudança de roupa/aparência observada no bruto masculino; continuidade técnica e homologação da fonte continuam pendentes. O conector não habilita carteira nem fallback no Studio. A direção Modal anteriormente aprovada também depende das verificações de execução de produção descritas em `modal-operator.md`.
+Status em 14/10/2026: quatro gerações concluídas por cinco créditos cada, com saldo final observado de 30. [Teste visual](research/auray-audition-2026-10-14.md), [fala nativa aprovada como amostra individual](research/auray-native-dialogue-2026-10-14.md) e [sequência entre personagens aprovada pelo usuário como amostra audiovisual](research/auray-continuity-2026-10-14.md). O monitor de saldo e trabalhos privados está implementado na [ADR-077](ADR/ADR-077-monitoramento-e-retomada-auray-no-studio.md). A aprovação geral da sequência não elimina a mudança de roupa/aparência observada no bruto masculino; continuidade técnica e homologação da fonte continuam pendentes. A carteira monitorada permanece desativada para produção e não habilita fallback no Studio. A direção Modal anteriormente aprovada também depende das verificações de execução de produção descritas em `modal-operator.md`.
 
 ## Conectar uma vez
 
@@ -11,11 +11,30 @@ Status em 14/10/2026: chave conectada localmente; quatro gerações concluídas 
 
 O serviço atualmente informa 50 créditos mensais no plano Free. A API compartilha a carteira com o aplicativo. O conector consulta o contrato e preço públicos e a conta autenticada antes de cada submissão; uma franquia publicada não é saldo da conta. Planos pagos, trials, promoções temporárias, carteiras com créditos comprados/concedidos, período anterior, preço alterado, e-mail não confirmado ou carteira incompleta bloqueiam a avaliação. Não compra nem recarrega saldo.
 
+## Saldo e trabalhos no Studio
+
+A [ADR-077](ADR/ADR-077-monitoramento-e-retomada-auray-no-studio.md) integra uma carteira monitorada, desativada para produção. O cadastro é feito pelo operador uma vez, depois da migração `20261014000000`, usando a chave local e o workspace autorizado:
+
+```powershell
+node --experimental-strip-types scripts/sync-auray-studio.mts --register <workspace-uuid> output/auray-video-jobs/<hash>/state.json
+```
+
+É possível passar até cinquenta checkpoints. O script verifica conta, identidade da solicitação e caminho original. Importa trabalhos já enviados, sem submetê-los novamente. Nunca transferir um trabalho existente para outro workspace. O saldo exibido distingue valor histórico e comparação fresca de orçamento. A franquia não é somada ao Modal e não conta como capítulos liberados. A data exata de renovação não é inventada a partir do nome do mês.
+
+`AURAY_API_KEY` deve ser instalado como secret do GitHub Actions para o workflow `story-auray-sync.yml`. Supabase já usa seus secrets de serviço. O painel e a Edge Function não precisam receber a chave Auray. Pelo botão **Atualizar saldo e retomar trabalhos**, um membro autorizado solicita uma consulta com cooldown de dois minutos. O workflow também consulta automaticamente a conta cadastrada a cada trinta minutos; o GitHub pode atrasar o agendamento. Nenhuma dessas consultas gera vídeo ou compra créditos.
+
+```powershell
+node --experimental-strip-types scripts/sync-auray-studio.mts --wallet <wallet-uuid>
+node --experimental-strip-types scripts/sync-auray-studio.mts --connected
+```
+
+Retomada consulta os mesmos jobs, mesmo sem saldo para outra geração. Um resultado liquidado é validado e recolhido ao bucket `studio-private` (até 50 MB por objeto). Bytes já prontos são preservados. Falha em upload/download é reconciliada na próxima execução. Os testes aparecem no painel como prévias para revisão, com som original, acesso restrito ao workspace e hash conferido; não são capítulos aprovados em produção. `ready` significa arquivo recolhido e tecnicamente validado, sem atestar anatomia, voz ou continuidade. Os quatro testes atuais são importados por esse fluxo; novas gerações continuam no executor limitado até existir o adaptador de capítulos.
+
 ```powershell
 node --experimental-strip-types scripts/render-auray-story-shot.mts --inspect
 ```
 
-Sem chave, retorna `missing_api_key`, capacidade desconhecida e produção desabilitada, sem nenhuma chamada HTTP. Inspeção com chave faz somente leituras. O relatório fica em `output/auray-video-jobs/inspection.json`, ignorado pelo Git; não publica conta, chave ou saldo no painel.
+Sem chave, retorna `missing_api_key`, capacidade desconhecida e produção desabilitada, sem nenhuma chamada HTTP. Inspeção com chave faz somente leituras. O relatório local fica em `output/auray-video-jobs/inspection.json`, ignorado pelo Git. A integração de monitoramento publica ao workspace apenas saldo, período, bloqueios e status sanitizados; não publica conta, chave, prompt ou links assinados.
 
 ## Avaliar a mesma referência
 
@@ -59,6 +78,6 @@ O QA exige igualdade de todos os hashes de quadros decodificados, ordem, FPS e d
 
 Um clipe decodificado continua `review_pending`; resolução e FPS de arquivo não comprovam fluidez ou continuidade. Assistir todos os segundos e conferir personagens, roupa, cenário, olhos, anatomia das mãos, emoção e movimento. Ausência de fala neste teste é intencional. Não substitui as tomadas de diálogo com nossas vozes aprovadas. O hash identifica o contrato da API e a versão do conector; Auray não expõe uma revisão imutável dos pesos para atestar identidade por hash.
 
-Somente após aprovação visual, verificação da licença aplicável e integração da identidade/capacidade da conta com a carteira de produção será possível considerar ação/reação compatível. A fonte não acrescenta segundos nem capítulos disponíveis ao Studio hoje. Os termos da Auray condicionam uso comercial à licença do modelo e exigem atribuição MiniMax e indicação de IA; a origem fica registrada no QA. Não publicar automaticamente esta avaliação.
+Somente após aprovação visual, verificação da licença aplicável e integração da identidade/capacidade da conta com a carteira de produção será possível considerar ação/reação compatível. A fonte acrescenta uma comparação de orçamento ao Studio, sem segundos nem capítulos liberados para produção. Os termos da Auray condicionam uso comercial à licença do modelo e exigem atribuição MiniMax e indicação de IA; a origem fica registrada no QA. Não publicar automaticamente esta avaliação.
 
 Fontes oficiais consultadas em 09/10/2026: [créditos](https://auray.ai/docs/credits), [planos e preços ao vivo](https://api.auray.ai/v1/plans), [autenticação e limites](https://auray.ai/docs/authentication), [contrato do modelo](https://api.auray.ai/v1/models/auray-ai/minimax-h3/text-to-video/openapi.json), [uploads](https://auray.ai/docs/uploads), [jobs](https://auray.ai/docs/jobs), [termos](https://app.auray.ai/terms). As páginas comerciais estavam divergentes; vale a política da conta e API conferida em cada chamada, não um banner antigo de 100 créditos ou oferta ilimitada.

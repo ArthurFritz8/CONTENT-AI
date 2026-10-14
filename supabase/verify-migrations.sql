@@ -63,3 +63,17 @@ begin
     raise exception 'Growth policy and candidate validation required (ADR-037)';
   end if;
 end $$;
+
+do $$
+begin
+ if has_function_privilege('anon','public.claim_auray_sync(uuid,uuid)','execute') or
+    has_function_privilege('authenticated','public.observe_auray_monitor(uuid,uuid,jsonb)','execute') or
+    has_function_privilege('authenticated','public.register_auray_monitor(uuid,text,jsonb)','execute') or
+    has_function_privilege('service_role','public.studio_video_overview_before_auray(uuid,uuid)','execute') then
+  raise exception 'Auray monitor RPC exposed';
+ end if;
+ if not exists(select 1 from pg_class where oid='public.studio_auray_jobs'::regclass and relrowsecurity) or
+    not exists(select 1 from pg_trigger where tgname='auray_candidate_wallet' and not tgisinternal) then
+  raise exception 'Auray monitoring must preserve workspace privacy and production lock';
+ end if;
+end $$;

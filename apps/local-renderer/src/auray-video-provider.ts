@@ -36,14 +36,14 @@ export class AurayError extends Error {
 export type AurayInspection = {
   provider: "auray", account_id: string | null, key_id: string | null, checked_at: string,
   period: string | null, monthly_allowance: number | null, plan_remaining: number | null,
-  audition_remaining: number | null, audition_cost: 5, audition_seconds: 5,
+  audition_remaining: number | null, key_remaining: number | null, audition_cost: 5, audition_seconds: 5,
   financially_eligible: boolean, blockers: string[], contract_sha256: string | null,
   production_ready: false, native_fps: null, native_resolution: null,
   dialogue_supported: false, editorial_status: "unvalidated",
 };
 export function missingAurayKey(now = new Date()): AurayInspection {
   return { provider: "auray", account_id: null, key_id: null, checked_at: now.toISOString(), period: null,
-    monthly_allowance: null, plan_remaining: null, audition_remaining: null, audition_cost: 5,
+    monthly_allowance: null, plan_remaining: null, audition_remaining: null, key_remaining: null, audition_cost: 5,
     audition_seconds: 5, financially_eligible: false, blockers: ["missing_api_key"], contract_sha256: null,
     production_ready: false, native_fps: null, native_resolution: null, dialogue_supported: false, editorial_status: "unvalidated" };
 }
@@ -111,7 +111,8 @@ export function inspectAurayAccount(plansRaw: unknown, accountRaw: unknown, cont
     report.blockers.push("price_changed");
   if (report.blockers.length === 0) {
     report.plan_remaining = Math.min(c.balance!, c.plan_credits!, report.monthly_allowance!);
-    report.audition_remaining = Math.min(AURAY.credits, report.plan_remaining, a.key.credit_ceiling - a.key.credits_spent_period);
+    report.key_remaining = a.key.credit_ceiling - a.key.credits_spent_period;
+    report.audition_remaining = Math.min(AURAY.credits, report.plan_remaining, report.key_remaining);
     if (report.audition_remaining < AURAY.credits) report.blockers.push("insufficient_free_credits");
   }
   report.financially_eligible = report.blockers.length === 0;

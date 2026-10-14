@@ -1,0 +1,39 @@
+name: Studio read-only Auray balance and recovery
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      wallet_id:
+        description: Carteira Auray cadastrada no Studio
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: story-auray-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VIDEO_WALLET_ID: ${{ inputs.wallet_id }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AURAY_API_KEY: ${{ secrets.AURAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: bash scripts/setup-ffmpeg.sh
+      - name: Consultar saldo e recolher os mesmos trabalhos, sem gerar vídeo
+        run: |
+          if [ -n "$VIDEO_WALLET_ID" ]; then
+            node --experimental-strip-types scripts/sync-auray-studio.mts --wallet "$VIDEO_WALLET_ID"
+          else
+            node --experimental-strip-types scripts/sync-auray-studio.mts --connected
+          fi

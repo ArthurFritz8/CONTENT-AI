@@ -26,9 +26,9 @@ export async function handleStory(req: Request): Promise<Response> {
     const { error: auth } = await db.rpc("studio_assert_member", { p_workspace: input.workspace, p_actor: input.actor });
     if (auth) throw new AppError("Acesso negado", 403, "FORBIDDEN");
     if (input.action === "balance") {
-      const {data,error}=await db.rpc("studio_modal_balance_request",{p_workspace:input.workspace,p_actor:input.actor,p_wallet:input.wallet_id});
+      const {data,error}=await db.rpc("studio_video_balance_request",{p_workspace:input.workspace,p_actor:input.actor,p_wallet:input.wallet_id});
       if(error)throw new AppError("Consulta de saldo indisponível",403,"BALANCE_ACCESS_DENIED");
-      if(data.code==="dispatch")await dispatchGithub("story-balance.yml",input.wallet_id);
+      if(data.code==="dispatch")await dispatchGithub(data.provider==="auray" ? "story-auray-sync.yml" : "story-balance.yml",input.wallet_id);
       return jsonResponse(data);
     }
     if (input.action === "profile_voices") {

@@ -8,6 +8,8 @@ import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories
 type Chapter = { number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean };
 type Series = { id: string; bible: SeriesBible; chapters: Chapter[] };
 type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null; balance_kind?: string; billing_may_lag?: boolean; source_ready?: boolean; balance_fresh?: boolean; source_blockers?: string[];
+  candidate?:boolean;monthly_allowance?:number|null;period?:string|null;sync_failed?:boolean;sync_running?:boolean;budget_only_shots?:number|null;
+  jobs?:Array<{id:string;label:string;status:string;settled:boolean;charged_credits:number;ready:boolean;observed_at:string|null}>;
   minimum_chapter_estimate?: { shots: number; planned_seconds: number; required_units: number; shortfall_units: number | null; comparison_only: true } };
 type Overview = { series: Series[]; remaining: number; daily_cap: number; generated_today: number; active: number; proposals_remaining: number; capacity: { unavailable?: boolean };
   animationProgress?: { chapters: Array<{ episode_id: string; completed_shots: number; total_shots: number; planned_seconds: number; output_fps: number; stage: string; prepared_audio?: number }>; unavailable?: boolean };
@@ -25,8 +27,21 @@ const animationStages: Record<string,string> = { awaiting_capacity:"Aguardando s
 const sourceBlockers: Record<string,string> = {
   source_disabled: "Fonte ainda não ativada para geração.", balance_stale: "O saldo precisa de uma nova consulta; o valor exibido é da última verificação.",
   runtime_unverified: "A integração de animação ainda precisa ser implantada e validada.", entitlement_unverified: "A franquia gratuita precisa ser conferida novamente.",
-  spend_limit_unverified: "Falta confirmar o limite de gastos de US$ 0 na conta.", billing_unverified: "Falta confirmar que não há cobranças em dinheiro neste período."
+  spend_limit_unverified: "Falta confirmar o limite de gastos de US$ 0 na conta.", billing_unverified: "Falta confirmar que não há cobranças em dinheiro neste período.",
+  continuity_unverified:"A aparência e a roupa dos personagens ainda precisam permanecer estáveis durante todas as cenas.",
+  voice_identity_unverified:"A voz de cada personagem ainda precisa ser validada entre cenas e capítulos.",
+  production_adapter_pending:"A geração de capítulos por esta fonte ainda está em integração.",
+  insufficient_free_credits:"A franquia gratuita não comporta outra tomada de cinco segundos.",
+  mixed_or_promotional_wallet:"A carteira não foi confirmada como exclusivamente gratuita e recorrente.",
+  non_base_free_account:"Esta conexão exige o plano Free, sem assinatura paga ou promoção.",
+  stale_credit_period:"O período dos créditos precisa ser atualizado pelo serviço.",
+  missing_scopes:"As permissões da chave precisam ser conferidas pelo administrador.",
+  bounded_free_key_cap_required:"O teto da chave precisa ser finito e limitado à franquia gratuita.",
+  price_changed:"O preço mudou e precisa ser validado antes de qualquer nova geração.",
+  email_unverified:"Confirme o e-mail na conta Auray.",free_video_unavailable:"Vídeo indisponível na franquia gratuita consultada.",
+  recurring_free_unverified:"A franquia mensal gratuita precisa ser conferida.",wallet_unverified:"O serviço não confirmou todos os valores da carteira."
 };
+const candidateJobStatus:Record<string,string>={unknown:"Verificando envio anterior",queued:"Na fila",running:"Gerando",succeeded:"Geração concluída",failed:"Geração falhou",cancelled:"Cancelado"};
 
 export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refresh: number }) {
   const [kind,setKind] = useState<"factual" | "original" | "fruits">("factual");
@@ -115,9 +130,19 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
         <p className="muted">Esta estimativa é de roteiros e do limite diário do Studio. A capacidade de animação depende de saldo e fontes compatíveis com sua novela. Contadores do Studio renovam à 0h UTC (21h em Brasília).</p>
         <details><summary>Fontes e saldo para animação</summary>
           {!data?.videoCapacity?.wallets.length ? <p>Saldo de animação ainda não conectado ao Studio. A integração do Modal está em preparação.</p> : data.videoCapacity.wallets.map(w=><div key={w.id}>
-            <p><strong>{w.label}</strong> · {w.balance_fresh===false ? "Último valor consultado" : w.balance_kind==="conservative_monthly_estimate" ? "Sobra estimada conservadora" : "Saldo"}: {walletAmount(w.remaining_units,w.unit)} · Reservado: {walletAmount(w.reserved_units,w.unit)} · Disponível para novos trabalhos: {walletAmount(w.available_units,w.unit)}</p>
+            <p><strong>{w.label}</strong> · {w.balance_fresh===false || w.sync_failed ? "Último valor consultado" : w.balance_kind==="conservative_monthly_estimate" ? "Sobra estimada conservadora" : "Saldo"}: {walletAmount(w.remaining_units,w.unit)} · Reservado: {walletAmount(w.reserved_units,w.unit)} · Disponível para novos trabalhos: {w.candidate ? "Aguardando validação" : walletAmount(w.available_units,w.unit)}</p>
             <p className="muted">{w.checked_at ? `Consultado em ${new Date(w.checked_at).toLocaleString("pt-BR")}. ` : "Consulta de saldo pendente. "}{w.renews_at ? `Renovação prevista: ${new Date(w.renews_at).toLocaleString("pt-BR")}.` : "Renovação ainda não confirmada."}</p>
-            {w.balance_kind==="conservative_monthly_estimate" && <button className="button" disabled={!!balanceBusy} onClick={()=>void refreshBalance(w.id)}>{balanceBusy===w.id ? "Solicitando consulta…" : "Atualizar saldo"}</button>}
+            {["conservative_monthly_estimate","verified_free_credits"].includes(w.balance_kind || "") && <button className="button" disabled={!!balanceBusy || w.sync_running} onClick={()=>void refreshBalance(w.id)}>{balanceBusy===w.id ? "Solicitando consulta…" : w.sync_running ? "Consultando…" : w.candidate ? "Atualizar saldo e retomar trabalhos" : "Atualizar saldo"}</button>}
+            {w.candidate && <>
+              <p className="muted">Franquia mensal: {w.monthly_allowance==null ? "não confirmada" : `${w.monthly_allowance} créditos gratuitos`}{w.period ? ` · período ${w.period}` : ""}. Esta fonte ainda está em avaliação para capítulos.</p>
+              {w.sync_failed && <p role="status">A última consulta não terminou. O saldo anterior foi preservado como histórico. Tente atualizar novamente; os mesmos trabalhos serão consultados.</p>}
+              {w.budget_only_shots!=null && <p>Comparação de orçamento: até {w.budget_only_shots} tomada(s) de 5 segundos ({w.budget_only_shots*5} segundos brutos), a 5 créditos cada. Isso não inclui novas tentativas nem garante capítulos completos. Esse valor não é somado ao Modal.</p>}
+              {!!w.jobs?.length && <details><summary>Testes e trabalhos existentes ({w.jobs.length})</summary><p className="muted">A retomada consulta o mesmo envio e recolhe o vídeo concluído. Não cria outra geração. Prévias preservam o áudio e os quadros originais; não certificam continuidade.</p>
+                {w.jobs.map(j=><div key={j.id}><p><strong>{j.label}</strong> · {j.ready ? "Teste disponível para revisão" : candidateJobStatus[j.status] || "Consulta pendente"} · {j.charged_credits} créditos{!j.settled ? " (cobrança ainda não liquidada)" : ""}</p>
+                  {j.ready && <video controls playsInline preload="none" width={240} aria-label={`Teste Auray de ${j.label}`} src={`/api/stories/auray/media?id=${j.id}`}/>}
+                </div>)}
+              </details>}
+            </>}
             {w.billing_may_lag && <p className="muted">O faturamento pode ter atraso. A estimativa desconta reservas e margem antes de liberar novos capítulos.{w.source_ready===false ? " Fonte aguardando configuração ou verificação; saldo exibido ainda não autoriza geração." : ""}</p>}
             {!!w.source_blockers?.length && <><strong>O que falta para liberar esta fonte</strong><ul>{w.source_blockers.map(code=><li key={code}>{sourceBlockers[code] || "Verificação da fonte pendente."}</li>)}</ul></>}
             {w.minimum_chapter_estimate && <p>Formato mínimo de {w.minimum_chapter_estimate.shots} tomadas / {w.minimum_chapter_estimate.planned_seconds.toLocaleString("pt-BR")}s: reserva estimada de {walletAmount(w.minimum_chapter_estimate.required_units,w.unit)}.

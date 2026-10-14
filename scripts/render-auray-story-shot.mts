@@ -2,7 +2,7 @@
 import { readFile, writeFile, mkdir, rename, open, unlink } from "node:fs/promises";
 import { resolve, join, relative, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { verifyAurayMedia } from "../apps/local-renderer/src/auray-media.ts";
 import sharp from "sharp";
 import { z } from "zod";
 import { AURAY, AurayError, AurayVideoProvider, aurayAuditionKey, aurayAuditionSchema } from "../apps/local-renderer/src/auray-video-provider.ts";
@@ -30,26 +30,7 @@ async function token() {
   } catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw new AurayError("credential_file_unavailable"); return undefined; }
 }
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-async function verifyMedia(path: string, shot: Checkpoint["shot"]) {
-  const probe = spawnSync("ffprobe",["-v","error","-count_frames","-show_streams","-show_format","-of","json",path],{ encoding: "utf8",timeout: 30_000,windowsHide: true });
-  if (probe.status !== 0) throw new AurayError("media_probe_failed");
-  const media = JSON.parse(probe.stdout), videos = media.streams?.filter((s: { codec_type: string }) => s.codec_type === "video");
-  if (videos?.length !== 1) throw new AurayError("media_invalid");
-  const v = videos[0], duration = Number(v.duration ?? media.format?.duration), [num,den] = String(v.avg_frame_rate).split("/").map(Number);
-  const fps = Number(num) / Number(den), frames = Number(v.nb_read_frames), width = Number(v.width), height = Number(v.height);
-  if (![duration,fps,frames,width,height].every(n => Number.isFinite(n) && n > 0) || duration < 4.8 || duration > 5.2 ||
-      Math.abs(width/height - (shot.aspect_ratio === "9:16" ? 9/16 : 16/9)) > .025) throw new AurayError("media_invalid");
-  const decode = spawnSync("ffmpeg",["-v","error","-i",path,"-f","null","-"],{ encoding: "utf8",timeout: 30_000,windowsHide: true });
-  if (decode.status !== 0) throw new AurayError("media_decode_failed");
-  const hasAudio = Boolean(media.streams?.some((s: { codec_type: string }) => s.codec_type === "audio"));
-  if (shot.kind === "native_dialogue_probe" && !hasAudio) throw new AurayError("native_dialogue_missing_audio");
-  return { seconds: duration, width,height, encoded_fps: fps, decoded_frames: frames,
-    has_audio: hasAudio,dialogue_requested:shot.kind === "native_dialogue_probe",
-    ...(shot.native_dialogue ? { expected_speech:shot.native_dialogue.text,requested_language:shot.native_dialogue.language,
-      voice_source:"provider_generated_unverified",voice_identity_approved:false,speech_transcription_verified:false,lip_sync_review_pending:true } : {}),
-    native_motion_fps: null, dialogue_approved: false, continuity_approved: false, editorial_status: "review_pending",
-    note: "Arquivo original. FPS codificado não comprova fluidez, poses novas, anatomia ou identidade. Prévia isolada; não entra na novela." };
-}
+
 async function main() {
   const inside = relative(join(root,"output"),out);
   if (!inside || inside.startsWith("..") || isAbsolute(inside)) throw new AurayError("output_directory_outside_workspace");
@@ -137,7 +118,7 @@ async function main() {
       await update({ phase:"downloaded",output_sha256:hash(bytes) });
     }
     if (hash(await readFile(file)) !== state.output_sha256) throw new AurayError("cached_output_changed");
-    const qa = { ...await verifyMedia(file,state.shot),source:"auray",model:AURAY.model,
+    const qa = { ...await verifyAurayMedia(file,state.shot),source:"auray",model:AURAY.model,
       contract_sha256:state.contract_sha256,reference_sha256:state.shot.reference_sha256,
       output_sha256:state.output_sha256,charged_credits:state.charged_credits,
       attribution:"Generated with MiniMax via Auray · AI-generated",license_review_required:true };
