@@ -2,6 +2,8 @@
 
 Galeria e escolhas implementadas no [ADR-078](../ADR/ADR-078-galeria-e-estilos-por-capitulo.md). Este procedimento importa vídeos existentes; não gera imagens, fala ou vídeo e não ativa carteiras.
 
+O [ADR-079](../ADR/ADR-079-padroes-visuais-e-execucao-por-capitulo.md) liga imagens e vozes à versão/estilo e congela o perfil no capítulo. O painel oferece essa preparação para automática/Modal; salvar o padrão não habilita a fonte, certifica uma amostra ou autoriza dinheiro. Auray e HQ continuam aguardando seus adaptadores próprios.
+
 ## Importar exemplos privados
 
 O operador precisa de Node 22+, FFmpeg/FFprobe no PATH e configuração Supabase de serviço na `.env.cloud`, ignorada pelo Git. Não passar chaves como argumentos. O workspace deve existir. Mídias do manifesto precisam estar em `output/`; não vêm em um clone limpo.

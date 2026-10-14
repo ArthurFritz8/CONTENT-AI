@@ -34,7 +34,7 @@ begin
  perform pg_temp.style_assert(public.studio_story_presentation_save(w,actor,sid,1,edit_id,p,true)=result,'style edit request is idempotent');
  perform pg_temp.style_assert(public.studio_story_presentation_save(w,actor,sid,1,gen_random_uuid(),p,true)->>'code'='style_changed','stale browser cannot overwrite revision');
  perform pg_temp.style_assert((select s.bible=bible_input from public.studio_series s where id=sid),'style never changes the bible');
- perform pg_temp.style_assert(public.studio_story_next_presented(w,actor,sid,'anime')->>'code'='style_preparation_required','unsupported style never falls through to old illustration');
+ perform pg_temp.style_assert(public.studio_story_next_presented(w,actor,sid,'anime')->>'code'='profile_incomplete','unprepared style never falls through to old illustration');
  perform pg_temp.style_assert((select count(*)=1 from public.studio_story_chapters where series_id=sid),'unavailable style creates no chapter');
  result:=public.studio_story_next_presented(w,actor,sid,'illustrated');
  perform pg_temp.style_assert(result->>'chapter_number'='2','explicitly permitted illustrated variant can continue');

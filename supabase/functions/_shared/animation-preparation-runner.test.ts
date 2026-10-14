@@ -30,6 +30,7 @@ async function rig(seconds=1) {
  const db={
   rpc:async(name:string,args:Record<string,any>)=>{
    calls.push(name);
+   if(name==="studio_story_episode_profile")return {data:{profile:fixture.profile,profile_sha256:profileHash},error:null};
    if(name==="claim_animation_preparation")return {data:{code:"claimed",preparation:{workspace_id:"workspace",context:fixture.context,draft:fixture.draft,
     profile_sha256:profileHash,fingerprint},audio:structuredClone(checkpoints)},error:null};
    if(name==="fail_animation_preparation")return {data:{code:"failed",checkpoints_preserved:true},error:null};

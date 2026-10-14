@@ -32,6 +32,11 @@ export function presentationNeedsAdapter(p:StoryPresentation,chosen:StoryStyleId
   if(!value.allowed_styles.includes(chosen))throw Error("Estilo fora das escolhas da novela");
   return chosen!=="illustrated" || !["automatic","local"].includes(value.source) || value.voice_policy!=="preserve";
 }
+/** Preparing a pattern does not qualify an execution or reserve a video budget. */
+export function supportsPreparedPattern(p:StoryPresentation,chosen:StoryStyleId) {
+  const value=storyPresentationSchema.parse(p);
+  return value.allowed_styles.includes(chosen) && ["cinematic_3d","cartoon_2d","anime","realistic"].includes(chosen) && ["automatic","modal"].includes(value.source);
+}
 export const storyStyleSampleSchema = z.object({
   id:z.string().uuid(),style_id:z.enum(storyStyleIds),source:z.enum(["modal","auray","local"]),
   title:z.string().trim().min(5).max(100),model:z.string().trim().min(2).max(120),

@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import {strictEqual,throws,deepStrictEqual} from "node:assert";
-import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter} from "./styles.ts";
+import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern} from "./styles.ts";
 import {storyRequestSchema} from "./schema.ts";
 test("old requests keep their exact shape; style intent never masquerades as legacy illustration",()=>{
   const old={kind:"fruits",genre:"mystery",creation_mode:"automatic",premise:"",chapters:2};
@@ -10,6 +10,15 @@ test("old requests keep their exact shape; style intent never masquerades as leg
     strictEqual(presentationNeedsAdapter({...defaultStoryPresentation(),primary_style,allowed_styles:[primary_style]}),true);
   strictEqual(presentationNeedsAdapter({...defaultStoryPresentation(),source:"auray"}),true);
   strictEqual(presentationNeedsAdapter({...defaultStoryPresentation(),voice_policy:"approved_variants"}),true);
+});
+
+test("prepared patterns are separate from sources without an audio-conditioned chapter adapter",()=>{
+ const p=storyPresentationSchema.parse({...defaultStoryPresentation(),primary_style:"anime",allowed_styles:["anime"]});
+ strictEqual(supportsPreparedPattern(p,"anime"),true);
+ strictEqual(supportsPreparedPattern({...p,source:"modal"},"anime"),true);
+ strictEqual(supportsPreparedPattern({...p,source:"auray"},"anime"),false);
+ strictEqual(supportsPreparedPattern({...p,source:"local"},"anime"),false);
+ strictEqual(supportsPreparedPattern(p,"realistic"),false);
 });
 test("fixed styles, permitted chapter variants and voice permissions are independent and explicit",()=>{
   const base=defaultStoryPresentation();

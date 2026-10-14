@@ -1,16 +1,21 @@
 "use client";
 import { useEffect,useRef,useState } from "react";
+import {storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
 type Media={id:string;character_id:string;kind:"reference"|"voice_sample";sha256?:string;metadata:{voice_id?:string;width?:number;height?:number}};
-type View={media:Media[];can_configure:boolean;voice_enabled:boolean;voice_state:string;voice_retry_allowed?:boolean;voice_attempts?:number;profile:{style:string;references?:Array<{character_id:string;sha256:string}>;voices?:Array<{character_id:string;sample_sha256:string}>}|null;bible:{cast:Array<{id:string;name:string;voice:string}>}};
+type View={media:Media[];can_configure:boolean;voice_enabled:boolean;voice_state:string;voice_retry_allowed?:boolean;voice_attempts?:number;voice_policy?:string;previous_voices?:Array<{character_id:string;sample_sha256:string}>;profile:{style:string;references?:Array<{character_id:string;sha256:string}>;voices?:Array<{character_id:string;sample_sha256:string}>}|null;bible:{cast:Array<{id:string;name:string;voice:string}>}};
 const defaultStyle="Animação 3D cinematográfica com personagens expressivos, olhos nítidos, iluminação natural e expressões legíveis. Preserve a aparência, as roupas e as proporções das imagens aprovadas em todas as cenas.";
-export function StoryProductionSetup({seriesId,onSaved}:{seriesId:string;onSaved:()=>void}) {
-  const [open,setOpen]=useState(false),[view,setView]=useState<View|null>(null),[style,setStyle]=useState(defaultStyle);
+export function StoryProductionSetup({seriesId,onSaved,presentationRevision,styleId}:{seriesId:string;onSaved:()=>void;presentationRevision?:number;styleId?:StoryStyleId}) {
+  const pattern=presentationRevision!==undefined && styleId!==undefined;
+  const label=storyStyles.find(s=>s.id===styleId)?.label;
+  const [open,setOpen]=useState(false),[view,setView]=useState<View|null>(null),[style,setStyle]=useState(pattern?`${label}. Preserve a aparência, as roupas e as proporções das imagens aprovadas em todas as cenas. Olhos nítidos, expressões legíveis e gestos claros.`:defaultStyle);
   const [error,setError]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false),[confirmed,setConfirmed]=useState(false);
   const [selected,setSelected]=useState<Record<string,string>>({});
   const uploads=useRef<Record<string,{file:File;id:string}>>({});
   const base="/api/stories/production";
+  const scope=pattern?{presentationRevision,styleId}:{};
+  const query=pattern?`&revision=${presentationRevision}&style=${styleId}`:"";
   async function load(signal?:AbortSignal) {
-    const response=await fetch(`${base}?series=${seriesId}`,{signal}),data=await response.json();
+    const response=await fetch(`${base}?series=${seriesId}${query}`,{signal}),data=await response.json();
     if(!response.ok)throw Error(data.error || "Não foi possível consultar o padrão.");
     if(!signal?.aborted){setView(data);if(data.profile)setStyle(data.profile.style);}
   }
@@ -24,13 +29,14 @@ export function StoryProductionSetup({seriesId,onSaved}:{seriesId:string;onSaved
       const hash=kind==="reference" ? view.profile.references?.find(r=>r.character_id===character)?.sha256 : view.profile.voices?.find(v=>v.character_id===character)?.sample_sha256;
       return options.find(m=>m.sha256===hash && hash);
     }
-    return options.find(m=>m.id===selected[`${character}:${kind}`]) || options.at(-1);
+    const preserved=kind==="voice_sample" && view?.voice_policy==="preserve" ? view.previous_voices?.find(v=>v.character_id===character)?.sample_sha256 : undefined;
+    return options.find(m=>m.id===selected[`${character}:${kind}`]) || options.find(m=>preserved && m.sha256===preserved) || options.at(-1);
   }
   async function upload(character:string,file:File) {
     setBusy(true);setError("");setNotice("");setConfirmed(false);
     if(uploads.current[character]?.file!==file)uploads.current[character]={file,id:crypto.randomUUID()};
     try {
-      const response=await fetch(`${base}/media?series=${seriesId}&character=${encodeURIComponent(character)}&request=${uploads.current[character].id}`,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file});
+      const response=await fetch(`${base}/media?series=${seriesId}&character=${encodeURIComponent(character)}&request=${uploads.current[character].id}${query}`,{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file});
       const result=await response.json();if(!response.ok)throw Error(result.error);
       setSelected(v=>({...v,[`${character}:reference`]:result.id}));delete uploads.current[character];await load();setNotice("Imagem cadastrada. Confira a prévia abaixo.");
     }catch(e){setError(e instanceof Error?e.message:"Falha ao enviar a imagem.");}
@@ -38,22 +44,23 @@ export function StoryProductionSetup({seriesId,onSaved}:{seriesId:string;onSaved
   }
   const ready=!!view && view.bible.cast.every(c=>choice(c.id,"reference") && choice(c.id,"voice_sample"));
   return <details className="story-production-setup" open={open} onToggle={e=>setOpen(e.currentTarget.open)}>
-    <summary>Configurar imagens e vozes da novela</summary>
+    <summary>{pattern?`Imagens e vozes · ${label} · versão ${presentationRevision}`:"Configurar imagens e vozes da novela"}</summary>
     {open && <div>
-      <p>Configure antes do primeiro capítulo. As imagens ficam privadas. Fixar o padrão não gera vídeo nem libera uma fonte automaticamente.</p>
+      <p>{pattern?"Confira o padrão deste estilo para os próximos capítulos. Capítulos anteriores conservam suas imagens e vozes.":"Configure antes do primeiro capítulo."} As imagens ficam privadas. Fixar o padrão não gera vídeo nem libera uma fonte automaticamente.</p>
       {!view && !error && <p role="status">Consultando configuração…</p>}
       {view && <>
-        {view.profile && <p role="status"><strong>Padrão fixado.</strong> O elenco será preservado nos próximos capítulos. Cada fonte precisa ser validada com esse padrão antes de animar.</p>}
-        {!view.can_configure && !view.profile && <p>Esta novela já começou no formato ilustrado. Crie outra proposta para configurar um padrão animado.</p>}
+        {view.profile && <p role="status"><strong>Padrão fixado.</strong> {pattern?"Os capítulos que escolherem este estilo e esta versão usarão essas imagens e vozes.":"O elenco será preservado nos próximos capítulos."} Cada fonte precisa ser validada com esse padrão antes de animar.</p>}
+        {!view.can_configure && !view.profile && <p>{pattern?"A configuração aguarda a conclusão e aprovação do capítulo atual ou uma versão de preferências disponível.":"Esta novela já começou no formato ilustrado. Crie outra proposta para configurar um padrão animado."}</p>}
         <h4>1. Confira a imagem de cada personagem</h4>
         <p className="muted">Use imagens verticais PNG, JPEG ou WebP, de até 12 MB, com pelo menos 480 pixels de largura. Uma imagem por personagem, mostrando rosto, roupa e mãos com clareza. O envio preserva a resolução e não tenta recuperar detalhes ausentes.</p>
         <div className="story-profile-cast">{view.bible.cast.map(c=>{
-          const ref=choice(c.id,"reference"),voice=choice(c.id,"voice_sample"),refs=view.media.filter(m=>m.character_id===c.id && m.kind==="reference");
+          const ref=choice(c.id,"reference"),voice=choice(c.id,"voice_sample"),refs=view.media.filter(m=>m.character_id===c.id && m.kind==="reference"),samples=view.media.filter(m=>m.character_id===c.id && m.kind==="voice_sample");
           return <section key={c.id}><h5>{c.name}</h5>
             {view.can_configure && <label>Imagem de {c.name}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];if(file)void upload(c.id,file);}}/></label>}
             {ref ? <img src={`${base}/media?id=${ref.id}`} alt={`Referência cadastrada de ${c.name}`} width={176} height={300}/> : <p className="muted">{view.profile?"Referência já fixada; a prévia deste cadastro não está disponível.":"Imagem ainda não cadastrada."}</p>}
             {refs.length>1 && view.can_configure && <label>Imagem que será usada<select value={ref?.id} onChange={e=>{setSelected(v=>({...v,[`${c.id}:reference`]:e.target.value}));setConfirmed(false);}}>{refs.map((r,i)=><option key={r.id} value={r.id}>Referência {i+1} · {r.metadata.width} × {r.metadata.height}</option>)}</select></label>}
             {voice ? <><p>{c.voice==="female"?"Voz feminina · Francisca":"Voz masculina · Antonio"}</p><audio controls preload="none" src={`${base}/media?id=${voice.id}`} aria-label={`Ouvir voz de ${c.name}`}/></> : <p className="muted">Prévia de voz ainda não preparada.</p>}
+            {samples.length>1 && view.can_configure && <label>Amostra de voz de {c.name}<select value={voice?.id} onChange={e=>{setSelected(v=>({...v,[`${c.id}:voice_sample`]:e.target.value}));setConfirmed(false);}}>{samples.map((m,i)=><option key={m.id} value={m.id}>Amostra {i+1}{view.previous_voices?.some(v=>v.character_id===c.id && v.sample_sha256===m.sha256)?" · voz já aprovada":""}</option>)}</select></label>}
           </section>;
         })}</div>
         <h4>2. Ouça as vozes</h4>
@@ -65,15 +72,15 @@ export function StoryProductionSetup({seriesId,onSaved}:{seriesId:string;onSaved
         }}>{["queued","working"].includes(view.voice_state) && !view.voice_retry_allowed?"Preparando vozes…":["failed","queued","working"].includes(view.voice_state)?"Tentar preparar vozes novamente":"Preparar prévias de voz"}</button>}
         {view.can_configure && (view.voice_attempts ?? 0)>=3 && view.voice_state!=="ready" && <p role="status">As três tentativas terminaram. O administrador precisa verificar a integração; as amostras já prontas foram preservadas.</p>}
         {view.can_configure && !view.voice_enabled && <p className="muted">Prévia de voz aguardando ativação da integração. Nenhum crédito de vídeo será usado nesta etapa.</p>}
-        <h4>3. Fixe o padrão para todos os capítulos</h4>
+        <h4>{pattern?"3. Confirme o padrão deste estilo":"3. Fixe o padrão para todos os capítulos"}</h4>
         <label>Estilo da novela<textarea rows={3} minLength={30} maxLength={3000} value={style} disabled={busy || !view.can_configure} onChange={e=>{setStyle(e.target.value);setConfirmed(false);}}/></label>
         {view.can_configure && <><label className="studio-check"><input type="checkbox" checked={confirmed} disabled={!ready || busy} onChange={e=>setConfirmed(e.target.checked)}/>Conferi as imagens e ouvi as vozes. Quero manter esse padrão nesta novela.</label>
           <button className="button primary" disabled={busy || !ready || !confirmed || style.trim().length<30} onClick={async()=>{
             setBusy(true);setError("");setNotice("");
-            try{await post({action:"finalize",seriesId,style,confirmed,selection:view.bible.cast.map(c=>({character_id:c.id,reference_id:choice(c.id,"reference")!.id,voice_id:choice(c.id,"voice_sample")!.id}))});await load();setNotice("Padrão salvo. A geração animada depende de fonte validada e orçamento para o capítulo completo.");onSaved();}
+            try{const result=await post({action:"finalize",seriesId,style,confirmed,...scope,selection:view.bible.cast.map(c=>({character_id:c.id,reference_id:choice(c.id,"reference")!.id,voice_id:choice(c.id,"voice_sample")!.id}))});if(result.code!=="saved")throw Error(result.code==="voice_change_not_allowed"?"Estas vozes diferem do padrão preservado da novela. Selecione as amostras já aprovadas.":result.code==="style_changed"?"As preferências mudaram em outra aba. Atualize a novela antes de salvar.":"A configuração está bloqueada enquanto um capítulo está em andamento.");await load();setNotice("Padrão salvo. A geração animada depende de fonte validada e orçamento para o capítulo completo.");onSaved();}
             catch(e){setError(e instanceof Error?e.message:"Não foi possível fixar o padrão.");}finally{setBusy(false);}
           }}>Fixar padrão da novela</button>
-          <p className="muted">Depois de fixado, esse padrão não pode ser trocado nesta novela. Uma aparência ou voz diferente exige outra proposta.</p></>}
+          <p className="muted">{pattern?"Esta versão fica preservada. Para outra escolha futura, salve uma nova versão em Estilo e fontes da novela. O motor ainda precisa de validação para este padrão.":"Depois de fixado, esse padrão não pode ser trocado nesta novela. Uma aparência ou voz diferente exige outra proposta."}</p></>}
       </>}
       {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status">{notice}</p>}
     </div>}

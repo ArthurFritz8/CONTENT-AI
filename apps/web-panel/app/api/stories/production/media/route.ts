@@ -3,6 +3,7 @@ import { assertOrigin,uuid,PanelError } from "../../../../../lib/security.mjs";
 import { studioRpc } from "../../../../../lib/workspace";
 import { boundedReferenceBody,normalizeProductionImage } from "../../../../../lib/production-image";
 import { uploadProductionMedia,downloadProductionMedia } from "../../../../../lib/production-storage";
+import {patternQuery} from "../../../../../lib/story-pattern";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 export async function GET(request:Request) {
@@ -19,8 +20,9 @@ export async function POST(request:Request) {
     const series=uuid(url.searchParams.get("series")),id=uuid(url.searchParams.get("request")),character=url.searchParams.get("character") || "";
     if(!/^[a-z][a-z0-9_-]{0,23}$/.test(character))throw new PanelError("Personagem inválido.",400);
     // Check membership/cast before decoding an uploaded image.
-    const view=await studioRpc("studio_production_setup_view",{p_workspace:user.workspaceId,p_actor:user.id,p_series:series});
-    if(!view.can_configure || !view.bible.cast.some((c:{id:string})=>c.id===character))throw new PanelError("Configure as imagens antes de iniciar a novela.",409);
+    const pattern=patternQuery(url);
+    const view=await studioRpc(pattern?"studio_story_pattern_view":"studio_production_setup_view",{p_workspace:user.workspaceId,p_actor:user.id,p_series:series,...(pattern?{p_revision:pattern.revision,p_style:pattern.style}:{})});
+    if(!view.can_configure || !view.bible.cast.some((c:{id:string})=>c.id===character))throw new PanelError(pattern?"Conclua e aprove o capítulo atual e confira a versão do estilo antes de enviar outra imagem.":"Configure as imagens antes de iniciar a novela.",409);
     const image=await normalizeProductionImage(await boundedReferenceBody(request));
     const args={p_workspace:user.workspaceId,p_actor:user.id};
     const row=await studioRpc("studio_production_media_reserve",{...args,p_series:series,p_id:id,p_character:character,p_kind:"reference",p_sha:image.sha256,p_bytes:image.bytes.length,p_metadata:image.metadata});

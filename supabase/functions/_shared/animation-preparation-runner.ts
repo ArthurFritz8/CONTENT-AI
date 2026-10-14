@@ -30,7 +30,7 @@ async function prepareClaimedAnimation(db: SupabaseClient,episodeId:string,token
   const claim=await rpc("claim_animation_preparation",{p_episode:episodeId,p_token:token});
   if(claim.code!=="claimed")return claim;
   const preparation=claim.preparation;
-  const {data:production,error}=await db.from("studio_series_production").select("profile,profile_sha256").eq("series_id",preparation.context.series_id).eq("workspace_id",preparation.workspace_id).single();
+  const {data:production,error}=await db.rpc("studio_story_episode_profile",{p_episode:episodeId});
   if(error||!production)throw Error("Padrão audiovisual indisponível");
   const profile=seriesProductionProfileSchema.parse(production.profile);
   const draft=validateAnimatedDraft(preparation.draft,preparation.context,profile);

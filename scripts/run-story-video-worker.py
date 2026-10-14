@@ -65,7 +65,7 @@ def request_for(db, job):
     if job["provider_id"] != PROVIDER or job["execution_sha256"] != execution_hash() or shot.get("kind") != "dialogue" or shot.get("quality") != "approved_master" or shot.get("id") != job["shot_id"]:
         raise ValueError("Unqualified execution or shot")
     continuity = shot["continuity"]
-    production = one(db.table("studio_series_production", select="profile,profile_sha256", series_id="eq." + continuity["series_id"], workspace_id="eq." + job["workspace_id"]))
+    production = one(db.table("studio_series_production", select="profile,profile_sha256", series_id="eq." + continuity["series_id"], workspace_id="eq." + job["workspace_id"], profile_sha256="eq." + continuity["profile_sha256"]))
     profile = production["profile"]
     if production["profile_sha256"] != continuity["profile_sha256"]:
         raise ValueError("Production identity fingerprint mismatch")

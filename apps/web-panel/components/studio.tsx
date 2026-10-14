@@ -60,11 +60,15 @@ function useData(
     loading: boolean;
     time: Date | null;
   }>({ data: null, error: "", loading: true, time: null });
+  const loadedKey=useRef("");
   useEffect(() => {
     let active = true;
     let running = false;
     const controller = new AbortController();
-    setState({ data: null, error: "", loading: true, time: null });
+    const key=JSON.stringify([resource,query]),sameResource=loadedKey.current===key;
+    loadedKey.current=key;
+    // Refreshing the same list must not unmount an in-progress story setup.
+    setState(s=>sameResource?{...s,error:"",loading:true}:{data:null,error:"",loading:true,time:null});
     async function load() {
       if (running) return;
       running = true;

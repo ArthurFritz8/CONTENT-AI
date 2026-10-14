@@ -30,7 +30,7 @@ Deno.test("fiction script and image checkpoints use frozen context; no stock or 
   if(u.hostname==="generativelanguage.googleapis.com"){calls++;return json({candidates:[{content:{parts:[{text:JSON.stringify(draft)}]}}]});}
   if(u.pathname.endsWith("/rpc/claim_episode")||u.pathname.endsWith("/rpc/reserve_gemini_call"))return json(true);
   if(u.pathname.endsWith("/episode_leases"))return new Response(null,{status:204});
-  if(u.pathname.endsWith("/studio_series_production"))return json([]);
+  if(u.pathname.endsWith("/rpc/studio_story_episode_profile"))return json(null);
   if(u.pathname.endsWith("/episodes")){if(method==="PATCH"){Object.assign(episode,body);return body.status==="script"?json({id}):new Response(null,{status:204});}return json(episode);}
   if(u.pathname.endsWith("/system_config"))return json({value:u.searchParams.get("key")==="eq.fact_check"?policy:{}});
   if(u.pathname.endsWith("/assets")){if(method==="POST"){assets.push(...body);return new Response(null,{status:201});}return json(assets);}
@@ -49,14 +49,14 @@ Deno.test("fiction script and image checkpoints use frozen context; no stock or 
 Deno.test("illustrated writer refuses an animated profile or an unavailable registry before text quota",async()=>await envTest(async()=>{
  const {context}=storyFixture(),id="11111111-1111-4111-8111-111111111111";
  let unavailable=false,quotaCalls=0;
- globalThis.fetch=(async(input)=>{
+ globalThis.fetch=(async(input,init)=>{
   const u=new URL(input instanceof Request?input.url:String(input));
   if(u.pathname.endsWith("/rpc/claim_episode"))return json(true);
   if(u.pathname.endsWith("/episode_leases"))return new Response(null,{status:204});
   if(u.pathname.endsWith("/episodes"))return json({id,status:"research",briefing:{story_context:context},research_evidence:{type:"fiction_plan",context}});
-  if(u.pathname.endsWith("/studio_series_production")){
-   assertEquals(u.searchParams.get("series_id"),`eq.${context.series_id}`);
-   return unavailable ? json({code:"42P01",message:"registry missing"},400) : json([{series_id:context.series_id}]);
+  if(u.pathname.endsWith("/rpc/studio_story_episode_profile")){
+   assertEquals(JSON.parse(String(init?.body)).p_episode,id);
+   return unavailable ? json({code:"42P01",message:"registry missing"},400) : json({series_id:context.series_id});
   }
   if(u.pathname.endsWith("/job_events"))return new Response(null,{status:201});
   quotaCalls++;throw Error("Unexpected paid or text provider request");
@@ -77,7 +77,7 @@ Deno.test("enabled animation writes its short draft once and waits for measured 
    if(u.pathname.endsWith("/rpc/claim_episode"))return json(true);
    if(u.pathname.endsWith("/episode_leases"))return new Response(null,{status:204});
    if(u.pathname.endsWith("/episodes"))return json({id,status:"research",briefing:{story_context:a.context},research_evidence:{type:"fiction_plan",context:a.context}});
-   if(u.pathname.endsWith("/studio_series_production"))return json([{series_id:a.context.series_id,profile:a.profile,profile_sha256:profileHash}]);
+   if(u.pathname.endsWith("/rpc/studio_story_episode_profile"))return json({series_id:a.context.series_id,profile:a.profile,profile_sha256:profileHash});
    if(u.pathname.endsWith("/studio_animation_preparations"))return json(saved ? [{fingerprint:"persisted"}]:[]);
    if(u.pathname.endsWith("/rpc/save_animation_draft")) {assertEquals(body.p_draft.scenes.length,5);assertEquals(body.p_profile,profileHash);saved=true;return json({code:"saved"});}
    if(u.pathname.endsWith("/system_config"))return json({value:{}});

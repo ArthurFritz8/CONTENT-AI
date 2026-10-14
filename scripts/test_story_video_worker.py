@@ -206,7 +206,13 @@ class WorkerTests(unittest.TestCase):
         job={"provider_id":PROVIDER,"execution_sha256":execution_hash(),"workspace_id":workspace,"episode_id":bundle_for(self.request)["job_id"],"shot_id":"dialogue","input":shot}
         db=Mock()
         script={}
-        db.table.side_effect=lambda table,**kwargs: [{"profile":profile,"profile_sha256":profile_sha}] if table=="studio_series_production" else [{"script_json":script}]
+        def table_rows(table, **kwargs):
+            if table != "studio_series_production":
+                return [{"script_json": script}]
+            rows = [{"profile": profile, "profile_sha256": profile_sha},
+                    {"profile": {**profile, "style": "A newer unrelated anime profile"}, "profile_sha256": "0" * 64}]
+            return [row for row in rows if kwargs.get("profile_sha256") == "eq." + row["profile_sha256"]]
+        db.table.side_effect=table_rows
         db.download.side_effect=lambda path,*args:self.request["png"] if path==reference_path else self.request["wav"]
         self.assertEqual(runner.request_for(db,job),self.request)
         voice_sha=hashlib.sha256(json.dumps(profile["voices"][0],sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()

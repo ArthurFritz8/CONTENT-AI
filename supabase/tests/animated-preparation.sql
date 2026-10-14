@@ -15,7 +15,7 @@ begin
   'character_id','lia','path',w||'/reference.png','sha256',repeat('e',64))),'voices',jsonb_build_array(voice));
  insert into public.studio_series(workspace_id,bible) values(w,'{"title":"Segredos da feira","cast":[],"chapters":[]}') returning id into sid;
  context:=jsonb_build_object('series_id',sid);
- insert into public.studio_series_production values(sid,w,profile_json,profile,now());
+ insert into public.studio_series_production(series_id,workspace_id,profile,profile_sha256,created_at) values(sid,w,profile_json,profile,now());
  insert into public.episodes(workspace_id,briefing) values(w,jsonb_build_object('story_context',context)) returning id into eid;
  update public.episodes set status='research' where id=eid;
  for i in 0..4 loop

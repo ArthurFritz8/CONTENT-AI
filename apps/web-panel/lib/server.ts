@@ -119,7 +119,7 @@ export async function db(
       502,
     );
   }
-  const data = options.method === "HEAD" ? [] : await res.json();
+  const data = options.method === "HEAD" ? [] : res.status===204 ? null : await res.json();
   const raw = res.headers.get("content-range")?.split("/")[1];
   return { data, total: raw && raw !== "*" ? Number(raw) : null };
 }

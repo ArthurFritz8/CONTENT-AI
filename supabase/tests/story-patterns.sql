@@ -1,0 +1,64 @@
+\set ON_ERROR_STOP on
+begin;
+create function pg_temp.pattern_assert(v boolean,label text) returns void language plpgsql as $$begin if v is distinct from true then raise exception 'Pattern assertion: %',label;end if;end $$;
+create function pg_temp.pattern_finish(eid uuid) returns void language plpgsql as $$declare rev public.review_requests;begin
+ update public.episodes set status='research',research_data='[]',research_evidence=jsonb_build_object('type','fiction_plan','context',briefing->'story_context') where id=eid;
+ update public.episodes set status='script',script_json=jsonb_build_object('fiction',jsonb_build_object('context',briefing->'story_context','summary','As frutas encontraram a chave dourada, seguiram uma pista e decidiram procurar a porta escondida da feira.'),'disclosures',jsonb_build_object('contains_synthetic_media',true,'commercial_content',false)) where id=eid;
+ update public.episodes set status='assets' where id=eid;update public.episodes set status='rendered',render_url='https://example.test/story.mp4' where id=eid;update public.episodes set status='review' where id=eid;
+ rev:=public.studio_ensure_review(eid);perform public.studio_review_action((select workspace_id from public.episodes where id=eid),(select user_id from public.studio_members where workspace_id=(select workspace_id from public.episodes where id=eid) limit 1),gen_random_uuid(),rev.id,rev.fingerprint,'approve');
+end $$;
+do $$
+declare actor uuid:=gen_random_uuid();outsider uuid:=gen_random_uuid();w uuid;sid uuid;req uuid:=gen_random_uuid();pref jsonb;bib jsonb;profile_a jsonb;profile_b jsonb;profile_c jsonb;refs jsonb:='[]';voices jsonb:='[]';r jsonb;c jsonb;m uuid;idx int:=0;iid uuid;eid uuid;eid2 uuid;
+begin
+ w:=public.studio_provision(actor,'Production patterns',false);update public.studio_workspaces set settings=jsonb_build_object('pipeline',jsonb_build_object('max_episodes_per_day',3)) where id=w;
+ pref:='{"version":"1.0.0","primary_style":"cinematic_3d","continuity_mode":"per_chapter","allowed_styles":["cinematic_3d","anime","illustrated"],"source":"automatic","voice_policy":"preserve"}';
+ bib:='{"kind":"fruits","genre":"mystery","title":"A chave da feira","premise":"Duas frutas encontram uma chave misteriosa na feira.","cast":[{"id":"lia","name":"Lia","appearance":"apple","color":"#ef1234","personality":"Curiosa e amiga de todos.","voice":"female"},{"id":"rui","name":"Rui","appearance":"orange","color":"#fab123","personality":"Impulsivo e muito curioso.","voice":"male"}],"chapters":[{"title":"A chave misteriosa","arc":"Encontram a chave dourada e descobrem quem poderia ter perdido aquele objeto na feira."},{"title":"A porta escondida","arc":"Abrem a porta escondida atrás do portão e descobrem o segredo da feira."},{"title":"A resposta final","arc":"Descobrem a origem da chave e resolvem o segredo que ameaçava a amizade dos dois."}]}';
+ perform public.studio_story_claim(w,actor,req,jsonb_build_object('kind','fruits','genre','mystery','chapters',3,'premise',bib->>'premise','presentation',pref));sid:=public.studio_story_save(w,actor,req,bib);
+ perform pg_temp.pattern_assert((public.studio_story_pattern_view(w,actor,sid,1,'cinematic_3d')->>'can_configure')::boolean,'new style can prepare identity');
+ for c in select value from jsonb_array_elements(bib->'cast') loop
+  idx:=idx+1;m:=gen_random_uuid();r:=public.studio_production_media_reserve(w,actor,sid,m,c->>'id','reference',repeat(idx::text,64),500,'{"mime":"image/png","width":704,"height":1280}');perform public.studio_production_media_ready(w,actor,m,repeat(idx::text,64));
+  refs:=refs||jsonb_build_array(jsonb_build_object('character_id',c->>'id','path',r->>'path','sha256',repeat(idx::text,64)));
+  m:=gen_random_uuid();perform public.studio_production_media_reserve(w,actor,sid,m,c->>'id','voice_sample',repeat((idx+2)::text,64),32044,jsonb_build_object('mime','audio/wav','seconds',1,'engine','edge','version','edge-tts-7.2.8-rate0','voice_id',case idx when 1 then 'pt-BR-FranciscaNeural' else 'pt-BR-AntonioNeural' end));perform public.studio_production_media_ready(w,actor,m,repeat((idx+2)::text,64));
+  voices:=voices||jsonb_build_array(jsonb_build_object('character_id',c->>'id','engine','edge','version','edge-tts-7.2.8-rate0','voice_id',case idx when 1 then 'pt-BR-FranciscaNeural' else 'pt-BR-AntonioNeural' end,'sample_sha256',repeat((idx+2)::text,64)));
+ end loop;
+ profile_a:=jsonb_build_object('version','1.0.0','orientation','portrait','short_edge',704,'output_fps',60,'style','Animação cinematográfica com as referências aprovadas e gestos nítidos.','references',refs,'voices',voices);
+ profile_b:=profile_a||'{"style":"Anime com as referências aprovadas, expressões legíveis e continuidade de figurino."}';
+ perform pg_temp.pattern_assert(public.studio_story_pattern_finalize(w,actor,sid,1,'cinematic_3d',profile_a,repeat('a',64))->>'code'='saved','first reviewed pattern');
+ perform pg_temp.pattern_assert(public.studio_story_pattern_finalize(w,actor,sid,1,'cinematic_3d',profile_a,repeat('a',64))->>'code'='saved','idempotent pattern confirmation');
+ perform pg_temp.pattern_assert(public.studio_story_pattern_finalize(w,actor,sid,1,'anime',profile_b,repeat('b',64))->>'code'='saved','second style has independent profile');
+ perform pg_temp.pattern_assert((select count(*)=2 from public.studio_series_production where series_id=sid),'multiple immutable profiles coexist');
+ perform pg_temp.pattern_assert(public.studio_story_next(w,actor,sid)->>'code'='animation_setup_required','saving style never enables production');
+ insert into public.system_config(key,value) values('story_production','{"animated_preparation_enabled":true,"profile_voices_enabled":true}') on conflict(key) do update set value=excluded.value;
+ r:=public.studio_story_next(w,actor,sid);iid:=(r->>'idea_id')::uuid;perform pg_temp.pattern_assert(r->>'code'='queued','prepared pattern queues narrative');
+ perform pg_temp.pattern_assert(public.studio_story_next_presented(w,actor,sid,'anime')->>'code'='existing_chapter_style','pending chapter cannot switch to another prepared style');
+ r:=public.studio_command(w,actor,gen_random_uuid(),'generate_video',jsonb_build_object('id',iid,'revision',(select revision from public.idea_queue where id=iid)));eid:=(r->>'episode_id')::uuid;
+ perform pg_temp.pattern_assert(public.studio_story_episode_profile(eid)->>'profile_sha256'=repeat('a',64),'episode resolves frozen first style');
+ begin perform public.save_animation_draft(eid,repeat('b',64),repeat('d',64),'{}');raise exception 'Wrong profile draft accepted';exception when check_violation then null;end;
+ begin perform public.studio_reserve_video(w,actor,gen_random_uuid(),eid,repeat('b',64),'[]');raise exception 'Wrong profile GPU reservation accepted';exception when check_violation then null;end;
+ perform pg_temp.pattern_assert(not public.story_pattern_editable(sid),'active chapter blocks pattern edits');
+ perform pg_temp.pattern_finish(eid);
+ pref:=pref||'{"primary_style":"anime","source":"modal"}';perform public.studio_story_presentation_save(w,actor,sid,1,gen_random_uuid(),pref,true);
+ perform pg_temp.pattern_assert(public.story_pattern_editable(sid),'approved chapter allows future pattern');
+ perform pg_temp.pattern_assert(public.studio_story_pattern_view(w,actor,sid,2,'anime')->'previous_voices'=voices,'previous approved voice samples are preselected for another style');
+ m:=gen_random_uuid();r:=public.studio_production_media_reserve(w,actor,sid,m,'lia','reference',repeat('5',64),500,'{"mime":"image/png","width":704,"height":1280}');perform public.studio_production_media_ready(w,actor,m,repeat('5',64));
+ profile_c:=jsonb_set(profile_b,'{references,0}',jsonb_build_object('character_id','lia','path',r->>'path','sha256',repeat('5',64)));
+ m:=gen_random_uuid();perform public.studio_production_media_reserve(w,actor,sid,m,'lia','voice_sample',repeat('6',64),32044,'{"mime":"audio/wav","seconds":1,"engine":"edge","version":"edge-tts-7.2.8-rate0","voice_id":"pt-BR-FranciscaNeural"}');perform public.studio_production_media_ready(w,actor,m,repeat('6',64));
+ perform pg_temp.pattern_assert(public.studio_story_pattern_finalize(w,actor,sid,2,'anime',jsonb_set(profile_c,'{voices,0,sample_sha256}',to_jsonb(repeat('6',64))),repeat('d',64))->>'code'='voice_change_not_allowed','preserve policy forbids another voice sample');
+ perform public.studio_story_pattern_finalize(w,actor,sid,2,'anime',profile_c,repeat('c',64));
+ r:=public.studio_story_next(w,actor,sid);iid:=(r->>'idea_id')::uuid;
+ r:=public.studio_command(w,actor,gen_random_uuid(),'generate_video',jsonb_build_object('id',iid,'revision',(select revision from public.idea_queue where id=iid)));eid2:=(r->>'episode_id')::uuid;
+ perform pg_temp.pattern_assert(public.studio_story_episode_profile(eid2)->>'profile_sha256'=repeat('c',64),'next episode uses its own pattern');
+ begin perform public.studio_reserve_video(w,actor,gen_random_uuid(),eid2,repeat('c',64),'[{"provider_id":"auray-native-dialogue"}]');raise exception 'Pinned source replaced';exception when check_violation then null;end;
+ perform pg_temp.pattern_assert(public.studio_story_episode_profile(eid)->>'profile_sha256'=repeat('a',64),'old episode never reads most recent pattern');
+ perform pg_temp.pattern_finish(eid2);
+ pref:=pref||'{"primary_style":"illustrated","continuity_mode":"fixed","allowed_styles":["illustrated"],"source":"automatic"}';perform public.studio_story_presentation_save(w,actor,sid,2,gen_random_uuid(),pref,true);
+ r:=public.studio_story_next(w,actor,sid);iid:=(r->>'idea_id')::uuid;
+ r:=public.studio_command(w,actor,gen_random_uuid(),'generate_video',jsonb_build_object('id',iid,'revision',(select revision from public.idea_queue where id=iid)));eid2:=(r->>'episode_id')::uuid;
+ perform pg_temp.pattern_assert(public.studio_story_episode_profile(eid2) is null,'intentional illustrated chapter does not inherit other animated profiles');
+ begin perform public.studio_story_pattern_view(w,outsider,sid,1,'anime');raise exception 'Foreign actor accepted';exception when insufficient_privilege then null;end;
+ begin update public.studio_chapter_productions set profile_sha256=repeat('c',64) where series_id=sid and chapter_number=1;raise exception 'Frozen chapter profile changed';exception when check_violation then null;end;
+ perform pg_temp.pattern_assert(not exists(select 1 from public.studio_video_jobs where workspace_id=w),'configuration and preparation do not create GPU work');
+ perform pg_temp.pattern_assert(not exists(select 1 from public.studio_video_compatibility where series_id=sid),'pattern approval never qualifies a provider');
+ perform pg_temp.pattern_assert(not has_function_privilege('service_role','public.save_animation_draft_before_patterns(uuid,text,text,jsonb)','execute'),'old draft bypass closed');
+end $$;
+rollback;

@@ -3,9 +3,10 @@ import { assertOrigin,uuid,PanelError } from "../../../../lib/security.mjs";
 import { studioRpc } from "../../../../lib/workspace";
 import { seriesProductionProfileSchema,productionProfileHash } from "../../../../../../packages/core/src/stories/production";
 import { downloadProductionMedia } from "../../../../lib/production-storage";
+import {patternIdentity,patternQuery} from "../../../../lib/story-pattern";
 export const dynamic="force-dynamic";
 export async function GET(request:Request) {
-  try { const user=await requireUser();return Response.json(await studioRpc("studio_production_setup_view",{p_workspace:user.workspaceId,p_actor:user.id,p_series:uuid(new URL(request.url).searchParams.get("series"))}),{headers:{"Cache-Control":"no-store"}}); }
+  try { const user=await requireUser(),url=new URL(request.url),pattern=patternQuery(url);return Response.json(await studioRpc(pattern?"studio_story_pattern_view":"studio_production_setup_view",{p_workspace:user.workspaceId,p_actor:user.id,p_series:uuid(url.searchParams.get("series")),...(pattern?{p_revision:pattern.revision,p_style:pattern.style}:{})}),{headers:{"Cache-Control":"no-store"}}); }
   catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request) {
@@ -20,7 +21,9 @@ export async function POST(request:Request) {
       return Response.json(result,{headers:{"Cache-Control":"no-store"}});
     }
     if(input.action!=="finalize" || input.confirmed!==true || !Array.isArray(input.selection))throw new PanelError("Confira as imagens e ouça as vozes antes de fixar o padrão.",400);
-    const view=await studioRpc("studio_production_setup_view",args);
+    const pattern=patternIdentity(input.presentationRevision,input.styleId);
+    const scope=pattern?{p_revision:pattern.revision,p_style:pattern.style}:{};
+    const view=await studioRpc(pattern?"studio_story_pattern_view":"studio_production_setup_view",{...args,...scope});
     if(!view.can_configure && !view.profile)throw new PanelError("Esta novela já foi iniciada.",409);
     if(input.selection.length!==view.bible.cast.length)throw new PanelError("Escolha uma imagem e uma voz para cada personagem.",400);
     const references=[],voices=[];
@@ -39,7 +42,7 @@ export async function POST(request:Request) {
     }
     const parsed=seriesProductionProfileSchema.safeParse({version:"1.0.0",orientation:"portrait",short_edge:704,output_fps:60,style:input.style,references,voices});
     if(!parsed.success)throw new PanelError("Descreva o estilo em 30 a 3.000 caracteres.",400);
-    const result=await studioRpc("studio_production_finalize",{...args,p_profile:parsed.data,p_hash:await productionProfileHash(parsed.data)});
+    const result=await studioRpc(pattern?"studio_story_pattern_finalize":"studio_production_finalize",{...args,...scope,p_profile:parsed.data,p_hash:await productionProfileHash(parsed.data)});
     return Response.json(result,{headers:{"Cache-Control":"no-store"}});
   }catch(e){return errorResponse(e);}
 }

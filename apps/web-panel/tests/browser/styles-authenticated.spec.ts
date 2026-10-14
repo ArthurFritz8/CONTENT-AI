@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import sharp from 'sharp';
 
 test('real style controls save versioned choices and keep unsupported production closed',async({page,context})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
@@ -40,6 +41,27 @@ test('real style controls save versioned choices and keep unsupported production
  await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await selector.locator('article').first().screenshot({path:'test-results/story-styles-mobile.png'});
+ // New style setup uses real Next upload/normalization/hash routes, isolated storage
+ // and a 204 response from the void readiness RPC. No provider is contacted.
+ await story.getByText('Estilo e fontes da novela · versão 2',{exact:true}).click();
+ await settings.getByLabel('Fonte de geração').selectOption('modal');
+ await settings.getByLabel('Conferi os estilos, as fontes e a política de vozes para os próximos capítulos.').check();
+ await settings.getByRole('button',{name:'Salvar escolha para os próximos capítulos'}).click();
+ await expect(settings.getByText('Escolha salva como versão 3',{exact:false})).toBeVisible();
+ const setup=story.locator('.story-production-setup');
+ await setup.getByText('Imagens e vozes · Anime · versão 3',{exact:true}).click();
+ const ref=await sharp({create:{width:704,height:1280,channels:3,background:'#ef1234'}}).png().toBuffer();
+ await setup.getByLabel('Imagem de Lia',{exact:true}).setInputFiles({name:'fixture-lia.png',mimeType:'image/png',buffer:ref});
+ await expect(setup.getByText('Imagem cadastrada. Confira a prévia abaixo.')).toBeVisible();
+ await setup.getByLabel('Imagem de Rui',{exact:true}).setInputFiles({name:'fixture-rui.png',mimeType:'image/png',buffer:ref});
+ await expect(setup.locator('img')).toHaveCount(2);
+ await setup.getByLabel('Conferi as imagens e ouvi as vozes. Quero manter esse padrão nesta novela.').check();
+ await setup.getByRole('button',{name:'Fixar padrão da novela'}).click();
+ await expect(setup.getByText('Padrão salvo.',{exact:false})).toBeVisible();
+ await expect(story.getByRole('button',{name:'Ativação da criação animada pendente'})).toBeDisabled();
+ await page.getByRole('button',{name:'Atualizar',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Novela de frutas',exact:false})).toHaveAttribute('aria-pressed','true');
+ await expect(setup.getByText('Padrão fixado.',{exact:false})).toBeVisible();
  expect(errors).toEqual([]);
 });
 

@@ -16,7 +16,7 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   episode: { id: string; briefing: { story_context: unknown }; research_evidence: unknown }): Promise<Response> {
   const context = storyContextSchema.parse(episode.briefing.story_context);
   if (!fictionPlanMatches(context, episode.research_evidence)) throw new AppError("Plano narrativo alterado", 422, "RESEARCH_EVIDENCE_INVALID");
-  const { data: production, error: profileError } = await db.from("studio_series_production").select("series_id,profile,profile_sha256").eq("series_id", context.series_id).maybeSingle();
+  const { data: production, error: profileError } = await db.rpc("studio_story_episode_profile",{p_episode:episode.id});
   if (profileError) throw new AppError("Não foi possível conferir o padrão audiovisual", 503, "PRODUCTION_PROFILE_UNAVAILABLE");
   if (production) {
     if (Deno.env.get("CONTENT_AI_ANIMATION_PREPARATION_ENABLED") !== "true")
