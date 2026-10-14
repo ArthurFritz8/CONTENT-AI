@@ -22,6 +22,10 @@ O [workflow executado diretamente](https://github.com/ArthurFritz8/CONTENT-AI/ac
 
 O painel tem botão de consulta, indicação de saldo antigo/falha, comparação de orçamento e reprodução privada dos testes. Build, autorização anônima e testes do navegador passaram localmente. A implantação pública é acompanhada pelo workflow `Deploy web panel`; não confundir health de uma revisão antiga com disponibilidade desta interface.
 
+Na checagem operacional, o site ainda servia a revisão `43fe3c4`. O Render confirmou [incidente de builds em todas as regiões](https://status.render.com/incidents/8tsd93r1wbmz), incluindo Virginia, investigado às 19h32 UTC e em monitoramento após correção às 19h45 UTC. O deploy anterior teve resposta HTTP 500; os seguintes foram solicitados, mas a versão pública ainda não havia mudado. Isso é uma pendência de implantação, não aprovação da interface em produção.
+
+Para recuperar essa etapa sem trabalho manual, `Deploy web panel` também verifica a publicação a cada trinta minutos (minutos 17 e 47). Só dispara o hook para o `main` exato com CI de push concluída com sucesso e quando essa revisão ainda não está saudável. Reconfere o `main` antes do POST; uma resposta incerta/erro não ganha POST imediato repetido. A rotina não compra recursos nem publica vídeos. O agendamento do GitHub pode atrasar e não permite prometer um horário de recuperação. Quatro testes offline cobrem versão antiga, CI reprovada, corrida com um push, sucesso exato, 202 pendente e 500 sem retry imediato.
+
 ## Validação e pendências
 
 [CI da integração](https://github.com/ArthurFritz8/CONTENT-AI/actions/runs/38628965052) e [CI da correção de respostas vazias](https://github.com/ArthurFritz8/CONTENT-AI/actions/runs/38629330505): seis jobs aprovados em cada execução. Testes adicionais verificam lote de cinquenta pendentes, exclusão do histórico pronto, independência de jobs indisponíveis, saldo zero, conta incorreta, isolamento por workspace, hash incorreto, RPCs privadas, clique repetido, lease concorrente e callback antigo.
