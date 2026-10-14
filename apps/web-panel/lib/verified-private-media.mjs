@@ -1,9 +1,17 @@
 import {createHash} from "node:crypto";
 /** The caller must first authorize this row through a workspace-scoped RPC. */
 export async function readVerifiedAurayMedia(row,origin,service,fetcher=fetch) {
+  if(!/^auray\/[a-f0-9-]{36}\/[a-f0-9-]{36}\/[a-f0-9]{64}\.mp4$/.test(row.path))throw Error("invalid_private_media");
+  return readPrivateVideo(row,origin,service,fetcher);
+}
+export async function readVerifiedStorySample(row,workspace,origin,service,fetcher=fetch) {
+  if(!/^[a-f0-9-]{36}$/.test(workspace) || !row.path.startsWith(`${workspace}/story-samples/`) ||
+    !/^[a-f0-9-]{36}\/story-samples\/[a-f0-9-]{36}\/[a-f0-9]{64}\.mp4$/.test(row.path))throw Error("invalid_private_media");
+  return readPrivateVideo(row,origin,service,fetcher);
+}
+async function readPrivateVideo(row,origin,service,fetcher) {
   const base=new URL(origin);
   if(base.protocol!=="https:" || !/^[a-z0-9-]+\.supabase\.co$/.test(base.hostname) || base.username || base.password || base.port || base.pathname!=="/" ||
-    !/^auray\/[a-f0-9-]{36}\/[a-f0-9-]{36}\/[a-f0-9]{64}\.mp4$/.test(row.path) ||
     !/^[a-f0-9]{64}$/.test(row.sha256) || !row.path.endsWith(`/${row.sha256}.mp4`) ||
     !Number.isSafeInteger(row.bytes) || row.bytes<1 || row.bytes>50*1024*1024)throw Error("invalid_private_media");
   const response=await fetcher(`${base.origin}/storage/v1/object/studio-private/${row.path}`,{

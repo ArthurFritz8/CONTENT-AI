@@ -3,5 +3,5 @@
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": ["src", "../../scripts/render-auray-story-shot.mts", "../../scripts/sync-auray-studio.mts"]
+  "include": ["src", "../../scripts/render-auray-story-shot.mts", "../../scripts/sync-auray-studio.mts", "../../scripts/import-story-style-samples.mts"]
 }

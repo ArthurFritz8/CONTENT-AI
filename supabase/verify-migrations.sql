@@ -65,6 +65,27 @@ begin
 end $$;
 
 do $$
+declare tbl text;
+begin
+ foreach tbl in array array['studio_story_presentations','studio_chapter_presentations','studio_story_style_samples'] loop
+  if not exists(select 1 from pg_class where oid=('public.'||tbl)::regclass and relrowsecurity) or
+     has_table_privilege('authenticated','public.'||tbl,'SELECT') or has_table_privilege('anon','public.'||tbl,'SELECT') then
+   raise exception 'Style catalogue table missing privacy: %',tbl;
+  end if;
+ end loop;
+ if has_function_privilege('service_role','public.studio_story_next_before_presentation(uuid,uuid,uuid)','execute') or
+    has_function_privilege('service_role','public.studio_story_save_before_presentation(uuid,uuid,uuid,jsonb)','execute') or
+    has_function_privilege('authenticated','public.register_story_style_sample(uuid,jsonb)','execute') or
+    has_function_privilege('anon','public.studio_story_presentation_save(uuid,uuid,uuid,integer,uuid,jsonb,boolean)','execute') or
+    has_function_privilege('authenticated','public.studio_story_style_media(uuid,uuid,uuid)','execute') then
+  raise exception 'Style history or gallery RPC exposed (ADR-078)';
+ end if;
+ if (select count(*) from pg_trigger where tgrelid in ('public.studio_story_presentations'::regclass,'public.studio_chapter_presentations'::regclass) and not tgisinternal and (tgtype & 2)=2) < 2 then
+  raise exception 'Immutable style history guards missing (ADR-078)';
+ end if;
+end $$;
+
+do $$
 begin
  if has_function_privilege('anon','public.claim_auray_sync(uuid,uuid)','execute') or
     has_function_privilege('authenticated','public.observe_auray_monitor(uuid,uuid,jsonb)','execute') or

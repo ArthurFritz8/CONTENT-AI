@@ -2,6 +2,7 @@ import { appUrl, body, config, errorResponse, requireUser } from "../../../lib/s
 import { assertOrigin, PanelError, uuid } from "../../../lib/security.mjs";
 import { studioRpc } from "../../../lib/workspace";
 import { storyRequestSchema } from "../../../../../packages/core/src/stories/schema";
+import {storyPresentationSchema,storyStyleIds} from "../../../../../packages/core/src/stories/styles";
 export const dynamic = "force-dynamic";
 async function edge(payload: Record<string, unknown>) {
   const cfg = config(), res = await fetch(`${cfg.url}/functions/v1/studio-story`, {
@@ -35,8 +36,15 @@ export async function POST(request: Request) {
       return Response.json(await studioRpc("studio_story_manage", { p_workspace:user.workspaceId,p_actor:user.id,p_series:uuid(input.seriesId),p_action:input.action }), { headers:{"Cache-Control":"no-store"} });
     }
     if (input.action === "next") {
-      const result = await studioRpc("studio_story_next", { p_workspace: user.workspaceId, p_actor: user.id, p_series: uuid(input.seriesId) });
+      if(input.styleId!==undefined && !storyStyleIds.includes(input.styleId))throw new PanelError("Estilo inválido.",400);
+      const result = await studioRpc("studio_story_next_presented", { p_workspace: user.workspaceId, p_actor: user.id, p_series: uuid(input.seriesId),p_style:input.styleId ?? null });
       return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    }
+    if(input.action==="presentation") {
+      const parsed=storyPresentationSchema.safeParse(input.preferences);
+      if(!parsed.success || input.confirmed!==true || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision<0 || input.expectedRevision>99)
+        throw new PanelError("Confira os estilos, a fonte e as vozes antes de salvar a escolha.",400);
+      return Response.json(await studioRpc("studio_story_presentation_save",{p_workspace:user.workspaceId,p_actor:user.id,p_series:uuid(input.seriesId),p_expected:input.expectedRevision,p_request:uuid(input.requestId),p_preferences:parsed.data,p_confirmed:true}),{headers:{"Cache-Control":"no-store"}});
     }
     if (input.action !== "propose") throw new PanelError("Ação inválida.",400);
     const parsed = storyRequestSchema.safeParse(input.input);

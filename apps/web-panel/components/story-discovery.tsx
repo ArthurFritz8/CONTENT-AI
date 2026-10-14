@@ -3,10 +3,13 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Discovery } from "./discovery";
 import { StoryProductionSetup } from "./story-production-setup";
+import {StoryStyleSelector} from "./story-style-selector";
+import {StoryPresentationSettings,type PresentationVersion} from "./story-presentation-settings";
+import {defaultStoryPresentation,presentationNeedsAdapter,storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
 import { storyArtwork } from "../../../packages/core/src/stories/art";
 import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories/schema";
-type Chapter = { number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean };
-type Series = { id: string; bible: SeriesBible; chapters: Chapter[] };
+type Chapter = { number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean;style_id?:StoryStyleId|null;presentation_revision?:number|null };
+type Series = { id: string; bible: SeriesBible; chapters: Chapter[];presentation?:PresentationVersion|null;presentation_history?:PresentationVersion[] };
 type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null; balance_kind?: string; billing_may_lag?: boolean; source_ready?: boolean; balance_fresh?: boolean; source_blockers?: string[];
   candidate?:boolean;monthly_allowance?:number|null;period?:string|null;sync_failed?:boolean;sync_running?:boolean;budget_only_shots?:number|null;
   jobs?:Array<{id:string;label:string;status:string;settled:boolean;charged_credits:number;ready:boolean;observed_at:string|null}>;
@@ -47,6 +50,8 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   const [kind,setKind] = useState<"factual" | "original" | "fruits">("factual");
   const [premise,setPremise] = useState(""), [genre,setGenre] = useState("comedy"), [chapters,setChapters] = useState(3);
   const [creationMode,setCreationMode] = useState<"manual" | "automatic">("manual");
+  const [presentation,setPresentation]=useState(defaultStoryPresentation);
+  const [chapterStyles,setChapterStyles]=useState<Record<string,StoryStyleId>>({});
   const [data,setData] = useState<Overview | null>(null), [error,setError] = useState(""), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false);
   const request = useRef<{ key: string; id: string } | null>(null);
   const [version,setVersion] = useState(0);
@@ -76,7 +81,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   async function propose() {
     setBusy(true);setError("");setNotice("");
     try {
-      const input = { kind, genre, chapters, premise, creation_mode: creationMode }, key = JSON.stringify(input);
+      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation }, key = JSON.stringify(input);
       await jsonPost("/api/stories",{ action:"propose",input,requestId:requestId(key) });
       request.current=null;setVersion(v=>v+1);setNotice("Proposta criada. Confira os personagens e capítulos abaixo antes de gerar.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível criar a proposta."); }
@@ -96,8 +101,8 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   async function next(s: Series) {
     setBusy(true);setError("");setNotice("");
     try {
-      const d = await jsonPost("/api/stories",{action:s.chapters.at(-1)?.status==="failed" ? "retry" : "next",seriesId:s.id});
-      const messages: Record<string,string> = { profile_incomplete:"Conclua a configuração das imagens e vozes antes de gerar o primeiro capítulo.", existing_video_work:"Este capítulo já tem cenas reservadas. Abra a geração para conferir e retomar o trabalho existente.", animation_setup_required:"A criação automática das tomadas desta novela está em preparação. Seu padrão animado foi preservado.", review_required:"Revise e aprove o capítulo anterior antes de continuar.", completed:"Esta história chegou ao fim. Crie uma nova proposta para outra série.", chapter_cancelled:"O capítulo foi cancelado. Crie uma nova proposta para recomeçar.", queue_full:"Sua fila está cheia.", daily_limit:"Limite de novas pautas de hoje atingido." };
+      const d = await jsonPost("/api/stories",{action:s.chapters.at(-1)?.status==="failed" ? "retry" : "next",seriesId:s.id,...(s.presentation ? {styleId:chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation.preferences.primary_style} : {})});
+      const messages: Record<string,string> = { style_preparation_required:"A proposta foi preservada. Os capítulos deste estilo ou fonte ainda estão em preparação; sua escolha não será substituída por ilustrações.",style_preferences_required:"Salve as preferências visuais antes de escolher um estilo para o capítulo.",existing_chapter_style:"Este capítulo já foi preparado com outra escolha. Retome o trabalho existente.",profile_incomplete:"Conclua a configuração das imagens e vozes antes de gerar o primeiro capítulo.", existing_video_work:"Este capítulo já tem cenas reservadas. Abra a geração para conferir e retomar o trabalho existente.", animation_setup_required:"A criação automática das tomadas desta novela está em preparação. Seu padrão animado foi preservado.", review_required:"Revise e aprove o capítulo anterior antes de continuar.", completed:"Esta história chegou ao fim. Crie uma nova proposta para outra série.", chapter_cancelled:"O capítulo foi cancelado. Crie uma nova proposta para recomeçar.", queue_full:"Sua fila está cheia.", daily_limit:"Limite de novas pautas de hoje atingido." };
       if (d.code !== "queued") throw Error(messages[d.code] || "Não foi possível preparar o capítulo.");
       const r = await fetch("/api/stories"), updated: Overview = await r.json();
       if (!r.ok) throw Error("O capítulo está na fila. Atualize a página para gerar.");
@@ -151,6 +156,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           </div>)}
           <p className="muted">Segundos e capítulos dependem do plano de cenas e da compatibilidade com o padrão da novela.</p>
         </details>
+        <StoryStyleSelector value={presentation} onChange={setPresentation} disabled={busy}/>
         <div className="content-type-options" aria-label="Como criar sua novela">
           <button className={`content-type-card ${creationMode==="manual" ? "selected" : ""}`} aria-pressed={creationMode==="manual"} disabled={busy} onClick={()=>setCreationMode("manual")}><strong>Criar com minha ideia</strong><span>Descreva a história que você quer desenvolver.</span></button>
           <button className={`content-type-card ${creationMode==="automatic" ? "selected" : ""}`} aria-pressed={creationMode==="automatic"} disabled={busy} onClick={()=>setCreationMode("automatic")}><strong>Criar novela automaticamente</strong><span>O sistema cria sinopse, personagens, relações e arco da história.</span></button>
@@ -170,12 +176,15 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           const pending = last?.idea_status==="pending", retry = last?.status==="failed", waiting = !!last && !pending && !last.approved && !retry;
           const cancelled = last?.idea_status==="rejected";
           const production = data?.videoCapacity?.series_profiles.find(p=>p.series_id===s.id);
+          const chosenStyle=s.presentation && chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation?.preferences.primary_style;
+          const stylePending=!retry && !!s.presentation && (presentationNeedsAdapter(s.presentation.preferences,chosenStyle) || !!production);
+          const illustrativePreview=!production && (!s.presentation || s.presentation.preferences.primary_style==="illustrated");
           const context = {series_id:s.id,bible:s.bible,chapter_number:1,previous_summaries:[]};
           const preview = storyArtwork(context,{speaker_id:s.bible.cast[0]!.id,on_stage:s.bible.cast.map(c=>c.id),setting:"garden",mood:"happy"},"portrait");
           return <article className="panel studio-feature" key={s.id}>
-            <div className={`story-proposal-layout ${production ? "story-proposal-animated" : ""}`}>{!production && <div><img className="story-art-preview" src={`data:image/svg+xml,${encodeURIComponent(preview)}`} alt={`Esboço do formato ilustrado de ${s.bible.title}`} width={1080} height={1920}/><small>Esboço do formato ilustrado</small></div>}
+            <div className={`story-proposal-layout ${production || !illustrativePreview ? "story-proposal-animated" : ""}`}>{illustrativePreview && <div><img className="story-art-preview" src={`data:image/svg+xml,${encodeURIComponent(preview)}`} alt={`Esboço do formato ilustrado de ${s.bible.title}`} width={1080} height={1920}/><small>Esboço do formato ilustrado</small></div>}
             <div><h3>{s.bible.title}</h3><p>{s.bible.premise}</p>
-              <p className="muted">{production ? `${production.compatible_wallets.length} fonte(s) com compatibilidade registrada para esta novela. O saldo e a disponibilidade são conferidos antes de cada envio.` : "Padrão animado ainda não configurado. Os capítulos deste fluxo usam ilustrações."}</p>
+              <p className="muted">{production ? `${production.compatible_wallets.length} fonte(s) com compatibilidade registrada para esta novela. O saldo e a disponibilidade são conferidos antes de cada envio.` : s.presentation ? `Estilo planejado: ${storyStyles.find(v=>v.id===s.presentation?.preferences.primary_style)?.label}. A produção depende da disponibilidade deste estilo e da fonte escolhida.` : "Padrão animado ainda não configurado. Os capítulos deste fluxo usam ilustrações."}</p>
               {(data?.videoCapacity?.chapter_quotes ?? []).filter(q=>q.series_id===s.id).map(q=><p key={`${q.episode_id}:${q.wallet_id}`} role="status">
                 {data?.videoCapacity?.wallets.find(w=>w.id===q.wallet_id)?.label}: capítulo de {q.planned_seconds.toLocaleString("pt-BR")}s · reserva estimada {walletAmount(q.required_units,"usd_micro")} · {q.can_reserve ? "Cabe um capítulo completo neste orçamento" : "Capítulo ainda sem orçamento disponível"}.
               </p>)}
@@ -186,15 +195,18 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
               {s.bible.ending && <details><summary>Desfecho planejado (contém spoilers)</summary><p>{s.bible.ending}</p></details>}
               <details><summary>Ver plano dos {s.bible.chapters.length} capítulos</summary><ol>{s.bible.chapters.map((c,i)=><li key={i}><strong>{c.title}</strong><p>{c.arc}</p></li>)}</ol></details>
             </div></div>
-            <StoryProductionSetup seriesId={s.id} onSaved={()=>{setVersion(v=>v+1);onSaved();}}/>
+            {!s.presentation && <StoryProductionSetup seriesId={s.id} onSaved={()=>{setVersion(v=>v+1);onSaved();}}/>}
+            <StoryPresentationSettings seriesId={s.id} current={s.presentation ?? null} history={s.presentation_history ?? []} chapterActive={!!last && !last.approved} onSaved={()=>setVersion(v=>v+1)}/>
+            {s.presentation?.preferences.continuity_mode==="per_chapter" && !last?.status?.includes("failed") && <label>Estilo para o próximo capítulo<select value={chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation.preferences.primary_style} onChange={e=>setChapterStyles(v=>({...v,[s.id]:e.target.value as StoryStyleId}))}>{s.presentation.preferences.allowed_styles.map(id=><option key={id} value={id}>{storyStyles.find(v=>v.id===id)?.label}</option>)}</select></label>}
             <div className="story-chapters">{s.chapters.map(c=>{
               const animated = data?.animationProgress?.chapters.find(p=>p.episode_id===c.episode_id);
               return <div key={c.number}><strong>Capítulo {c.number}</strong><span>{c.approved ? "Aprovado para continuidade" : animated ? animationStages[animated.stage] || "Conferindo geração" : c.idea_status==="rejected" ? "Cancelado" : c.idea_status==="pending" ? "Na fila — pronto para gerar" : progress[c.status ?? ""] || "Aguardando"}</span>
+                {c.presentation_revision && <small>Estilo: {storyStyles.find(v=>v.id===c.style_id)?.label} · padrão versão {c.presentation_revision}</small>}
                 {animated && <small>{animated.completed_shots}/{animated.total_shots} cenas concluídas · {animated.planned_seconds.toLocaleString("pt-BR")}s planejados · saída de {animated.output_fps} FPS</small>}
                 {animated?.prepared_audio !== undefined && <small>{animated.prepared_audio}/{animated.total_shots} falas preparadas e medidas</small>}
                 {c.episode_id && <Link className="button small secondary" href={`/studio/episodes/${c.episode_id}`}>{c.status==="review" ? "Revisar vídeo" : "Ver geração"}</Link>}</div>;
             })}</div>
-            <div className="studio-actions"><button className="button primary" disabled={busy || (!!production && !data?.videoCapacity?.preparation_enabled) || waiting || finished || cancelled || !data || data.active>0 || data.remaining===0} onClick={()=>void next(s)}>{finished ? "História concluída" : cancelled ? "Capítulo cancelado" : waiting ? "Aguarde e revise o capítulo" : production && !data?.videoCapacity?.preparation_enabled ? "Ativação da criação animada pendente" : retry ? `Gerar capítulo ${last!.number} novamente` : !last || pending ? `Gerar capítulo ${last?.number ?? 1}` : `Continuar história · capítulo ${last.number+1}`}</button><p className="muted">{waiting ? "A continuação usa o resumo da versão aprovada. Abra a geração para revisar ou consultar uma falha." : production ? "As falas são preparadas primeiro. A animação aguarda orçamento para o capítulo completo. A publicação depende da sua aprovação." : "Só este capítulo será gerado. A publicação sempre depende da sua aprovação."}</p>
+            <div className="studio-actions"><button className="button primary" disabled={busy || stylePending || (!!production && !data?.videoCapacity?.preparation_enabled) || waiting || finished || cancelled || !data || data.active>0 || data.remaining===0} onClick={()=>void next(s)}>{finished ? "História concluída" : cancelled ? "Capítulo cancelado" : waiting ? "Aguarde e revise o capítulo" : stylePending ? "Geração deste padrão em preparação" : production && !data?.videoCapacity?.preparation_enabled ? "Ativação da criação animada pendente" : retry ? `Gerar capítulo ${last!.number} novamente` : !last || pending ? `Gerar capítulo ${last?.number ?? 1}` : `Continuar história · capítulo ${last.number+1}`}</button><p className="muted">{waiting ? "A continuação usa o resumo da versão aprovada. Abra a geração para revisar ou consultar uma falha." : stylePending ? "A proposta e o estilo estão salvos. Falta integrar e validar a geração de capítulos neste padrão; nenhum crédito de vídeo será reservado por esta escolha." : production ? "As falas são preparadas primeiro. A animação aguarda orçamento para o capítulo completo. A publicação depende da sua aprovação." : "Só este capítulo será gerado. A publicação sempre depende da sua aprovação."}</p>
             {(!last || finished || retry || last.approved) && <button className="button secondary" disabled={busy} onClick={async()=>{
               setBusy(true);setError("");try { const d=await jsonPost("/api/stories",{action:"archive",seriesId:s.id});if(d.code!=="archived")throw Error("Conclua o capítulo pendente antes de arquivar.");setVersion(v=>v+1);setNotice("História arquivada. Seus vídeos permanecem em Gerações.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível arquivar.");}finally{setBusy(false);}
             }}>Arquivar história</button>}</div>

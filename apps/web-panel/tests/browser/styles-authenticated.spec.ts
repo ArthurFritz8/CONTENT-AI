@@ -1,0 +1,45 @@
+import {test,expect} from '@playwright/test';
+
+test('real style controls save versioned choices and keep unsupported production closed',async({page,context})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');
+ await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ const selector=page.getByRole('group',{name:'Escolha como sua novela vai parecer'}).first();
+ await expect(selector.getByRole('heading',{name:'3D cinematográfico'})).toBeVisible();
+ const card=selector.locator('article').filter({has:page.getByRole('heading',{name:'3D cinematográfico'})});
+ await expect(card.locator('video')).toHaveCount(2);
+ await card.getByText('Assistir · Auray',{exact:false}).click();
+ await expect(card.getByText('animação nativa 24 FPS',{exact:false})).toBeVisible();
+ await expect(card.locator('video').last()).toHaveAttribute('preload','none');
+ await card.getByRole('button',{name:'Planejar com este estilo e fonte'}).last().click();
+ await expect(selector.getByLabel('Fonte de geração')).toHaveValue('auray');
+ await expect(card.getByRole('button',{name:'Estilo principal escolhido'})).toHaveAttribute('aria-pressed','true');
+ const story=page.locator('article.panel').filter({has:page.getByRole('heading',{name:'A chave da feira — teste isolado'})});
+ await story.getByText('Estilo e fontes da novela · versão 1',{exact:true}).click();
+ const settings=story.locator('.story-presentation-settings');
+ const anime=settings.locator('article').filter({has:page.getByRole('heading',{name:'Anime'})});
+ await anime.getByRole('button',{name:'Planejar neste estilo',exact:true}).click();
+ await settings.getByLabel('Continuidade visual').selectOption('per_chapter');
+ await settings.getByLabel('HQ com voz',{exact:true}).check();
+ await settings.getByLabel('Fonte de geração').selectOption('local');
+ await expect(settings.getByRole('button',{name:'Salvar escolha para os próximos capítulos'})).toBeDisabled();
+ await settings.getByLabel('Conferi os estilos, as fontes e a política de vozes para os próximos capítulos.').check();
+ await settings.getByRole('button',{name:'Salvar escolha para os próximos capítulos'}).click();
+ await expect(settings.getByText('Escolha salva como versão 2',{exact:false})).toBeVisible();
+ await expect(story.getByRole('button',{name:'Geração deste padrão em preparação'})).toBeDisabled();
+ await expect(story.getByLabel('Estilo para o próximo capítulo')).toHaveValue('anime');
+ await expect(story.locator('.story-art-preview')).toHaveCount(0);
+ await settings.getByText('Histórico de escolhas (2)',{exact:true}).click();
+ await expect(settings.getByText('Versão 1 · a partir do capítulo 1',{exact:false})).toBeVisible();
+ await selector.screenshot({path:'test-results/story-styles-desktop.png'});
+ await page.setViewportSize({width:390,height:844});
+ await page.reload();
+ await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await selector.locator('article').first().screenshot({path:'test-results/story-styles-mobile.png'});
+ expect(errors).toEqual([]);
+});
+

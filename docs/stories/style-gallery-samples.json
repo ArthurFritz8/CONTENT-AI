@@ -1,0 +1,52 @@
+[
+  {
+    "path": "output/complete-mini-story/a-mala-na-porta-completa.mp4",
+    "sample": {
+      "id": "8ab51608-b602-5dc3-a9c0-c04bafa0e617",
+      "style_id": "cinematic_3d",
+      "source": "modal",
+      "title": "A outra passagem — amostra Modal",
+      "model": "Wan2.2-S2V-14B + RIFE",
+      "sha256": "1c01154334ed88be78bc659ba22c350c77515a6ed2f356214f586fa51fcf8cd0",
+      "bytes": 7298489,
+      "seconds": 17.133333,
+      "width": 704,
+      "height": 1280,
+      "output_fps": 60.0,
+      "native_fps": 16,
+      "has_audio": true,
+      "motion": "mixed",
+      "review_scope": "reviewed_sample",
+      "limitations": [
+        "Combina três planos animados com três planos sobre imagens; não demonstra um capítulo totalmente animado.",
+        "Entrega em 60 FPS inclui interpolação; os trechos animados foram gerados a 16 FPS.",
+        "Amostra audiovisual existente; não libera geração por outra fonte nem certifica anatomia em todos os quadros."
+      ]
+    }
+  },
+  {
+    "path": "output/auray-dialogo-malu-laranjito-2026-10-14.mp4",
+    "sample": {
+      "id": "202f74b0-27a9-5e5b-9748-1fee739e877f",
+      "style_id": "cinematic_3d",
+      "source": "auray",
+      "title": "A outra passagem — amostra Auray",
+      "model": "MiniMax H3 fast via Auray",
+      "sha256": "612f7a3b969291cae1740982e25ac4506123ea99c9400b593211aa09b32d928a",
+      "bytes": 5376625,
+      "seconds": 15.5,
+      "width": 768,
+      "height": 1344,
+      "output_fps": 24.0,
+      "native_fps": 24,
+      "has_audio": true,
+      "motion": "generated",
+      "review_scope": "reviewed_sample",
+      "limitations": [
+        "A roupa e a aparência de Laranjito mudam dentro da tomada masculina.",
+        "As vozes são geradas pelo serviço; identidade vocal entre capítulos ainda não validada.",
+        "A aprovação do usuário vale para esta amostra; a integração de capítulos por esta fonte continua pendente."
+      ]
+    }
+  }
+]

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { storyDirectionSchema } from "./direction.ts";
+import { storyPresentationSchema } from "./styles.ts";
 
 export const storyKinds = { original: "Histórias originais", fruits: "Novela de frutas" } as const;
 export const storyRequestSchema = z.object({
@@ -8,6 +9,7 @@ export const storyRequestSchema = z.object({
   creation_mode: z.enum(["manual", "automatic"]).default("manual"),
   premise: z.string().trim().max(1000).default(""),
   chapters: z.number().int().min(1).max(6),
+  presentation:storyPresentationSchema.optional(),
 }).superRefine((v, ctx) => {
   if (v.creation_mode === "manual" && v.premise.length < 30)
     ctx.addIssue({ code: "custom", path: ["premise"], message: "Descreva sua ideia em pelo menos 30 caracteres" });

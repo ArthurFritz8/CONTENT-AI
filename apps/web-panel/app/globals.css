@@ -1969,6 +1969,17 @@ blockquote {
 .content-type-card small { color:var(--muted); margin-top:auto; }
 .story-capacity { display:flex; flex-direction:column; gap:8px; padding:16px; border:1px solid var(--line); border-radius:12px; margin:20px 0 10px; }
 .story-capacity span { font-size:12px; line-height:1.6; }
+.story-styles { border:1px solid var(--line); border-radius:12px; padding:18px; margin:24px 0; min-width:0; }
+.story-styles legend { font-weight:700; padding:0 8px; }
+.story-style-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:14px; align-items:start; }
+.story-style-card { display:flex; flex-direction:column; gap:12px; border:1px solid var(--line); border-radius:12px; padding:18px; min-width:0; background:var(--bg); }
+.story-style-card.selected { border-color:#a9c940; box-shadow:inset 0 0 0 1px #a9c940; }
+.story-style-card h4,.story-style-card p { margin:0; }
+.story-style-card > small { color:var(--muted); }
+.story-style-card video { display:block; width:100%; max-width:280px; max-height:440px; margin:12px auto; background:#111; border-radius:8px; }
+.story-style-card li { margin:8px 0; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.story-style-card details { font-size:13px; }
+.story-presentation-settings { margin:18px 0; border:1px solid var(--line); border-radius:10px; padding:16px; }
 .story-proposal-layout { display:grid; grid-template-columns:190px minmax(0,1fr); gap:26px; align-items:start; }
 .story-art-preview { display:block; width:100%; height:auto; border-radius:12px; border:1px solid var(--line); }
 .story-cast { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:14px 0 22px; }

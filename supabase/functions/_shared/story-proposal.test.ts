@@ -1,4 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import {defaultStoryPresentation} from "../../../packages/core/src/stories/styles.ts";
 import { handleStory } from "../studio-story/handler.ts";
 import { storyFixture } from "../../../packages/core/src/testing/story-fixture.ts";
 
@@ -21,10 +22,12 @@ Deno.test("automatic proposal with no idea persists complete concept once and ne
     cast:bible.cast.map(c=>({...c,role:"protagonist",goal:"Descobrir o segredo da carta.",appearance_description:"Fruta adulta com rosto expressivo, roupas e materiais detalhados."})),
     relationships:[{from:bible.cast[0].id,to:bible.cast[1].id,description:"Amigos que discordam sobre a carta."}]};
   let calls=0,saves=0; const sid="44444444-4444-4444-8444-444444444444";
+  const preferences={...defaultStoryPresentation(),primary_style:"anime",allowed_styles:["anime"],source:"auray"};
+  const styledProposal={...proposal,input:{...proposal.input,presentation:preferences}};
   globalThis.fetch=(async(input,init)=>{
     const u=new URL(input instanceof Request ? input.url : String(input)), body=init?.body ? JSON.parse(String(init.body)) : null;
     if(u.pathname.endsWith("/rpc/studio_assert_member")) return json(null);
-    if(u.pathname.endsWith("/rpc/studio_story_claim")) { assertEquals(body.p_input.premise,""); return json(saves ? {code:"saved",series_id:sid} : {code:"claimed"}); }
+    if(u.pathname.endsWith("/rpc/studio_story_claim")) { assertEquals(body.p_input.premise,""); assertEquals(body.p_input.presentation,preferences); return json(saves ? {code:"saved",series_id:sid} : {code:"claimed"}); }
     if(u.pathname.endsWith("/rpc/studio_story_save")) { saves++; assertEquals(body.p_bible.ending,complete.ending); return json(sid); }
     if(u.pathname.endsWith("/system_config")) return json({value:{}});
     if(u.pathname.endsWith("/rpc/reserve_gemini_call")) return json(true);
@@ -32,8 +35,8 @@ Deno.test("automatic proposal with no idea persists complete concept once and ne
     if(u.pathname.endsWith("/job_events")) return new Response(null,{status:201});
     throw Error(`Unexpected generation request ${u.pathname}`);
   }) as typeof fetch;
-  assertEquals((await handleStory(request())).status,200);
-  assertEquals((await handleStory(request())).status,200);
+  assertEquals((await handleStory(request(styledProposal))).status,200);
+  assertEquals((await handleStory(request(styledProposal))).status,200);
   assertEquals(calls,1); assertEquals(saves,1);
   assertEquals((await handleStory(request({...proposal,input:{...proposal.input,creation_mode:"manual"}}))).status,400);
   assertEquals(calls,1);
