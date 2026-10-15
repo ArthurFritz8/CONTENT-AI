@@ -11,6 +11,7 @@ export type NativeClip=z.infer<typeof nativeClipSchema>;
 const taskSchema=z.object({request_key:sha,job_id:z.string().regex(/^video_[a-f0-9]{64}$/),
   phase:z.enum(["planned","submission_started","submitted","submission_unknown","rejected","waiting","failed","ready"]),
   charged_credits:z.number().int().min(0).max(5),settled:z.boolean(),clip:nativeClipSchema.nullable(),error_code:z.string().regex(/^[a-z_]{1,80}$/).nullable(),
+  rate_limit_retries:z.literal(1).optional(),
 }).strict();
 export const nativeRunSchema=z.object({version:z.literal(1),episode_id:z.string().uuid(),fingerprint:sha,
   reserved_at:z.string().datetime(),
@@ -54,6 +55,7 @@ export async function validateNativeRun(raw:unknown):Promise<NativeRun> {
       (t.phase==="ready" && (!t.settled || unfinished)) || (unfinished && t.phase!=="planned") ||
       (t.phase==="planned" && (t.settled || t.charged_credits!==0)) || (t.clip && (t.clip.request_key!==expected || t.clip.path!==`episodes/${run.episode_id}/native/${t.clip.sha256}.mp4`)))
       throw new AurayError("native_checkpoint_mismatch");
+    if(t.rate_limit_retries && t.phase==="planned")throw new AurayError("native_checkpoint_mismatch");
     if(t.phase!=="ready")unfinished=true;
   }
   if((run.output || run.budget_reconciled) && run.tasks.some(t=>t.phase!=="ready") || run.budget_reconciled && !run.output)throw new AurayError("native_checkpoint_mismatch");
@@ -100,14 +102,21 @@ export async function advanceNativeChapter(raw:unknown,deps:NativeChapterDepende
   }
   const task=run.tasks[index]!,shot=aurayAuditionSchema.parse(nativeShot(run.draft,run.context,run.profile,run.episode_id,run.fingerprint,index));
   if(task.phase==="failed")return {code:"blocked",poll_after_seconds:0,error_code:"native_job_failed_no_retry"};
-  if(task.phase==="planned") {
-    const report=await deps.provider.inspect(),needed=run.tasks.filter(t=>t.phase==="planned").length*5;
+  // Only an explicit HTTP 429 with no acceptance may be retried once. Unknown
+  // POST outcomes always stay read-only, even when the status endpoint says 404.
+  const retryRateLimit=task.phase==="rejected" && task.error_code==="rate_limited" && !task.rate_limit_retries && task.charged_credits===0 && !task.settled;
+  if(task.phase==="rejected" && !retryRateLimit)return {code:"blocked",poll_after_seconds:0,error_code:task.error_code??"native_submission_rejected"};
+  if(task.phase==="planned" || retryRateLimit) {
+    const report=await deps.provider.inspect(),needed=run.tasks.filter(t=>t.phase==="planned" || t===task).length*5;
     if(!currentFree(report,clock()) || !report.financially_eligible || report.account_id!==run.account_id || report.key_id!==run.key_id ||
       report.period!==run.period || report.contract_sha256!==run.contract_sha256 || Math.min(report.plan_remaining!,report.key_remaining!)<needed)
       return {code:"blocked",poll_after_seconds:60,error_code:"native_financial_gate_closed"};
     const image=await deps.reference(shot.reference_path,shot.reference_sha256);
     await deps.guard(true);const path=await deps.provider.upload(image,task.request_key,run.account_id);
-    task.phase="submission_started";await save(); // Durable identity BEFORE a possibly accepted POST.
+    // The retry intent is durable before POST; a crash cannot repeat the retry.
+    if(retryRateLimit){task.rate_limit_retries=1;task.phase="submission_unknown";}
+    else task.phase="submission_started";
+    await save(); // Durable identity BEFORE a possibly accepted POST.
     await deps.guard(true);
     try {
       const accepted=await deps.provider.submit(shot,path,task.request_key,report,{allowNativeDialogueProbe:true,allowNativeChapter:true});
@@ -115,11 +124,13 @@ export async function advanceNativeChapter(raw:unknown,deps:NativeChapterDepende
     } catch(error) {
       task.phase=error instanceof AurayError && error.acceptance==="none"?"rejected":"submission_unknown";
       task.error_code=error instanceof AurayError && /^[a-z_]{1,80}$/.test(error.code)?error.code:"submission_unknown";
-      if(error instanceof AurayError&&error.retry_after_seconds)run.not_before=new Date(clock()+Math.min(error.retry_after_seconds,86400000)*1000).toISOString();
-      await save();return {code:"blocked",poll_after_seconds:60,error_code:task.error_code};
+      const recoverable=task.phase==="rejected" && task.error_code==="rate_limited" && !task.rate_limit_retries;
+      const delay=Math.max(60,error instanceof AurayError?error.retry_after_seconds??0:0);
+      if(recoverable || error instanceof AurayError&&error.retry_after_seconds)run.not_before=new Date(clock()+Math.min(delay,86400000)*1000).toISOString();
+      await save();return {code:recoverable?"waiting":"blocked",poll_after_seconds:delay,error_code:task.error_code};
     }
     // A lost persistence response must NOT be caught as a provider rejection.
-    task.phase="submitted";await save();return {code:"submitted",poll_after_seconds:30};
+    task.phase="submitted";task.error_code=null;run.not_before=null;await save();return {code:"submitted",poll_after_seconds:30};
   }
   let remote;
   try {remote=await deps.provider.status(task.job_id);}

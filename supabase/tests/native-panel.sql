@@ -44,6 +44,12 @@ begin
  perform pg_temp.native_panel_assert(public.native_worker_input(eid)->>'code'='existing','resume never constructs new request identities');
  perform public.claim_native_chapter(eid,token);
  run:=jsonb_set(jsonb_set(run,'{revision}','1'),'{tasks,0,phase}','"submission_started"');perform public.save_native_chapter(eid,token,run);
+ begin
+  changed:=jsonb_set(jsonb_set(jsonb_set(run,'{revision}','2'),'{tasks,0,phase}','"rejected"'),'{tasks,0,error_code}','"rate_limited"');perform public.save_native_chapter(eid,token,changed);
+  changed:=jsonb_set(jsonb_set(jsonb_set(changed,'{revision}','3'),'{tasks,0,phase}','"submission_unknown"'),'{tasks,0,rate_limit_retries}','1');perform public.save_native_chapter(eid,token,changed);
+  perform pg_temp.native_panel_assert((select state#>>'{tasks,0,rate_limit_retries}'='1' and state#>>'{tasks,0,job_id}'=run#>>'{tasks,0,job_id}' from public.studio_native_runs where episode_id=eid),'rate-limit retry persists uncertain intent with the same identity');
+  raise exception using errcode='PZ002',message='rollback retry transition branch';
+ exception when sqlstate 'PZ002' then null;end;
  begin perform public.studio_native_action(w,outsider,eid,'cancel');raise exception 'Foreign cancellation accepted';exception when insufficient_privilege then null;end;
  perform public.studio_native_action(w,actor,eid,'cancel');
  begin perform public.guard_native_chapter(eid,token,true);raise exception 'Cancelled chapter sent another take';exception when check_violation then null;end;

@@ -16,6 +16,10 @@ Um vídeo pronto continua disponível para revisão mesmo se a consulta de fatur
 
 ## Retomada, cotas e privacidade
 
+Validação do primeiro piloto em 15/10: implantar também `generate-research` junto das funções de histórias quando o schema da bíblia mudar. Uma versão antiga pode remover universo, desfecho, relações e objetivos da evidência, fazendo a conferência do roteiro recusar um plano legítimo. Não ignorar essa conferência: atualizar a função e conferir a evidência completa antes de gerar vídeo.
+
+Recusa explícita HTTP 429 sem aceitação ou cobrança admite uma única retomada do mesmo job e da mesma chave, após a espera persistida. O orçamento restante, conta, contrato e trava são conferidos novamente. A intenção de repetir fica salva como resultado incerto antes do POST; perda de resposta ou reinício passa a consultar esse job, sem novo POST. Uma segunda recusa encerra a retomada automática. Isso não refaz cenas geradas, não troca identidades e não se aplica a timeout, resposta ambígua, job perdido ou erro 5xx. Checkpoints anteriores sem contador continuam compatíveis; tomadas prontas não são modificadas.
+
 Os prazos de consulta dos jobs e `Retry-After` são persistidos para uma reinicialização não antecipar a próxima consulta. O worker não reduz uma instrução de espera longa para cinco minutos. O despacho normal tem uma janela que evita ações duplicadas; o usuário pode pedir retomada, respeitando o limite de solicitações. Processos encerrados ou antigos não usam a concessão nova.
 
 A carteira mostra créditos, reservas e quantos capítulos mínimos o orçamento consultado comporta. Esse número é estimativa de orçamento, sem margem para refazer cenas ou garantia artística. Não soma dólares Modal com créditos Auray. Saldo vencido ou consulta falha não libera capacidade. Cada capítulo novo passa pela inspeção real, mesmo quando o painel exibe uma estimativa positiva. O saldo anterior é invalidado quando pode haver uma nova cobrança.

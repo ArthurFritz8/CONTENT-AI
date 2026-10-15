@@ -16,7 +16,7 @@ async function fixture(remaining=30) {
   const deps:NativeChapterDependencies={now:()=>now,guard:async()=>{calls.push("guard");if(!lease)throw Error("lease_lost");},
     provider:{inspect:async()=>report(budget),upload:async(_image,key,id)=>{calls.push("upload");return `${id}/api-${key}.png`;},
       submit:async(_shot,_path,key,_report,options)=>{
-        calls.push(`submit:${key}`);assert.equal(current.tasks.find(t=>t.request_key===key)!.phase,"submission_started");
+        calls.push(`submit:${key}`);const task=current.tasks.find(t=>t.request_key===key)!;assert.equal(task.phase,task.rate_limit_retries?"submission_unknown":"submission_started");
         assert.deepEqual(options,{allowNativeDialogueProbe:true,allowNativeChapter:true});budget-=5;
         const id=`video_${key}`;remote.set(id,{id,job_id:id,object:"job",product:"video",model:"auray-ai/minimax-h3/text-to-video",status:"succeeded",settled:true,credits_charged:5,poll_after_seconds:30,created_at:new Date(now).toISOString()});return id;
       },status:async(id)=>{calls.push(`status:${id}`);const value=remote.get(id);if(!value)throw new AurayError("not_found");return value;}},
@@ -133,4 +133,55 @@ test("HTTP Retry-After is persisted; unavailable billing cannot hide a completed
  done.deps.provider.inspect=async()=>{throw new AurayError("service_unavailable");};
  assert.equal((await advanceNativeChapter(done.state,done.deps)).code,"review_pending");
  assert.ok(done.state.output);assert.equal(done.state.budget_reconciled,false);
+});
+
+test("a definite uncharged 429 waits across restart then retries the identical job once",async()=>{
+ const f=await fixture(),submit=f.deps.provider.submit;let attempts=0;
+ f.deps.provider.submit=async(...args)=>{if(++attempts===1)throw new AurayError("rate_limited","none",900);return submit(...args);};
+ assert.deepEqual(await advanceNativeChapter(f.state,f.deps),{code:"waiting",poll_after_seconds:900,error_code:"rate_limited"});
+ const identity=f.state.tasks[0]!.request_key;
+ assert.equal((await advanceNativeChapter(structuredClone(f.state),f.deps)).poll_after_seconds,900);assert.equal(attempts,1);
+ f.deps.now=()=>now+900_000;f.deps.provider.inspect=async()=>({...report(),checked_at:new Date(now+900_000).toISOString()});
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"submitted");
+ assert.equal(f.state.tasks[0]!.rate_limit_retries,1);assert.equal(f.state.tasks[0]!.request_key,identity);
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"collected");assert.equal(attempts,2);assert.equal(f.state.tasks[0]!.charged_credits,5);
+});
+
+test("a second definite 429 and other definite refusals cannot create a retry loop",async()=>{
+ const f=await fixture();let attempts=0,clock=now;
+ f.deps.now=()=>clock;f.deps.provider.inspect=async()=>({...report(),checked_at:new Date(clock).toISOString()});
+ f.deps.provider.submit=async()=>{attempts++;throw new AurayError("rate_limited","none");};
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"waiting");clock+=60_000;
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"blocked");clock+=60_000;
+ for(let i=0;i<3;i++)assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"blocked");
+ assert.equal(attempts,2);assert.equal(f.state.tasks[0]!.charged_credits,0);assert.equal(f.state.budget_reconciled,false);
+ const denied=await fixture();denied.deps.provider.submit=async()=>{throw new AurayError("access_denied","none");};
+ assert.equal((await advanceNativeChapter(denied.state,denied.deps)).code,"blocked");
+ const before=denied.calls.length;await advanceNativeChapter(denied.state,denied.deps);
+ assert.ok(!denied.calls.slice(before).includes("upload"));
+});
+
+test("lost retry acknowledgement recovers the same accepted job; lost retry intent never POSTs",async()=>{
+ for(const crashBeforePost of [false,true]) {
+  const f=await fixture(),submit=f.deps.provider.submit,save=f.deps.save;let attempts=0;
+  f.deps.provider.submit=async(...args)=>{if(++attempts===1)throw new AurayError("rate_limited","none");await submit(...args);throw new AurayError("transport_failed","unknown");};
+  await advanceNativeChapter(f.state,f.deps);
+  f.deps.now=()=>now+60_000;f.deps.provider.inspect=async()=>({...report(),checked_at:new Date(now+60_000).toISOString()});
+  if(crashBeforePost)f.deps.save=async(next)=>{await save(next);if(next.tasks[0]!.rate_limit_retries)throw Error("lost_retry_intent_ack");};
+  if(crashBeforePost)await assert.rejects(advanceNativeChapter(f.state,f.deps),/lost_retry_intent_ack/);
+  else assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"blocked");
+  f.deps.save=save;
+  assert.equal(f.state.tasks[0]!.phase,"submission_unknown");
+  assert.equal((await advanceNativeChapter(f.state,f.deps)).code,crashBeforePost?"waiting":"collected");
+  assert.equal(attempts,crashBeforePost?1:2);
+ }
+});
+
+test("a definite rate-limit recovery still requires the entire remaining budget and lease",async()=>{
+ const f=await fixture(),submit=f.deps.provider.submit;f.deps.provider.submit=async()=>{throw new AurayError("rate_limited","none");};
+ await advanceNativeChapter(f.state,f.deps);f.deps.now=()=>now+60_000;
+ f.deps.provider.inspect=async()=>({...report(14),checked_at:new Date(now+60_000).toISOString()});f.deps.provider.submit=submit;
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"blocked");assert.equal(f.state.tasks[0]!.rate_limit_retries,undefined);
+ f.deps.provider.inspect=async()=>({...report(),checked_at:new Date(now+60_000).toISOString()});f.lease=false;
+ await assert.rejects(advanceNativeChapter(f.state,f.deps),/lease_lost/);assert.equal(f.calls.filter(c=>c.startsWith("submit:")).length,0);
 });
