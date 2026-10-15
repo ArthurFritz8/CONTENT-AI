@@ -54,6 +54,7 @@ async function main() {
         contract_sha256:sha,request_key:sha,job_id:z.string(),shot:aurayAuditionSchema,
         phase:z.enum(["submission_started","submitted","submission_unknown","waiting","failed","downloaded","review_pending"]),output_sha256:sha.optional()}).parse(JSON.parse(await readFile(absolute,"utf8")));
       const expected=aurayAuditionKey(state.shot,{account_id:state.account_id,period:state.period,contract_sha256:state.contract_sha256} as Parameters<typeof aurayAuditionKey>[1]);
+      if(state.shot.chapter_binding)throw new AurayError("use_native_chapter_worker");
       if(state.account_id!==report.account_id || expected!==state.request_key || state.job_id!==`video_${expected}` || absolute!==join(output,expected,"state.json"))throw new AurayError("checkpoint_mismatch");
       jobs.push({request_key:expected,external_id:state.job_id,kind:state.shot.kind,aspect_ratio:state.shot.aspect_ratio,
         label:state.shot.native_dialogue?.speaker || "Reação visual",expected_sha256:state.output_sha256 ?? null});

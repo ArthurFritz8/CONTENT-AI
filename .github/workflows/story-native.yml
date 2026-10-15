@@ -1,0 +1,35 @@
+name: Native dialogue chapter worker
+on:
+  workflow_dispatch:
+    inputs:
+      episode_id:
+        description: Capítulo nativo já reservado pelo Studio
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: story-auray-native
+  cancel-in-progress: false
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NATIVE_EPISODE_ID: ${{ inputs.episode_id }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AURAY_API_KEY: ${{ secrets.AURAY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - run: bash scripts/setup-ffmpeg.sh
+      - name: Retomar as mesmas tomadas e montar para revisão, sem publicar
+        run: node --experimental-strip-types scripts/run-native-story-chapter.mts

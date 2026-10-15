@@ -82,7 +82,7 @@ export function createScriptQualityChecker(rawConfig: unknown) {
       error("NARRATION_MISMATCH", "narration.full_text", "full_text deve concatenar exatamente as narrações na ordem das cenas");
     }
     const spokenWords = normalize(script.narration.full_text).match(/[\p{L}\p{N}]+/gu)?.length ?? 0;
-    if (!script.fiction?.animation && spokenWords < MIN_NARRATION_WORDS) {
+    if (!script.fiction?.animation && !script.fiction?.native_animation && spokenWords < MIN_NARRATION_WORDS) {
       error("NARRATION_TOO_SHORT", "narration.full_text",
         `Narração com ${spokenWords} palavras; escreva pelo menos ${MIN_NARRATION_WORDS} palavras substantivas para sustentar 60s reais`);
     }

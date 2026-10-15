@@ -125,9 +125,12 @@ export const aurayAuditionSchema = z.object({
   seconds: z.literal(5), aspect_ratio: z.enum(["9:16", "16:9"]), seed: integer.max(2147483647),
   native_dialogue: z.object({ speaker: z.string().min(1).max(100),language: z.literal("pt-BR"),
     text: z.string().trim().min(4).max(120),voice_description: z.string().min(20).max(240) }).strict().optional(),
+  chapter_binding: z.object({episode_id:z.string().uuid(),fingerprint:z.string().regex(/^[a-f0-9]{64}$/),shot_index:z.number().int().min(0).max(2)}).strict().optional(),
 }).strict().superRefine((shot,ctx) => {
   if ((shot.kind === "native_dialogue_probe") !== Boolean(shot.native_dialogue))
     ctx.addIssue({ code:z.ZodIssueCode.custom,message:"Native dialogue metadata is required only for an explicit probe",path:["native_dialogue"] });
+  if(shot.chapter_binding && (shot.kind!=="native_dialogue_probe" || shot.aspect_ratio!=="9:16"))
+    ctx.addIssue({code:"custom",message:"Chapter binding requires native portrait dialogue"});
 });
 export type AurayAudition = z.infer<typeof aurayAuditionSchema>;
 export function aurayGenerationPrompt(shot: AurayAudition): string {
@@ -226,8 +229,9 @@ export class AurayVideoProvider {
     return ticket.data.path;
   }
   async submit(shotRaw: AurayAudition, firstFramePath: string, requestKey: string, previous: AurayInspection,
-    options: { allowNativeDialogueProbe?: boolean } = {}): Promise<string> {
+    options: { allowNativeDialogueProbe?: boolean; allowNativeChapter?: boolean } = {}): Promise<string> {
     const shot = aurayAuditionSchema.parse(shotRaw); key.parse(requestKey);
+    if(shot.chapter_binding && !options.allowNativeChapter)throw new AurayError("native_chapter_opt_in_required");
     if (shot.kind === "native_dialogue_probe" && !options.allowNativeDialogueProbe) throw new AurayError("native_dialogue_probe_opt_in_required");
     const now = new Date();
     if (!previous.financially_eligible || now.getTime() - Date.parse(previous.checked_at) < 0 ||

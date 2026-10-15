@@ -2,6 +2,7 @@ import { z } from "zod";
 import { platformCtasSchema } from "../publish/growth-strategy.ts";
 import { storyContextSchema, storyVisualSchema } from "../stories/schema.ts";
 import { animatedOutputSchema, animatedSceneSchema, ANIMATED_CHAPTER_SECONDS, ANIMATED_SHOT_SECONDS } from "../stories/animation-contract.ts";
+import { nativeOutputSchema, nativeSceneSchema } from "../stories/native-contract.ts";
 
 // Constraints citados também no prompt do Gemini — fonte única (ADR-005).
 export const SCENE_COUNT = { min: 3, max: 8 } as const;
@@ -44,6 +45,7 @@ export const sceneSchema = z.object({
   presenter: z.boolean().default(false),
   story_visual: storyVisualSchema.optional(),
   animation: animatedSceneSchema.optional(),
+  native_animation: nativeSceneSchema.optional(),
   // null até o estado 'assets' (contrato estagiado — ADR-005)
   asset_landscape: assetRefSchema.nullable(),
   asset_portrait: assetRefSchema.nullable(),
@@ -66,7 +68,7 @@ export const scriptJsonSchema = z
     // Rótulo do estilo editorial escolhido pelo roteirista (ADR-033) — varia por vídeo, usado em analytics.
     editorial_style: z.string().min(1).max(80),
     platform_ctas: platformCtasSchema.optional(),
-    fiction: z.object({ context: storyContextSchema, summary: z.string().min(30).max(1200), animation: animatedOutputSchema.optional() }).optional(),
+    fiction: z.object({ context: storyContextSchema, summary: z.string().min(30).max(1200), animation: animatedOutputSchema.optional(), native_animation: nativeOutputSchema.optional() }).optional(),
     metadata: z.object({
       youtube: z.object({
         title: z.string().min(1).max(YOUTUBE_TITLE_MAX),
@@ -108,6 +110,26 @@ export const scriptJsonSchema = z
   })
   .superRefine((script, ctx) => {
     const animation = script.fiction?.animation;
+    const native = script.fiction?.native_animation;
+    if (native) {
+      if (animation || script.scenes.length !== 3 || script.gap_seconds !== 0 || script.music !== null || script.platform_ctas)
+        ctx.addIssue({code:"custom",path:["fiction","native_animation"],message:"Capítulo nativo exige três tomadas, áudio original e nenhum segundo motor"});
+      const cast = new Set(script.fiction!.context.bible.cast.map(c => c.id));
+      for (const s of script.scenes) {
+        const n = s.native_animation;
+        if (!n || n.shot_id !== s.id || s.id !== `take_${s.order}` || !cast.has(n.character_id) || s.animation ||
+          s.story_visual?.speaker_id !== n.character_id || s.story_visual.on_stage.length !== 1 || s.story_visual.on_stage[0] !== n.character_id ||
+          Math.abs(s.duration_seconds - n.frames/24) > 1e-9 || s.transition !== "cut" || s.ken_burns !== "static" || s.asset_landscape !== null || !s.asset_portrait ||
+          s.narration_text.trim().split(/\s+/).length < 3 || s.narration_text.trim().split(/\s+/).length > 8)
+          ctx.addIssue({code:"custom",path:["scenes",s.order],message:"Tomada nativa exige clipe identificado, fala curta visível e duração medida sem conversão"});
+      }
+      if(new Set(script.scenes.map(s=>s.story_visual?.speaker_id)).size < 2)
+        ctx.addIssue({code:"custom",path:["scenes"],message:"O capítulo precisa alternar pelo menos dois personagens"});
+      if(new Set(script.scenes.map(s=>s.native_animation?.request_key)).size !== 3)
+        ctx.addIssue({code:"custom",path:["scenes"],message:"Cada tomada exige uma solicitação própria"});
+    } else if(script.scenes.some(s=>s.native_animation)) {
+      ctx.addIssue({code:"custom",path:["scenes"],message:"Clipes nativos exigem o contrato do capítulo"});
+    }
     if (animation) {
       const cast = new Set(script.fiction!.context.bible.cast.map(c => c.id));
       if (script.scenes.length < 5 || script.gap_seconds !== 0 || script.music !== null || script.platform_ctas)
@@ -119,7 +141,7 @@ export const scriptJsonSchema = z
           s.asset_landscape !== null)
           ctx.addIssue({ code: "custom", path: ["scenes", s.order], message: "Tomada animada precisa de fala visível, identidade e duração vinculadas, sem reenquadramento horizontal" });
       }
-    } else if (script.scenes.some(s => s.animation || s.duration_seconds < SCENE_DURATION_SECONDS.min)) {
+    } else if (!native && script.scenes.some(s => s.animation || s.duration_seconds < SCENE_DURATION_SECONDS.min)) {
       ctx.addIssue({ code: "custom", path: ["scenes"], message: "Cenas curtas são exclusivas do contrato de animação" });
     }
     if (!script.fiction && script.sources.length === 0)
@@ -177,8 +199,8 @@ export const scriptJsonSchema = z
     // Regra 9 (ADR-006): duration_seconds é TARGET para o Gemini, não constraint de render
     const totalTarget = script.scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     if (
-      totalTarget < (animation ? ANIMATED_CHAPTER_SECONDS.min : TOTAL_DURATION_TARGET_SECONDS.min) - 1e-9 ||
-      totalTarget > (animation ? ANIMATED_CHAPTER_SECONDS.max : TOTAL_DURATION_TARGET_SECONDS.max) + 1e-9
+      totalTarget < (native ? 348/24 : animation ? ANIMATED_CHAPTER_SECONDS.min : TOTAL_DURATION_TARGET_SECONDS.min) - 1e-9 ||
+      totalTarget > (native ? 372/24 : animation ? ANIMATED_CHAPTER_SECONDS.max : TOTAL_DURATION_TARGET_SECONDS.max) + 1e-9
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -196,6 +218,9 @@ export type AssetRef = z.infer<typeof assetRefSchema>;
 
 /** O renderer só aceita scripts com todos os assets resolvidos (estado 'assets' completo). */
 export function isRenderReady(script: ScriptJson): boolean {
+  // The native worker assembles original audio/video. The ordinary renderer must
+  // never replace its voices, rescale the clips or invent intermediate frames.
+  if (script.fiction?.native_animation) return false;
   if (script.fiction?.animation) return script.scenes.every(s => s.asset_portrait !== null && s.animation !== undefined);
   return script.scenes.every((s) => s.asset_landscape !== null && s.asset_portrait !== null);
 }

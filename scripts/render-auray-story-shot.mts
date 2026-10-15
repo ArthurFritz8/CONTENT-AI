@@ -68,6 +68,7 @@ async function main() {
       if (["upload_pending","rejected"].includes(state.phase)) throw new AurayError("submission_not_authorized_to_resume");
     } else {
       const shot = aurayAuditionSchema.parse(JSON.parse(await readFile(resolve(input),"utf8")));
+      if(shot.chapter_binding)throw new AurayError("use_native_chapter_worker");
       if (shot.kind === "native_dialogue_probe" && !process.argv.includes("--allow-native-dialogue-probe"))
         throw new AurayError("native_dialogue_probe_opt_in_required");
       const report = await provider.inspect(); await save(join(out,"inspection.json"),report);

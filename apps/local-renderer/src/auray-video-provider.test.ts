@@ -127,6 +127,20 @@ test("missing key makes no HTTP call and cannot advertise capacity", async () =>
   const r = await new AurayVideoProvider(undefined,async () => { throw new Error("must not fetch"); }).inspect();
   deepStrictEqual(r.blockers,["missing_api_key"]); strictEqual(r.monthly_allowance,null);
 });
+
+test("native chapter identity is distinct for each episode and cannot use the audition opt-in",async()=>{
+  const f=fixtures(new Date()),previous=report(f,new Date()),calls:string[]=[];
+  const chapter=aurayAuditionSchema.parse({...shot,kind:"native_dialogue_probe",native_dialogue:{speaker:"Lia",language:"pt-BR",text:"Quem deixou esta chave?",voice_description:"Adult Brazilian female voice, surprised and natural"},
+    chapter_binding:{episode_id:accountId,fingerprint:"f".repeat(64),shot_index:0}});
+  const id=aurayAuditionKey(chapter,previous);
+  const other=aurayAuditionSchema.parse({...chapter,chapter_binding:{...chapter.chapter_binding!,shot_index:1}});
+  ok(aurayAuditionKey(other,previous)!==id);
+  const provider=new AurayVideoProvider("dummy",inspector(f,calls,async()=>json({request_id:`video_${id}`,job_id:`video_${id}`,model:AURAY.model,product:"video",credits_charged:5,credits_quoted:5},202)));
+  await rejects(provider.submit(chapter,`${accountId}/api-${id}.png`,id,previous,{allowNativeDialogueProbe:true}),/native_chapter_opt_in_required/);
+  strictEqual(calls.length,0);
+  strictEqual(await provider.submit(chapter,`${accountId}/api-${id}.png`,id,previous,{allowNativeDialogueProbe:true,allowNativeChapter:true}),`video_${id}`);
+  strictEqual(calls.length,1);
+});
 test("rechecks account immediately before POST and never falls back after ambiguous acceptance", async () => {
   const f = fixtures(new Date()), previous = report(f,new Date()), id = aurayAuditionKey(shot,previous), calls: string[] = [];
   f.account.key.credits_spent_period = 5;

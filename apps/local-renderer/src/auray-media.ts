@@ -10,7 +10,7 @@ export async function verifyAurayMedia(path: string, shot: { kind: string; aspec
   const fps = Number(num) / Number(den), frames = Number(v.nb_read_frames), width = Number(v.width), height = Number(v.height);
   if (![duration,fps,frames,width,height].every(n => Number.isFinite(n) && n > 0) || duration < 4.8 || duration > 5.2 ||
       Math.abs(width/height - (shot.aspect_ratio === "9:16" ? 9/16 : 16/9)) > .025) throw new AurayError("media_invalid");
-  const decode = spawnSync("ffmpeg",["-v","error","-i",path,"-f","null","-"],{ encoding: "utf8",timeout: 30_000,windowsHide: true });
+  const decode = spawnSync("ffmpeg",["-v","error","-xerror","-i",path,"-f","null","-"],{ encoding: "utf8",timeout: 30_000,windowsHide: true });
   if (decode.status !== 0) throw new AurayError("media_decode_failed");
   const hasAudio = Boolean(media.streams?.some((s: { codec_type: string }) => s.codec_type === "audio"));
   if (shot.kind === "native_dialogue_probe" && !hasAudio) throw new AurayError("native_dialogue_missing_audio");
