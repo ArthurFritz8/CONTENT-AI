@@ -10,7 +10,8 @@ test('native review shows bounded advisory findings through the authorized serve
  await expect(report.getByText('Possível mudança de cor durante a cena.',{exact:false})).toBeVisible();
  await report.locator('summary').first().click();await expect(report.getByText('Transcrição automática: Ah, onde está a passagem?',{exact:true}).first()).toBeVisible();
  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
- await report.screenshot({path:'test-results/native-media-review-mobile.png'});
+ await expect.poll(()=>page.locator('aside.sidebar').evaluate(el=>el.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+ await report.screenshot({path:'test-results/native-media-review-mobile.png',animations:'disabled'});
 });
 
 test('real style controls save versioned choices and keep unsupported production closed',async({page,context})=>{
