@@ -115,3 +115,22 @@ test("checkpoint tampering cannot change the cast, job identity, accepted phase 
     const r=structuredClone(f.state);change(r);await assert.rejects(validateNativeRun(r));
   }
 });
+test("provider polling delay survives a restart and is never shortened to five minutes",async()=>{
+ const f=await fixture();await advanceNativeChapter(f.state,f.deps);
+ const job=f.remote.get(f.state.tasks[0]!.job_id)!;job.status="running";job.settled=false;job.poll_after_seconds=1200;
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).poll_after_seconds,1200);
+ const before=f.calls.filter(c=>c.startsWith("status:")).length;
+ assert.equal((await advanceNativeChapter(structuredClone(f.state),f.deps)).poll_after_seconds,1200);
+ assert.equal(f.calls.filter(c=>c.startsWith("status:")).length,before);
+ f.deps.now=()=>now+1200_000;job.status="succeeded";job.settled=true;
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"collected");
+});
+test("HTTP Retry-After is persisted; unavailable billing cannot hide a completed private film",async()=>{
+ const f=await fixture();await advanceNativeChapter(f.state,f.deps);
+ f.deps.provider.status=async()=>{throw new AurayError("rate_limited","none",900);};
+ assert.equal((await advanceNativeChapter(f.state,f.deps)).poll_after_seconds,900);assert.ok(f.state.not_before);
+ const done=await fixture();for(let i=0;i<6;i++)await advanceNativeChapter(done.state,done.deps);
+ done.deps.provider.inspect=async()=>{throw new AurayError("service_unavailable");};
+ assert.equal((await advanceNativeChapter(done.state,done.deps)).code,"review_pending");
+ assert.ok(done.state.output);assert.equal(done.state.budget_reconciled,false);
+});

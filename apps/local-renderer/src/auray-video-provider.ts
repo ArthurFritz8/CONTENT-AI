@@ -29,10 +29,13 @@ const plansSchema = z.object({ object: z.literal("list"), data: z.array(z.object
 export class AurayError extends Error {
   readonly code: string;
   readonly acceptance: "none" | "unknown";
-  constructor(code: string, acceptance: "none" | "unknown" = "none") {
-    super(code); this.name = "AurayError"; this.code = code; this.acceptance = acceptance;
+  readonly retry_after_seconds?:number;
+  constructor(code: string, acceptance: "none" | "unknown" = "none",retryAfter?:number) {
+    super(code); this.name = "AurayError"; this.code = code; this.acceptance = acceptance;this.retry_after_seconds=retryAfter;
   }
 }
+/** These SDK errors occur before POST or are authoritative HTTP refusals. */
+export const aurayDefiniteRejections=["rate_limited","quota_exhausted","access_denied","financial_gate_closed","inspection_required"] as const;
 export type AurayInspection = {
   provider: "auray", account_id: string | null, key_id: string | null, checked_at: string,
   period: string | null, monthly_allowance: number | null, plan_remaining: number | null,
@@ -176,7 +179,8 @@ export class AurayVideoProvider {
       if (!response.ok) {
         const code = response.status === 401 || response.status === 403 ? "access_denied" : response.status === 402 ? "quota_exhausted" :
           response.status === 404 ? "not_found" : response.status === 429 ? "rate_limited" : "request_rejected";
-        throw new AurayError(response.status >= 500 ? "service_unavailable" : code, mutation && response.status >= 500 ? "unknown" : "none");
+        const hint=response.headers.get("Retry-After"),delay=hint && /^\d+$/.test(hint)?Number(hint):hint?Math.ceil((Date.parse(hint)-Date.now())/1000):undefined;
+        throw new AurayError(response.status >= 500 ? "service_unavailable" : code, mutation && response.status >= 500 ? "unknown" : "none",delay!==undefined&&Number.isSafeInteger(delay)&&delay>0?delay:undefined);
       }
       return response;
     } catch (error) { if (error instanceof AurayError) throw error; throw new AurayError("transport_failed", mutation ? "unknown" : "none"); }

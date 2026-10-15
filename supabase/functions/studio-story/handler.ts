@@ -13,6 +13,7 @@ import { dispatchGithub } from "../_shared/github-dispatch.ts";
 
 const base = { workspace: z.string().uuid(), actor: z.string().uuid() };
 const schema = z.discriminatedUnion("action", [z.object({ ...base, action: z.literal("capacity") }),
+  z.object({...base,action:z.literal("native"),episode_id:z.string().uuid(),operation:z.enum(["resume","cancel"])}),
   z.object({ ...base, action: z.literal("balance"), wallet_id: z.string().uuid() }),
   z.object({ ...base, action: z.literal("profile_voices"), series_id: z.string().uuid() }),
   z.object({ ...base, action: z.literal("propose"), request_id: z.string().uuid(), input: storyRequestSchema })]);
@@ -25,6 +26,12 @@ export async function handleStory(req: Request): Promise<Response> {
     logger = new JobLogger(db, "studio-story");
     const { error: auth } = await db.rpc("studio_assert_member", { p_workspace: input.workspace, p_actor: input.actor });
     if (auth) throw new AppError("Acesso negado", 403, "FORBIDDEN");
+    if(input.action==="native") {
+      const {data,error}=await db.rpc("studio_native_action",{p_workspace:input.workspace,p_actor:input.actor,p_episode:input.episode_id,p_action:input.operation});
+      if(error)throw new AppError("Não foi possível retomar esta geração",409,"NATIVE_ACTION_FAILED");
+      if(data.code==="dispatch")await dispatchGithub("story-native.yml",input.episode_id);
+      return jsonResponse(data);
+    }
     if (input.action === "balance") {
       const {data,error}=await db.rpc("studio_video_balance_request",{p_workspace:input.workspace,p_actor:input.actor,p_wallet:input.wallet_id});
       if(error)throw new AppError("Consulta de saldo indisponível",403,"BALANCE_ACCESS_DENIED");

@@ -29,6 +29,10 @@ export async function POST(request: Request) {
   try {
     assertOrigin(request, appUrl());
     const user = await requireUser(), input = await body(request);
+    if(input.action==="native") {
+      if(!["resume","cancel"].includes(input.operation))throw new PanelError("Ação inválida.",400);
+      return Response.json(await edge({action:"native",workspace:user.workspaceId,actor:user.id,episode_id:uuid(input.episodeId),operation:input.operation}),{headers:{"Cache-Control":"no-store"}});
+    }
     if (input.action === "balance") {
       return Response.json(await edge({action:"balance",workspace:user.workspaceId,actor:user.id,wallet_id:uuid(input.walletId)}), {headers:{"Cache-Control":"no-store"}});
     }

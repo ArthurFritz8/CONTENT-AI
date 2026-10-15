@@ -1,6 +1,6 @@
 # ADR-080 — Executor durável de capítulos com diálogo nativo Auray
 
-Data: 15/10/2026. Status: executor e contrato implementados; admissão pelo painel e ativação ainda pendentes. Nenhuma geração nova nesta etapa.
+Data: 15/10/2026. Status desta etapa: executor e contrato implementados. A conexão posterior do painel está no [ADR-081](ADR-081-auray-no-fluxo-do-studio.md). Nenhuma geração nova nesta etapa.
 
 ## Decisão
 

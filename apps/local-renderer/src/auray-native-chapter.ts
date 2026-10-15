@@ -18,6 +18,7 @@ export const nativeRunSchema=z.object({version:z.literal(1),episode_id:z.string(
   account_id:z.string().uuid(),key_id:z.string().min(1).max(200),period:z.string().regex(/^\d{4}-\d{2}$/),contract_sha256:sha,
   initial_plan_remaining:z.number().int().min(15),initial_key_remaining:z.number().int().min(15),reserved_credits:z.literal(15),
   tasks:z.array(taskSchema).length(3),revision:z.number().int().nonnegative(),
+  not_before:z.string().datetime().nullable().optional(),
   output:z.object({path:z.string().max(500),sha256:sha,bytes:z.number().int().positive().max(50*1024*1024),
     script_path:z.string().max(500),script_sha256:sha,qa_path:z.string().max(500),qa_sha256:sha}).strict().nullable(),
   budget_reconciled:z.boolean(),
@@ -80,11 +81,14 @@ export async function advanceNativeChapter(raw:unknown,deps:NativeChapterDepende
   const run=await validateNativeRun(raw),clock=()=>deps.now?.()??Date.now();
   await deps.guard();
   async function save() {run.revision++;await validateNativeRun(run);await deps.save(structuredClone(run));}
+  if(run.not_before && Date.parse(run.not_before)>clock())return {code:"waiting",poll_after_seconds:Math.ceil((Date.parse(run.not_before)-clock())/1000)};
   const index=run.tasks.findIndex(t=>t.phase!=="ready");
   if(index<0) {
     if(!run.output) {run.output=await deps.assemble(run);await save();}
     if(!run.budget_reconciled) {
-      const r=await deps.provider.inspect(),charged=run.tasks.reduce((n,t)=>n+t.charged_credits,0);
+      let r:AurayInspection;
+      try{r=await deps.provider.inspect();}catch{return {code:"review_pending",poll_after_seconds:60,budget_reconciled:false};}
+      const charged=run.tasks.reduce((n,t)=>n+t.charged_credits,0);
       if(!currentFree(r,clock()) || r.account_id!==run.account_id || r.key_id!==run.key_id)return {code:"review_pending",poll_after_seconds:60,budget_reconciled:false};
       // Remain reserved while billing is delayed. A new month cannot submit any
       // remaining shot: all three are already immutable, settled and downloaded.
@@ -111,6 +115,7 @@ export async function advanceNativeChapter(raw:unknown,deps:NativeChapterDepende
     } catch(error) {
       task.phase=error instanceof AurayError && error.acceptance==="none"?"rejected":"submission_unknown";
       task.error_code=error instanceof AurayError && /^[a-z_]{1,80}$/.test(error.code)?error.code:"submission_unknown";
+      if(error instanceof AurayError&&error.retry_after_seconds)run.not_before=new Date(clock()+Math.min(error.retry_after_seconds,86400000)*1000).toISOString();
       await save();return {code:"blocked",poll_after_seconds:60,error_code:task.error_code};
     }
     // A lost persistence response must NOT be caught as a provider rejection.
@@ -120,15 +125,19 @@ export async function advanceNativeChapter(raw:unknown,deps:NativeChapterDepende
   try {remote=await deps.provider.status(task.job_id);}
   catch(error) {
     // Even 404 after an interrupted POST cannot authorize another submission.
-    return {code:"waiting",poll_after_seconds:60,error_code:error instanceof AurayError?error.code:"native_status_unavailable"};
+    const delay=Math.max(60,error instanceof AurayError?error.retry_after_seconds??0:0);
+    run.not_before=new Date(clock()+Math.min(delay,86400000)*1000).toISOString();await save();
+    return {code:"waiting",poll_after_seconds:delay,error_code:error instanceof AurayError?error.code:"native_status_unavailable"};
   }
   if(remote.id!==task.job_id || remote.job_id!==task.job_id || remote.upstream_lost || remote.credits_charged<task.charged_credits ||
     (task.settled && !remote.settled))throw new AurayError("job_unverified");
   task.charged_credits=remote.credits_charged;task.settled=remote.settled;
   task.phase=["failed","cancelled"].includes(remote.status)?"failed":"waiting";
+  const delay=Math.max(15,remote.poll_after_seconds);
+  run.not_before=remote.status==="succeeded"&&remote.settled || task.phase==="failed"?null:new Date(clock()+Math.min(delay,86400000)*1000).toISOString();
   await save(); // Reconcile the charge before downloading a potentially large file.
   if(task.phase==="failed")return {code:"blocked",poll_after_seconds:0,error_code:"native_job_failed_no_retry"};
-  if(remote.status!=="succeeded" || !remote.settled)return {code:"waiting",poll_after_seconds:Math.min(300,Math.max(15,remote.poll_after_seconds))};
+  if(remote.status!=="succeeded" || !remote.settled)return {code:"waiting",poll_after_seconds:delay};
   await deps.guard();task.clip=nativeClipSchema.parse(await deps.collect(task.job_id,shot));task.phase="ready";await save();
   return {code:"collected",poll_after_seconds:0};
 }

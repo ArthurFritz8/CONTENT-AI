@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import {strictEqual,throws,deepStrictEqual} from "node:assert";
-import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern} from "./styles.ts";
+import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern} from "./styles.ts";
 import {storyRequestSchema} from "./schema.ts";
 test("old requests keep their exact shape; style intent never masquerades as legacy illustration",()=>{
   const old={kind:"fruits",genre:"mystery",creation_mode:"automatic",premise:"",chapters:2};
@@ -19,6 +19,8 @@ test("prepared patterns are separate from sources without an audio-conditioned c
  strictEqual(supportsPreparedPattern({...p,source:"auray"},"anime"),false);
  strictEqual(supportsPreparedPattern({...p,source:"local"},"anime"),false);
  strictEqual(supportsPreparedPattern(p,"realistic"),false);
+ strictEqual(supportsNativePattern({...p,source:"auray"},"anime"),false);
+ strictEqual(supportsNativePattern({...p,source:"auray",voice_policy:"approved_variants"},"anime"),true);
 });
 test("fixed styles, permitted chapter variants and voice permissions are independent and explicit",()=>{
   const base=defaultStoryPresentation();

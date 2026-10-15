@@ -11,6 +11,7 @@ import { productionProfileHash } from "../../../packages/core/src/stories/produc
 import { loadScriptQualityChecker, recordScriptQuality } from "./script-quality.ts";
 import { markEpisodeFailed } from "./episode-utils.ts";
 import type { JobLogger } from "./logger.ts";
+import {generateNativeStoryDraft} from "./native-story-script.ts";
 
 export async function generateStoryScript(db: ReturnType<typeof createServiceClient>, logger: JobLogger,
   episode: { id: string; briefing: { story_context: unknown }; research_evidence: unknown }): Promise<Response> {
@@ -19,6 +20,7 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   const { data: production, error: profileError } = await db.rpc("studio_story_episode_profile",{p_episode:episode.id});
   if (profileError) throw new AppError("Não foi possível conferir o padrão audiovisual", 503, "PRODUCTION_PROFILE_UNAVAILABLE");
   if (production) {
+    if(production.profile?.version==="auray-native-1.0.0")return generateNativeStoryDraft(db,logger,episode.id,context,production);
     if (Deno.env.get("CONTENT_AI_ANIMATION_PREPARATION_ENABLED") !== "true")
       throw new AppError("Esta novela exige planejamento animado; ative a preparação após cadastrar referências e vozes", 409, "ANIMATION_SETUP_REQUIRED");
     const {data:prior,error:readError}=await db.from("studio_animation_preparations").select("fingerprint").eq("episode_id",episode.id).maybeSingle();

@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test';
 import sharp from 'sharp';
 
 test('real style controls save versioned choices and keep unsupported production closed',async({page,context})=>{
+ test.setTimeout(60000);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
  await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
@@ -15,7 +16,7 @@ test('real style controls save versioned choices and keep unsupported production
  await card.getByText('Assistir · Auray',{exact:false}).click();
  await expect(card.getByText('animação nativa 24 FPS',{exact:false})).toBeVisible();
  await expect(card.locator('video').last()).toHaveAttribute('preload','none');
- await card.getByRole('button',{name:'Planejar com este estilo e fonte'}).last().click();
+ await card.getByRole('button',{name:'Planejar com este exemplo e vozes nativas'}).click();
  await expect(selector.getByLabel('Fonte de geração')).toHaveValue('auray');
  await expect(card.getByRole('button',{name:'Estilo principal escolhido'})).toHaveAttribute('aria-pressed','true');
  const story=page.locator('article.panel').filter({has:page.getByRole('heading',{name:'A chave da feira — teste isolado'})});
@@ -62,6 +63,36 @@ test('real style controls save versioned choices and keep unsupported production
  await page.getByRole('button',{name:'Atualizar',exact:true}).click();
  await expect(page.getByRole('button',{name:'Novela de frutas',exact:false})).toHaveAttribute('aria-pressed','true');
  await expect(setup.getByText('Padrão fixado.',{exact:false})).toBeVisible();
+ // Native setup reuses authorized images, requires both acknowledgements, and
+ // exercises the real server-side sample/hash checks without any provider call.
+ if(await settings.getAttribute('open')===null)await story.getByText('Estilo e fontes da novela · versão 3',{exact:true}).click();
+ const threeD=settings.locator('article').filter({has:page.getByRole('heading',{name:'3D cinematográfico'})});
+ await threeD.getByRole('button',{name:'Planejar neste estilo',exact:true}).click();
+ await settings.getByLabel('Fonte de geração').selectOption('auray');
+ await settings.getByRole('combobox',{name:/Vozes/}).selectOption('approved_variants');
+ await settings.getByLabel('Conferi os estilos, as fontes e a política de vozes para os próximos capítulos.').check();
+ await settings.getByRole('button',{name:'Salvar escolha para os próximos capítulos'}).click();
+ await expect(settings.getByText('Escolha salva como versão 4',{exact:false})).toBeVisible();
+ const native=story.locator('.story-production-setup').filter({has:page.getByText('Configurar Auray · 3D cinematográfico · versão 4',{exact:true})});
+ await native.locator('summary').click();
+ const saveNative=native.getByRole('button',{name:'Salvar padrão Auray'});
+ await expect(saveNative).toBeDisabled();await expect(native.locator('img')).toHaveCount(2);
+ const rejected=await page.evaluate(async()=>{const r=await fetch('/api/stories/production',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'native_finalize',seriesId:'33333333-3333-4333-8333-333333333333',presentationRevision:4,styleId:'cinematic_3d',confirmed:true,nativeVoices:false,selection:[]})});return r.status;});
+ expect(rejected).toBe(400);
+ await native.getByLabel('Assisti ao exemplo e ouvi o áudio.',{exact:false}).check();
+ await expect(saveNative).toBeDisabled();
+ await native.getByLabel('Aceito vozes geradas pela Auray,',{exact:false}).check();
+ await saveNative.click();await expect(native.getByText('Padrão Auray salvo.',{exact:true})).toBeVisible();
+ await expect(story.getByRole('button',{name:'Gerar capítulo 1 · 15 créditos Auray',exact:true})).toBeEnabled();
+ await native.screenshot({path:'test-results/story-native-setup-mobile.png'});
+ await story.getByRole('button',{name:'Gerar capítulo 1 · 15 créditos Auray',exact:true}).click();
+ await expect(story.getByRole('button',{name:'Retomar acompanhamento'})).toBeVisible();
+ await expect(story.getByText('0/3 cenas concluídas',{exact:false})).toBeVisible();
+ await story.getByRole('button',{name:'Retomar acompanhamento'}).click();
+ page.once('dialog',dialog=>dialog.accept());
+ await story.getByRole('button',{name:'Encerrar tentativa'}).click();
+ await expect(story.getByText('Encerrando: nenhuma nova tomada será enviada.',{exact:false})).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  expect(errors).toEqual([]);
 });
 

@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {storyVisualSchema} from "./schema.ts";
-export const NATIVE_AURAY={model:"auray-ai/minimax-h3/text-to-video",version:"auray-native-1.0.0",shots:3,creditsPerShot:5,fps:24,width:768,height:1344} as const;
+export const NATIVE_AURAY={model:"auray-ai/minimax-h3/text-to-video",version:"auray-native-1.0.0",contractSha256:"365a74a0aeab67eebf117fd826d540017748d687ba0955fc8ed989d113a816f1",shots:3,creditsPerShot:5,fps:24,width:768,height:1344} as const;
 const sha=z.string().regex(/^[a-f0-9]{64}$/),character=z.string().regex(/^[a-z][a-z0-9_]{0,23}$/);
 export const nativeProfileSchema=z.object({
   version:z.literal(NATIVE_AURAY.version),model:z.literal(NATIVE_AURAY.model),contract_sha256:sha,

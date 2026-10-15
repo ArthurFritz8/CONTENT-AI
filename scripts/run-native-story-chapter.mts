@@ -5,8 +5,9 @@ import {createHash,randomUUID} from "node:crypto";
 import {spawnSync} from "node:child_process";
 import sharp from "sharp";
 import {z} from "zod";
-import {AurayVideoProvider,AurayError,AURAY} from "../apps/local-renderer/src/auray-video-provider.ts";
+import {AurayVideoProvider,AurayError,AURAY,aurayDefiniteRejections} from "../apps/local-renderer/src/auray-video-provider.ts";
 import {advanceNativeChapter,validateNativeRun,type NativeRun,type NativeClip} from "../apps/local-renderer/src/auray-native-chapter.ts";
+import {admitNativeChapter} from "../apps/local-renderer/src/auray-native-admission.ts";
 import {readAurayStudioBytes,aurayStudioRpcResult} from "../apps/local-renderer/src/auray-studio-sync.ts";
 import {verifyAurayMedia} from "../apps/local-renderer/src/auray-media.ts";
 import {buildNativeScript} from "../packages/core/src/stories/native-chapter.ts";
@@ -22,21 +23,36 @@ async function settings() {
   }}catch(e){if((e as NodeJS.ErrnoException).code!=="ENOENT")throw new AurayError("credential_file_unavailable");}
   return {...values,...process.env};
 }
+let reportFailure:((code:string)=>Promise<unknown>)|undefined;
 async function main() {
-  const episode=z.string().uuid().parse(process.env.NATIVE_EPISODE_ID||process.argv[2]),cfg=await settings(),origin=new URL(cfg.SUPABASE_URL||"");
+  const cfg=await settings(),origin=new URL(cfg.SUPABASE_URL||"");
   if(origin.protocol!=="https:" || !/^[a-z0-9-]+\.supabase\.co$/.test(origin.hostname) || origin.username || origin.password || origin.port || origin.pathname!=="/")throw new AurayError("invalid_studio_url");
   const service=cfg.CONTENT_AI_SERVICE_ROLE_KEY||cfg.SUPABASE_SERVICE_ROLE_KEY;
   if(!service || !cfg.AURAY_API_KEY)throw new AurayError("missing_credentials");
   const headers={apikey:service,Authorization:`Bearer ${service}`};
   const request=(path:string,init:RequestInit={})=>fetch(origin.origin+path,{...init,headers:{...headers,...init.headers},redirect:"error",signal:AbortSignal.timeout(25000)});
   const rpc=async(name:string,args:Record<string,unknown>)=>aurayStudioRpcResult(await request(`/rest/v1/rpc/${name}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(args)}));
+  const episodeInput=process.env.NATIVE_EPISODE_ID||process.argv[2];
+  if(!episodeInput) {
+    const pending=z.array(z.string().uuid()).max(3).parse(await rpc("native_recovery_episodes",{}));
+    for(const id of pending) {
+      const child=spawnSync(process.execPath,["--experimental-strip-types",resolve(import.meta.filename),id],{env:{...process.env,NATIVE_EPISODE_ID:id},stdio:"inherit",timeout:36*60_000,windowsHide:true});
+      if(child.status!==0)process.exitCode=1;
+    }
+    return;
+  }
+  const episode=z.string().uuid().parse(episodeInput);
+  reportFailure=code=>rpc("native_worker_result",{p_episode:episode,p_code:code});
+  const provider=new AurayVideoProvider(cfg.AURAY_API_KEY);
+  const admission=await admitNativeChapter(episode,{rpc,inspect:()=>provider.inspect()});
+  if(admission.code!=="existing"){await reportFailure(admission.code);process.stdout.write(JSON.stringify(admission)+"\n");return;}
   const token=randomUUID(),base={p_episode:episode,p_token:token};
-  const claim=z.discriminatedUnion("code",[z.object({code:z.literal("waiting")}),z.object({code:z.literal("claimed"),state:z.unknown()})]).parse(await rpc("claim_native_chapter",base));
+  const claim=z.discriminatedUnion("code",[z.object({code:z.literal("closed")}),z.object({code:z.literal("waiting")}),z.object({code:z.literal("claimed"),state:z.unknown()})]).parse(await rpc("claim_native_chapter",base));
+  if(claim.code==="closed")return;
   if(claim.code==="waiting"){process.stdout.write('{"code":"waiting_for_account"}\n');return;}
   try {
   const dir=join(root,"output/native-chapters",episode);await mkdir(dir,{recursive:true});
   let state=await validateNativeRun(claim.state);
-  const provider=new AurayVideoProvider(cfg.AURAY_API_KEY);
   const privateBytes=async(path:string,maximum:number)=>{
     if(!/^[a-zA-Z0-9_./-]+$/.test(path) || path.includes(".."))throw new AurayError("invalid_private_path");
     const r=await request(`/storage/v1/object/studio-private/${path}`);if(!r.ok)throw new AurayError("private_media_unavailable");
@@ -86,6 +102,18 @@ async function main() {
     // The workflow is bounded; a later dispatch resumes exactly the saved tasks.
     const deadline=Date.now()+35*60_000;
     while(Date.now()<deadline) {
+      if(await rpc("native_cancellation_pending",base)===true) {
+        if(state.not_before&&Date.parse(state.not_before)>Date.now()){await reportFailure("cancellation_pending");return;}
+        const jobs=[];
+        for(const task of state.tasks.filter(t=>t.phase!=="planned")) {
+          if(task.phase==="rejected" && aurayDefiniteRejections.some(code=>code===task.error_code)) {jobs.push({id:task.job_id,status:"rejected",settled:true,credits_charged:0,no_acceptance:true});continue;}
+          try{const j=await provider.status(task.job_id);jobs.push({id:j.id,status:j.status,settled:j.settled,credits_charged:j.credits_charged});}
+          catch{await reportFailure("cancellation_pending");process.stdout.write('{"code":"cancellation_pending"}\n');return;}
+        }
+        const inspected=await provider.inspect();
+        const closed=z.object({code:z.string()}).parse(await rpc("close_native_chapter",{...base,p_proof:{jobs,account_id:inspected.account_id,key_id:inspected.key_id,checked_at:inspected.checked_at,period:inspected.period,plan_remaining:inspected.plan_remaining,key_remaining:inspected.key_remaining,trustworthy:inspected.blockers.every(b=>b==="insufficient_free_credits")}}));
+        await reportFailure(closed.code);process.stdout.write(JSON.stringify(closed)+"\n");return;
+      }
       const result=await advanceNativeChapter(state,{provider,guard,
         save:async(next)=>{await rpc("save_native_chapter",{...base,p_state:next});state=next;},
         reference:async(path,sha256)=>{
@@ -106,6 +134,7 @@ async function main() {
         },assemble,
       });
       process.stdout.write(JSON.stringify({episode_id:episode,...result})+"\n");
+      await reportFailure(result.error_code||result.code);
       if(result.code==="review_pending" && state.output) {
         const scriptBytes=await privateBytes(state.output.script_path,1024*1024),qaBytes=await privateBytes(state.output.qa_path,1024*1024);
         if(hash(scriptBytes)!==state.output.script_sha256 || hash(qaBytes)!==state.output.qa_sha256)throw new AurayError("cached_output_changed");
@@ -120,4 +149,4 @@ async function main() {
     process.stdout.write('{"code":"paused_for_next_dispatch"}\n');
   } finally {await rpc("finish_native_chapter",base);}
 }
-try{await main();}catch(e){process.stderr.write(JSON.stringify({code:e instanceof AurayError?e.code:"native_worker_unavailable",human_review_required:true})+"\n");process.exitCode=1;}
+try{await main();}catch(e){const code=e instanceof AurayError?e.code:"native_worker_unavailable";await reportFailure?.(code).catch(()=>{});process.stderr.write(JSON.stringify({code,human_review_required:true})+"\n");process.exitCode=1;}

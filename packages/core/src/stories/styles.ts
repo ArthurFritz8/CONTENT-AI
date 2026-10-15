@@ -37,6 +37,10 @@ export function supportsPreparedPattern(p:StoryPresentation,chosen:StoryStyleId)
   const value=storyPresentationSchema.parse(p);
   return value.allowed_styles.includes(chosen) && ["cinematic_3d","cartoon_2d","anime","realistic"].includes(chosen) && ["automatic","modal"].includes(value.source);
 }
+export function supportsNativePattern(p:StoryPresentation,chosen:StoryStyleId) {
+  const value=storyPresentationSchema.parse(p);
+  return value.source==="auray" && value.voice_policy==="approved_variants" && value.allowed_styles.includes(chosen) && ["cinematic_3d","cartoon_2d","anime","realistic"].includes(chosen);
+}
 export const storyStyleSampleSchema = z.object({
   id:z.string().uuid(),style_id:z.enum(storyStyleIds),source:z.enum(["modal","auray","local"]),
   title:z.string().trim().min(5).max(100),model:z.string().trim().min(2).max(120),
