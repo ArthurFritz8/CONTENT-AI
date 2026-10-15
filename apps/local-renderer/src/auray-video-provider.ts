@@ -124,6 +124,7 @@ export function inspectAurayAccount(plansRaw: unknown, accountRaw: unknown, cont
 
 export const aurayAuditionSchema = z.object({
   version: z.literal("1.0"), kind: z.enum(["action", "reaction", "native_dialogue_probe"]), prompt: z.string().min(40).max(2400),
+  generation_policy:z.literal("reference_dialogue_v2").optional(),
   reference_path: z.string().min(1).max(500), reference_sha256: z.string().regex(/^[a-f0-9]{64}$/),
   seconds: z.literal(5), aspect_ratio: z.enum(["9:16", "16:9"]), seed: integer.max(2147483647),
   native_dialogue: z.object({ speaker: z.string().min(1).max(100),language: z.literal("pt-BR"),
@@ -134,11 +135,16 @@ export const aurayAuditionSchema = z.object({
     ctx.addIssue({ code:z.ZodIssueCode.custom,message:"Native dialogue metadata is required only for an explicit probe",path:["native_dialogue"] });
   if(shot.chapter_binding && (shot.kind!=="native_dialogue_probe" || shot.aspect_ratio!=="9:16"))
     ctx.addIssue({code:"custom",message:"Chapter binding requires native portrait dialogue"});
+  if(shot.generation_policy&&!shot.chapter_binding)ctx.addIssue({code:"custom",message:"Generation policy requires a frozen chapter"});
 });
 export type AurayAudition = z.infer<typeof aurayAuditionSchema>;
 export function aurayGenerationPrompt(shot: AurayAudition): string {
   if (!shot.native_dialogue) return shot.prompt;
   const d = shot.native_dialogue;
+  if(shot.generation_policy==="reference_dialogue_v2")return `${shot.prompt}\nAudio: a single on-camera speaker, ${d.speaker}. Brazilian Portuguese only. `+
+    `The ONLY spoken words, exactly once, are: ${JSON.stringify(d.text)}. Voice: ${d.voice_description}. `+
+    `Start with a silent breath, then this sentence, then silence. No muttering, filler words, introductions, extra dialogue, narrator, background voices or music. `+
+    `Keep the mouth visible and synchronize it naturally to this exact sentence. Do not vocalize any instruction.`;
   return `${shot.prompt}\nNATIVE AUDIO EXPERIMENT: Only ${d.speaker} speaks, on camera, in Brazilian Portuguese (pt-BR). `+
     `Say exactly once: ${JSON.stringify(d.text)} Voice direction: ${d.voice_description}. `+
     `Synchronize visible mouth articulation with this sentence; finish before the clip ends, then rest the mouth naturally. `+

@@ -1122,6 +1122,17 @@ td strong {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.native-media-review {
+  margin-top: 18px;
+  padding: 18px;
+  overflow-wrap: anywhere;
+}
+.native-media-review h3 {
+  margin-top: 0;
+}
+.native-media-review summary {
+  cursor: pointer;
+}
 .review-record {
   padding: 10px 0;
   border-bottom: 1px solid var(--line);

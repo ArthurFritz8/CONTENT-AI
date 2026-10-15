@@ -1,5 +1,6 @@
 import { previewUrl } from "../../../lib/media";
 import { workspaceDb, studioRpc } from "../../../lib/workspace";
+import {nativeMediaReviewSchema} from "../../../../../packages/core/src/stories/native-review";
 import {
   appUrl,
   body,
@@ -213,10 +214,17 @@ export async function GET(request: Request) {
       const c = config(),
         outputs = e.metadata?.render_outputs;
       const { metadata: discardedMetadata, ...safe } = e;
+      let nativeReview:unknown=null;
+      if(e.script_json?.fiction?.native_animation) {
+        const report=await studioRpc("studio_native_media_review",{p_workspace:user.workspaceId,p_actor:user.id,p_episode:id}).catch(()=>null);
+        const parsed=nativeMediaReviewSchema.safeParse(report);
+        if(parsed.success && parsed.data.episode_id===id && parsed.data.video_sha256===outputs?.sha256)nativeReview=parsed.data;
+      }
       result = {
         episode: {
           ...safe,
           failure_reason: safeErrorText(e.failure_reason),
+          nativeReview,
           videos: {
             portrait: await previewUrl(outputs?.portrait || e.render_url, e.id),
             landscape: await previewUrl(outputs?.landscape, e.id),

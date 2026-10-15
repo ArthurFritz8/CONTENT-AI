@@ -33,5 +33,17 @@ jobs:
           python-version: '3.11'
       - run: npm ci
       - run: bash scripts/setup-ffmpeg.sh
+      - uses: actions/cache@v4
+        if: inputs.episode_id != ''
+        with:
+          path: ~/.cache/huggingface/hub/models--Systran--faster-whisper-base
+          key: native-speech-base-ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
+      - name: Preparar conferência local de áudio, sem GPU ou créditos de vídeo
+        if: inputs.episode_id != ''
+        continue-on-error: true
+        timeout-minutes: 4
+        run: |
+          pip install -r scripts/native-review-requirements.txt
+          python scripts/setup_native_review.py
       - name: Retomar as mesmas tomadas e montar para revisão, sem publicar
         run: node --experimental-strip-types scripts/run-native-story-chapter.mts

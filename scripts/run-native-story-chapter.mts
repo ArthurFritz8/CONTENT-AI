@@ -13,6 +13,8 @@ import {verifyAurayMedia} from "../apps/local-renderer/src/auray-media.ts";
 import {buildNativeScript} from "../packages/core/src/stories/native-chapter.ts";
 import {computeScriptHash,canonicalStringify} from "../packages/core/src/validators/hash-utils.ts";
 import {createScriptQualityChecker} from "../packages/core/src/validators/script-quality.ts";
+import {reviewNativeMedia} from "./lib/native-media-review.mts";
+import {nativeMediaReviewSchema} from "../packages/core/src/stories/native-review.ts";
 
 const root=resolve(import.meta.dirname,".."),hash=(b:Uint8Array)=>createHash("sha256").update(b).digest("hex");
 async function settings() {
@@ -95,7 +97,11 @@ async function main() {
     if(!quality.passed)throw new AurayError("native_script_quality_failed");
     // Remove workstation paths from the receipt stored in the private workspace.
     const {file:ignored,...publicQa}=qa;
-    const receipt={...publicQa,episode_id:episode,fingerprint:run.fingerprint,script_hash:await computeScriptHash(script),policy_hash:hash(Buffer.from(canonicalStringify(policyRows[0]!.value))),quality_policy:policyRows[0]!.value,script_qa:quality};
+    await guard();
+    const mediaReview=await reviewNativeMedia({episode,video:join(dir,"assembled/sequence.mp4"),videoSha256:hash(bytes),directory:dir,
+      takes:sources.map((s,i)=>({...s,expected_text:run.draft.scenes[i]!.narration_text}))});
+    await guard();
+    const receipt={...publicQa,episode_id:episode,fingerprint:run.fingerprint,script_hash:await computeScriptHash(script),policy_hash:hash(Buffer.from(canonicalStringify(policyRows[0]!.value))),quality_policy:policyRows[0]!.value,script_qa:quality,media_review:mediaReview};
     await guard();const video=await put(bytes,"mp4"),savedScript=await put(Buffer.from(JSON.stringify(script)),"json"),savedQa=await put(Buffer.from(JSON.stringify(receipt)),"json");
     return {...video,script_path:savedScript.path,script_sha256:savedScript.sha256,qa_path:savedQa.path,qa_sha256:savedQa.sha256};
   };
@@ -140,6 +146,11 @@ async function main() {
         if(hash(scriptBytes)!==state.output.script_sha256 || hash(qaBytes)!==state.output.qa_sha256)throw new AurayError("cached_output_changed");
         const mounted=z.object({code:z.literal("saved")}).parse(await rpc("complete_native_chapter",{...base,p_origin:origin.origin,p_script_text:scriptBytes.toString("utf8"),p_qa_text:qaBytes.toString("utf8")}));
         process.stdout.write(JSON.stringify({code:mounted.code,human_review_required:true})+"\n");
+        const review=nativeMediaReviewSchema.safeParse(JSON.parse(qaBytes.toString("utf8")).media_review);
+        if(review.success) {
+          try{await rpc("save_native_media_review",{p_episode:episode,p_report:review.data});}
+          catch{process.stdout.write('{"code":"media_review_unavailable","human_review_required":true}\n');}
+        }
       }
       if(result.code==="blocked" || result.code==="review_pending")return;
       let pause=Math.max(0,result.poll_after_seconds*1000);

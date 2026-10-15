@@ -1,5 +1,13 @@
 \set ON_ERROR_STOP on
 -- Read-only structural checks; fails deployment instead of reporting a false success.
+do $$ begin
+ if not exists(select 1 from pg_class where oid='public.studio_native_media_reviews'::regclass and relrowsecurity) or
+  has_table_privilege('authenticated','public.studio_native_media_reviews','select') or
+  has_function_privilege('authenticated','public.save_native_media_review(uuid,jsonb)','execute') or
+  has_function_privilege('anon','public.studio_native_media_review(uuid,uuid,uuid)','execute') then
+  raise exception 'Native media review must remain private and server-written';
+ end if;
+end $$;
 do $$
 declare tbl text;
 begin

@@ -1,7 +1,7 @@
 import {assertEquals} from "jsr:@std/assert@1";
 import {nativeFixtureInput} from "../../../packages/core/src/testing/native-fixture.ts";
 import {canonicalStringify,sha256Hex} from "../../../packages/core/src/validators/hash-utils.ts";
-import {nativeFingerprint} from "../../../packages/core/src/stories/native-chapter.ts";
+import {nativeFingerprint,prepareNativeDraft} from "../../../packages/core/src/stories/native-chapter.ts";
 import {generateStoryScript} from "./story-script.ts";
 import {createServiceClient} from "./supabase-client.ts";
 import {JobLogger} from "./logger.ts";
@@ -9,7 +9,7 @@ import {JobLogger} from "./logger.ts";
 Deno.test("native writer freezes three visible dialogues once and never calls audio, animation or paid video",async()=>{
  const keys=["SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","CONTENT_AI_SERVICE_ROLE_KEY","GEMINI_API_KEY","OPENROUTER_API_KEY","CONTENT_AI_ANIMATION_PREPARATION_ENABLED"],previous=keys.map(k=>Deno.env.get(k)),original=globalThis.fetch;
  keys.forEach(k=>Deno.env.delete(k));Deno.env.set(keys[0],"https://story.supabase.co");Deno.env.set(keys[1],"test-service");Deno.env.set(keys[3],"test-gemini");
- const a=nativeFixtureInput(),profileHash=await sha256Hex(canonicalStringify(a.profile)),fingerprint=await nativeFingerprint(a.draft,a.context,a.profile);
+ const a=nativeFixtureInput(),profileHash=await sha256Hex(canonicalStringify(a.profile)),fingerprint=await nativeFingerprint(prepareNativeDraft(a.draft,a.context,a.profile),a.context,a.profile);
  let saved=false,textCalls=0,saves=0;
  const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
  globalThis.fetch=(async(input,init)=>{

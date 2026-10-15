@@ -15,6 +15,7 @@ export const nativeProfileSchema=z.object({
 });
 export type NativeProfile=z.infer<typeof nativeProfileSchema>;
 export const nativeDraftSchema=z.object({title:z.string().trim().min(5).max(100),summary:z.string().trim().min(30).max(1200),
+ generation_policy:z.literal("reference_dialogue_v2").optional(),
  scenes:z.array(z.object({narration_text:z.string().trim().min(4).max(120),visual:storyVisualSchema,prompt:z.string().trim().min(40).max(1600),seed:z.number().int().min(0).max(2147483647)}).strict()).length(3),
 }).strict();
 export const nativeOutputSchema=z.object({version:z.literal("1.0.0"),provider:z.literal("auray"),profile_sha256:sha,

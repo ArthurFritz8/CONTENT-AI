@@ -11,6 +11,13 @@ import { AURAY, AurayError, AurayVideoProvider, aurayAuditionKey, aurayAuditionS
   aurayStorageUrl, inspectAurayAccount, inspectAurayContract } from "./auray-video-provider.ts";
 
 const accountId = "00000000-0000-4000-8000-000000000099";
+test("new frozen native policy requests only exact dialogue without changing legacy prompts",()=>{
+ const old=aurayAuditionSchema.parse({version:"1.0",kind:"native_dialogue_probe",prompt:"A single adult reference character speaks in a warm apartment.",reference_path:"reference.png",reference_sha256:"a".repeat(64),seconds:5,aspect_ratio:"9:16",seed:1,native_dialogue:{speaker:"Malu",language:"pt-BR",text:"Você vai embora sem mim?",voice_description:"Adult Brazilian female voice, natural and clear."}});
+ const legacy=aurayGenerationPrompt(old);ok(legacy.includes("NATIVE AUDIO EXPERIMENT"));
+ throws(()=>aurayAuditionSchema.parse({...old,generation_policy:"reference_dialogue_v2"}));
+ const updated=aurayAuditionSchema.parse({...old,generation_policy:"reference_dialogue_v2",chapter_binding:{episode_id:"11111111-1111-4111-8111-111111111111",fingerprint:"b".repeat(64),shot_index:0}});
+ const text=aurayGenerationPrompt(updated);ok(text.includes('"Você vai embora sem mim?"'));ok(text.includes("No muttering"));ok(!text.includes("EXPERIMENT"));strictEqual(aurayGenerationPrompt(old),legacy);
+});
 const now = new Date("2026-10-09T15:00:00Z");
 function fixtures(date = now) {
   return {

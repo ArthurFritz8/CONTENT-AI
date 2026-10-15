@@ -104,6 +104,21 @@ begin
  begin perform public.complete_native_chapter(eid,other_token,'https://fixture.supabase.co',script_text,qa_text);raise exception 'Obsolete quality policy accepted';exception when check_violation then null;end;
  update public.system_config set value=qa->'quality_policy' where key='fact_check';
  perform pg_temp.native_assert((select status='rendered' and approval_date is null and render_url like '%/authenticated/studio-private/episodes/%' from public.episodes where id=eid),'native movie stays private and awaits review');
+ r:='[]';
+ for i in 0..2 loop r:=r||jsonb_build_array(jsonb_build_object('index',i,'speaker',run#>>array['draft','scenes',i::text,'visual','speaker_id'],'sha256',run#>>array['tasks',i::text,'clip','sha256'],
+  'expected_text',run#>>array['draft','scenes',i::text,'narration_text'],'recognized_text','Fala que precisa ser conferida.','speech_status','possible_extra_speech','appearance_status','possible_color_shift','sampled_frames',6,'color_shift_score',0.6));end loop;
+ changed:=jsonb_build_object('version','native-media-review-v1','episode_id',eid,'video_sha256',repeat('e',64),'created_at',now(),'speech_engine','faster-whisper-base-cpu',
+  'model_revision','ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66','human_review_required',true,'lip_sync_verified',false,'identity_verified',false,'source_video_unchanged',true,'takes',r);
+ begin perform public.save_native_media_review(eid,jsonb_set(changed,'{video_sha256}',to_jsonb(repeat('a',64))));raise exception 'Review for another film accepted';exception when check_violation then null;end;
+ begin perform public.save_native_media_review(eid,jsonb_set(changed,'{takes,0,sha256}',to_jsonb(repeat('a',64))));raise exception 'Review for another take accepted';exception when check_violation then null;end;
+ begin perform public.save_native_media_review(eid,jsonb_set(changed,'{lip_sync_verified}','true'));raise exception 'Automatic lip approval accepted';exception when check_violation then null;end;
+ perform pg_temp.native_assert(public.save_native_media_review(eid,changed)->>'code'='saved','advisory review saved without artistic approval');
+ perform pg_temp.native_assert(public.studio_native_media_review(w,actor,eid)=changed,'member sees the exact bound report');
+ begin perform public.studio_native_media_review(w,gen_random_uuid(),eid);raise exception 'Outsider read review';exception when insufficient_privilege then null;end;
+ begin perform public.studio_native_media_review(w,actor,gen_random_uuid());raise exception 'Foreign episode read review';exception when insufficient_privilege then null;end;
+ perform public.save_native_media_review(eid,jsonb_set(changed,'{takes,0,recognized_text}','"Changed"'));
+ perform pg_temp.native_assert(public.studio_native_media_review(w,actor,eid)=changed,'report is immutable when audit is repeated');
+ perform pg_temp.native_assert(not has_table_privilege('authenticated','public.studio_native_media_reviews','select') and not has_function_privilege('authenticated','public.save_native_media_review(uuid,jsonb)','execute'),'browser cannot forge or directly read reports');
  perform public.finish_native_chapter(eid,other_token);
  perform pg_temp.native_assert(not has_table_privilege('authenticated','public.studio_native_runs','select'),'private native state hidden from browser');
  perform pg_temp.native_assert(not has_function_privilege('authenticated','public.reserve_native_chapter(uuid,uuid,jsonb)','execute'),'browser cannot invent credit observations');

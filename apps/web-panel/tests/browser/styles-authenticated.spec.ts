@@ -1,6 +1,18 @@
 import {test,expect} from '@playwright/test';
 import sharp from 'sharp';
 
+test('native review shows bounded advisory findings through the authorized server route',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.goto('/studio/episodes/88888888-8888-4888-8888-888888888888');
+ const report=page.getByRole('region',{name:'Conferência do vídeo'});
+ await expect(report.getByRole('heading',{name:'Conferência do vídeo'})).toBeVisible();
+ await expect(report.getByText('Possíveis palavras extras no áudio. Ouça esta cena.',{exact:true})).toHaveCount(2);
+ await expect(report.getByText('Possível mudança de cor durante a cena.',{exact:false})).toBeVisible();
+ await report.locator('summary').first().click();await expect(report.getByText('Transcrição automática: Ah, onde está a passagem?',{exact:true}).first()).toBeVisible();
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await report.screenshot({path:'test-results/native-media-review-mobile.png'});
+});
+
 test('real style controls save versioned choices and keep unsupported production closed',async({page,context})=>{
  test.setTimeout(60000);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));

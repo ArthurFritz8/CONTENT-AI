@@ -1,4 +1,4 @@
-import {nativeChapterPrompt,validateNativeDraft,nativeFingerprint} from "../../../packages/core/src/stories/native-chapter.ts";
+import {nativeChapterPrompt,prepareNativeDraft,nativeFingerprint} from "../../../packages/core/src/stories/native-chapter.ts";
 import {nativeProfileSchema} from "../../../packages/core/src/stories/native-contract.ts";
 import {canonicalStringify,sha256Hex} from "../../../packages/core/src/validators/hash-utils.ts";
 import {extractJson} from "./gemini.ts";
@@ -18,7 +18,7 @@ export async function generateNativeStoryDraft(db:ReturnType<typeof createServic
   for(const attempt of [1,2]) {
     const result=await writeStory(db,logger,nativeChapterPrompt(context,profile)+(correction?`\nCorrija: ${correction}`:""),episode);
     let draft;
-    try{draft=validateNativeDraft(extractJson(result.text),context,profile);}catch(e){correction=e instanceof Error?e.message.slice(0,1200):"Rascunho inválido";continue;}
+    try{draft=prepareNativeDraft(extractJson(result.text),context,profile);}catch(e){correction=e instanceof Error?e.message.slice(0,1200):"Rascunho inválido";continue;}
     const {data,error}=await db.rpc("save_native_draft",{p_episode:episode,p_profile:production.profile_sha256,p_fingerprint:await nativeFingerprint(draft,context,profile),p_draft:draft});
     if(error)throw new AppError("Não foi possível salvar as três tomadas",503,"NATIVE_DRAFT_SAVE_FAILED");
     return jsonResponse({episode_id:episode,native_chapter:true,code:data.code});

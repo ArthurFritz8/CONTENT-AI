@@ -5,6 +5,7 @@ import { Connections } from "./connections";
 import { Fia } from "./fia";
 import { StoryDiscovery } from "./story-discovery";
 import { ReviewActions } from "./review-actions";
+import { NativeMediaReview } from "./native-media-review";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -1628,7 +1629,7 @@ function EpisodeDetail({
         <h2>{e.briefing?.text || t("noTitle")}</h2>
         <Status value={e.status} />
       </div>
-      {e.status === "review" && (
+      {e.status === "review" && !script?.fiction?.native_animation && (
         <ReviewActions episode={e.id} onChange={() => {}} />
       )}
       <div className="detail-layout">
@@ -1699,6 +1700,10 @@ function EpisodeDetail({
                   <ShieldCheck size={18} />
                   {t("reviewHint")}
                 </p>
+                {script?.fiction?.native_animation && <>
+                  <NativeMediaReview report={e.nativeReview} cast={script.fiction.context?.bible?.cast}/>
+                  {e.status==="review" && <ReviewActions episode={e.id} onChange={()=>{}}/>}
+                </>}
               </>
             )}
             {tab === "script" &&
