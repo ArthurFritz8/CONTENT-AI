@@ -59,7 +59,10 @@ def alignment(reference, assembled, offset_seconds, seconds):
     return {"silent_reference": False, "measured_lag_seconds": best[1]/16000, "correlation": best[0]}
 
 
-def assemble(sources, directory):
+def assemble(sources, directory, fps=24):
+    if fps not in (24, 30):
+        raise ValueError("Unsupported native frame grid")
+    timescale = str(fps * 512)
     if not 2 <= len(sources) <= 9:
         raise ValueError("Review montage requires two to nine identified clips")
     directory = Path(directory).resolve()
@@ -78,13 +81,13 @@ def assemble(sources, directory):
             raise ValueError("Every speaker requires one native video and audio track")
         v, a = videos[0], audios[0]
         signature = (v["width"], v["height"], v["codec_name"], v["pix_fmt"], a["sample_rate"], a["channels"])
-        if (shape is not None and shape != signature) or v["codec_name"] != "h264" or v["pix_fmt"] != "yuv420p" or v["avg_frame_rate"] != "24/1":
+        if (shape is not None and shape != signature) or v["codec_name"] != "h264" or v["pix_fmt"] != "yuv420p" or v["avg_frame_rate"] != f"{fps}/1":
             raise ValueError("Source formats differ; refuse silent resizing or FPS conversion")
         shape = signature
         frames = int(v["nb_read_frames"])
-        seconds = frames / 24
+        seconds = frames / fps
         if frames <= 0 or abs(float(v["duration"]) - seconds) > .002 or seconds > 15:
-            raise ValueError("Source video duration is not its native 24 FPS frame grid")
+            raise ValueError("Source video duration is not its native frame grid")
         video_start = float(v.get("start_time", 0))
         if not math.isfinite(video_start) or not 0 <= video_start <= .15:
             raise ValueError("Unexpected native video origin")
@@ -97,7 +100,7 @@ def assemble(sources, directory):
         # MOV preserves the exact video timebase; PCM removes per-file AAC encoder padding.
         # Trim only AAC excess beyond the video, never speed up or replace the voice.
         command(["ffmpeg", "-y", "-v", "error", "-copyts", "-itsoffset", f"{-video_start:.12f}",
-                 "-i", str(path), "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-video_track_timescale", "12288",
+                 "-i", str(path), "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-video_track_timescale", timescale,
                  "-af", f"aresample=async=1:first_pts=0,apad,atrim=end={seconds:.12f},asetpts=PTS-STARTPTS",
                  "-c:a", "pcm_s16le", "-avoid_negative_ts", "disabled", str(target)])
         intermediates.append((target, seconds))
@@ -111,19 +114,19 @@ def assemble(sources, directory):
     listing.write_text("ffconcat version 1.0\n" + "".join(f"file '{escape(path)}'\nduration {seconds:.12f}\n" for path, seconds in intermediates), encoding="utf-8")
     output = directory / "sequence.mp4"
     command(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(listing),
-             "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-video_track_timescale", "12288",
+             "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy", "-video_track_timescale", timescale,
              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output)])
     command(["ffmpeg", "-v", "error", "-xerror", "-i", str(output), "-f", "null", "-"])
     metadata = probe(output)
     video = next(s for s in metadata["streams"] if s["codec_type"] == "video")
     actual_frames = frame_hashes(output)
-    if actual_frames != expected_frames or abs(float(video["duration"])-cursor) > .002 or video["avg_frame_rate"] != "24/1":
+    if actual_frames != expected_frames or abs(float(video["duration"])-cursor) > .002 or video["avg_frame_rate"] != f"{fps}/1":
         raise RuntimeError("Montage changed frames, their order, FPS or timeline")
     final_pcm = pcm(output)
     for cut, original in zip(cuts, audio):
         cut["audio_transport"] = alignment(original, final_pcm, cut["start_seconds"], cut["seconds"])
     report = {"file": str(output), "sha256": sha(output), "seconds": cursor, "width": shape[0], "height": shape[1],
-              "encoded_fps": 24, "frames": len(actual_frames), "cuts": cuts, "all_decoded_frames_pixel_identical": True,
+              "encoded_fps": fps, "frames": len(actual_frames), "cuts": cuts, "all_decoded_frames_pixel_identical": True,
               "video_reencoded": False, "audio_encoded_once_from_native_pcm": True, "decode_verified": True,
               "new_cloud_calls": 0, "production_ready": False, "voice_continuity_approved": False, "human_review_required": True}
     (directory/"assembly-qa.json").write_text(json.dumps(report, indent=2, ensure_ascii=False)+"\n", encoding="utf-8")
@@ -134,5 +137,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sources_json", type=Path)
     parser.add_argument("output_directory", type=Path)
+    parser.add_argument("--fps", type=int, choices=[24, 30], default=24)
     args = parser.parse_args()
-    print(json.dumps(assemble(json.loads(args.sources_json.read_text(encoding="utf-8")), args.output_directory), ensure_ascii=False))
+    print(json.dumps(assemble(json.loads(args.sources_json.read_text(encoding="utf-8")), args.output_directory, args.fps), ensure_ascii=False))

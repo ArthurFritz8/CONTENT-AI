@@ -12,7 +12,8 @@ export function createServiceClient(): SupabaseClient {
       "CONFIG_MISSING",
     );
   }
-  return createClient(url, key, { auth: { persistSession: false } });
+  // Service JWTs have no user refresh token; do not start a browser session timer.
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
 /** Lê uma chave de system_config; retorna fallback se ausente (config-driven, ADR-001). */

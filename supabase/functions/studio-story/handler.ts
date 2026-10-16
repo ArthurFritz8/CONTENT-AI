@@ -73,9 +73,12 @@ export async function handleStory(req: Request): Promise<Response> {
       throw new AppError("Não foi possível revisar esta seção. A proposta anterior foi preservada.",422,"STORY_INVALID");
     }
     if(input.action==="native") {
-      const {data,error}=await db.rpc("studio_native_action",{p_workspace:input.workspace,p_actor:input.actor,p_episode:input.episode_id,p_action:input.operation});
+      const {data:profile,error:read}=await db.rpc("studio_story_episode_profile",{p_episode:input.episode_id});
+      if(read)throw new AppError("Padrão indisponível",503,"NATIVE_ACTION_FAILED");
+      const puter=profile?.profile?.version==="puter-native-1.0.0";
+      const {data,error}=await db.rpc(puter?"studio_puter_action":"studio_native_action",{p_workspace:input.workspace,p_actor:input.actor,p_episode:input.episode_id,p_action:input.operation});
       if(error)throw new AppError("Não foi possível retomar esta geração",409,"NATIVE_ACTION_FAILED");
-      if(data.code==="dispatch")await dispatchGithub("story-native.yml",input.episode_id);
+      if(data.code==="dispatch")await dispatchGithub(puter?"story-puter.yml":"story-native.yml",input.episode_id);
       return jsonResponse(data);
     }
     if (input.action === "balance") {

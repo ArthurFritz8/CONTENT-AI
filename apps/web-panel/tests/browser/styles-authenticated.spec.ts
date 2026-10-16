@@ -1,6 +1,21 @@
 import {test,expect} from '@playwright/test';
 import sharp from 'sharp';
 
+test('Puter balance stays separate, insufficient full-chapter budget is clear and refresh never generates',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',r=>r.fulfill({json:{items:[],total:0,page:1}}));await page.route('**/api/discovery',r=>r.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ const connection=page.getByRole('region',{name:'Saldo e conexão Puter'});
+ await expect(connection.getByText('677,7 de 1000 créditos',{exact:true})).toBeVisible();
+ await expect(connection.getByText('0 capítulo(s) completo(s) de 15s.',{exact:false})).toBeVisible();
+ await connection.getByRole('button',{name:'Atualizar saldo Puter'}).click();await expect(connection.getByText('Saldo atualizado. Nenhum vídeo foi gerado.',{exact:true})).toBeVisible();
+ const data=await page.request.get('/api/stories/puter');expect(data.status()).toBe(200);const raw=await data.text();expect(raw).not.toContain('credential');expect(raw).not.toContain('fixture-only-not-a-real-token');
+ const denied=await page.request.post('/api/stories/puter',{data:{action:'refresh',accountId:'abababab-abab-4bab-8bab-abababababab'}});expect(denied.status()).toBe(403);
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await expect.poll(()=>page.locator('aside.sidebar').evaluate(el=>el.getBoundingClientRect().right)).toBeLessThanOrEqual(0);
+ await connection.screenshot({path:'test-results/puter-free-budget-mobile.png'});
+});
+
 test('editorial edits persist, pinned sections stay fixed and a scene repair uses its authorized route',async({page,context})=>{
  await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
  await page.route('**/api/control?*',r=>r.fulfill({json:{items:[],total:0,page:1}}));await page.route('**/api/discovery',r=>r.fulfill({json:{items:[]}}));
@@ -51,15 +66,14 @@ test('real style controls save versioned choices and keep unsupported production
  await expect(card.locator('video')).toHaveCount(3);
  await card.getByText('Assistir · Puter',{exact:false}).click();
  const puter=card.locator('details').filter({has:page.getByText('Assistir · Puter',{exact:false})});
- await expect(puter.getByText('Puter: prévia aprovada.',{exact:false})).toBeVisible();
  await expect(puter.locator('video')).toHaveAttribute('preload','none');
- await expect(puter.getByRole('button')).toHaveCount(0);
- await expect(selector.getByLabel('Fonte de geração').locator('option[value="puter"]')).toHaveCount(0);
- await expect(selector.getByLabel('Fonte de geração')).toHaveValue('automatic');
+ await puter.getByRole('button',{name:'Planejar com este exemplo e vozes nativas'}).click();
+ await expect(selector.getByLabel('Fonte de geração')).toHaveValue('puter');
+ await expect(selector.getByText('990 créditos para 15 segundos',{exact:false})).toBeVisible();
  await card.getByText('Assistir · Auray',{exact:false}).click();
  await expect(card.getByText('animação nativa 24 FPS',{exact:false})).toBeVisible();
  await expect(card.locator('video').last()).toHaveAttribute('preload','none');
- await card.getByRole('button',{name:'Planejar com este exemplo e vozes nativas'}).click();
+ await card.locator('details').filter({has:page.getByText('Assistir · Auray',{exact:false})}).getByRole('button',{name:'Planejar com este exemplo e vozes nativas'}).click();
  await expect(selector.getByLabel('Fonte de geração')).toHaveValue('auray');
  await expect(card.getByRole('button',{name:'Estilo principal escolhido'})).toHaveAttribute('aria-pressed','true');
  const story=page.locator('article.panel').filter({has:page.getByRole('heading',{name:'A chave da feira — teste isolado'})});

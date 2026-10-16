@@ -144,3 +144,14 @@ do $$begin
     not exists(select 1 from pg_trigger where tgname='story_format_history_immutable' and not tgisinternal) then raise exception 'Native duration history or RPC exposed';end if;
  if public.native_chapter_shots('{}')<>3 or public.native_chapter_shots('{"native_format":{"shots":9}}')<>9 then raise exception 'Native format contract missing';end if;
 end $$;
+
+-- Puter account credentials and native checkpoints stay service-only.
+do $$declare tab text;fn text;begin
+ foreach tab in array array['studio_puter_accounts','studio_puter_access','studio_puter_preparations','studio_puter_runs'] loop
+  if not exists(select 1 from pg_class where oid=('public.'||tab)::regclass and relrowsecurity) or has_table_privilege('authenticated','public.'||tab,'select') then raise exception 'Puter data exposed: %',tab;end if;
+ end loop;
+ foreach fn in array array['studio_puter_connect(uuid,uuid,text,jsonb)','claim_puter_inspection(uuid,uuid,uuid,uuid)','claim_puter_chapter(uuid,uuid,uuid)','reserve_puter_chapter(uuid,uuid,uuid,jsonb)','save_puter_chapter(uuid,uuid,jsonb)','complete_puter_chapter(uuid,uuid,text,text,text)','studio_puter_action(uuid,uuid,uuid,text)','studio_puter_pattern_finalize(uuid,uuid,uuid,integer,text,jsonb,text)'] loop
+  if has_function_privilege('anon','public.'||fn,'execute') or has_function_privilege('authenticated','public.'||fn,'execute') or not has_function_privilege('service_role','public.'||fn,'execute') then raise exception 'Puter RPC exposed: %',fn;end if;
+ end loop;
+ if has_function_privilege('service_role','public.studio_puter_view_before_chapters(uuid,uuid)','execute') or has_function_privilege('service_role','public.studio_video_overview_before_puter(uuid,uuid)','execute') then raise exception 'Puter legacy bypass exposed';end if;
+end $$;

@@ -61,7 +61,7 @@ begin
  perform pg_temp.style_assert(public.register_story_style_sample(w,sample)=result,'Puter sample import is idempotent');
  perform public.ready_story_style_sample(w,sample_id,repeat('a',64));
  perform pg_temp.style_assert(jsonb_array_length(public.studio_story_style_gallery(w,actor))=2,'Puter approved preview visible beside old sources');
- perform pg_temp.style_assert(not public.valid_story_presentation(p||'{"source":"puter"}'),'Puter preview cannot select an unimplemented chapter source');
+ perform pg_temp.style_assert(public.valid_story_presentation(p||'{"source":"puter"}'),'Puter preference valid without granting budget or profile approval');
  perform pg_temp.style_assert(jsonb_array_length(public.studio_story_style_gallery(fw,outsider))=0,'Puter preview stays private to workspace');
  begin perform public.studio_story_style_media(fw,outsider,sample_id);raise exception 'Foreign Puter sample read';exception when no_data_found then null;end;
  begin perform public.register_story_style_sample(w,sample||'{"source":"puter_unknown"}');raise exception 'Unknown provider admitted';exception when check_violation then null;end;

@@ -3,11 +3,14 @@ import {strictEqual,throws,deepStrictEqual} from "node:assert";
 import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,storyStyleSampleSchema,storySampleSources,storySources} from "./styles.ts";
 import {storyRequestSchema} from "./schema.ts";
 
-test("approved Puter previews do not grant a selectable chapter source",()=>{
+test("Puter is a selectable native source but requires explicit voice variants",()=>{
  const sample=storyStyleSampleSchema.parse({id:"11111111-2222-4333-8444-555555555555",source:"puter",style_id:"cinematic_3d",title:"Malu — prévia aprovada",model:"Wan 2.7 I2V",sha256:"a".repeat(64),bytes:100,seconds:5,width:720,height:1280,output_fps:30,native_fps:null,has_audio:true,motion:"generated",review_scope:"reviewed_sample",limitations:["Integração de capítulos em preparação."]});
  strictEqual(sample.source,"puter");strictEqual(storySampleSources.puter,"Puter");
- strictEqual(Object.hasOwn(storySources,"puter"),false);
- throws(()=>storyPresentationSchema.parse({...defaultStoryPresentation(),source:"puter"}));
+ strictEqual(Object.hasOwn(storySources,"puter"),true);
+ const p=storyPresentationSchema.parse({...defaultStoryPresentation(),source:"puter",primary_style:"cinematic_3d",allowed_styles:["cinematic_3d"]});
+ strictEqual(supportsNativePattern(p,"cinematic_3d"),false);
+ strictEqual(supportsNativePattern({...p,voice_policy:"approved_variants"},"cinematic_3d"),true);
+ strictEqual(supportsPreparedPattern({...p,voice_policy:"approved_variants"},"cinematic_3d"),false);
 });
 test("old requests keep their exact shape; style intent never masquerades as legacy illustration",()=>{
   const old={kind:"fruits",genre:"mystery",creation_mode:"automatic",premise:"",chapters:2};

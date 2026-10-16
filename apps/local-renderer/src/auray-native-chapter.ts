@@ -1,6 +1,6 @@
 /** Durable native-dialogue executor. No fallback provider, episode approval or publishing. */
 import {z} from "zod";
-import {nativeProfileSchema,nativeDraftSchema} from "../../../packages/core/src/stories/native-contract.ts";
+import {aurayProfileSchema as nativeProfileSchema,nativeDraftSchema} from "../../../packages/core/src/stories/native-contract.ts";
 import {storyContextSchema,nativeShotCount} from "../../../packages/core/src/stories/schema.ts";
 import {nativeFingerprint,nativeShot,validateNativeDraft} from "../../../packages/core/src/stories/native-chapter.ts";
 import {AurayError,aurayAuditionKey,aurayAuditionSchema,type AurayVideoProvider,type AurayInspection} from "./auray-video-provider.ts";

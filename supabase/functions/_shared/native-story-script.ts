@@ -9,9 +9,9 @@ import type {JobLogger} from "./logger.ts";
 import type {createServiceClient} from "./supabase-client.ts";
 
 export async function generateNativeStoryDraft(db:ReturnType<typeof createServiceClient>,logger:JobLogger,episode:string,context:unknown,production:{profile:unknown;profile_sha256:string}) {
-  const profile=nativeProfileSchema.parse(production.profile);
+  const profile=nativeProfileSchema.parse(production.profile),puter=profile.version==="puter-native-1.0.0";
   if(await sha256Hex(canonicalStringify(profile))!==production.profile_sha256)throw new AppError("O padrão nativo foi alterado",422,"PRODUCTION_PROFILE_INVALID");
-  const {data:prior,error:read}=await db.from("studio_native_preparations").select("episode_id").eq("episode_id",episode).maybeSingle();
+  const {data:prior,error:read}=await db.from(puter?"studio_puter_preparations":"studio_native_preparations").select("episode_id").eq("episode_id",episode).maybeSingle();
   if(read)throw new AppError("Plano nativo indisponível",503,"NATIVE_SETUP_REQUIRED");
   if(prior)return jsonResponse({episode_id:episode,native_chapter:true,code:"prepared"});
   let correction="";
@@ -19,7 +19,7 @@ export async function generateNativeStoryDraft(db:ReturnType<typeof createServic
     const result=await writeStory(db,logger,nativeChapterPrompt(context,profile)+(correction?`\nCorrija: ${correction}`:""),episode);
     let draft;
     try{draft=prepareNativeDraft(extractJson(result.text),context,profile);}catch(e){correction=e instanceof Error?e.message.slice(0,1200):"Rascunho inválido";continue;}
-    const {data,error}=await db.rpc("save_native_draft",{p_episode:episode,p_profile:production.profile_sha256,p_fingerprint:await nativeFingerprint(draft,context,profile),p_draft:draft});
+    const {data,error}=await db.rpc(puter?"save_puter_draft":"save_native_draft",{p_episode:episode,p_profile:production.profile_sha256,p_fingerprint:await nativeFingerprint(draft,context,profile),p_draft:draft});
     if(error)throw new AppError("Não foi possível salvar as tomadas planejadas",503,"NATIVE_DRAFT_SAVE_FAILED");
     return jsonResponse({episode_id:episode,native_chapter:true,code:data.code});
   }

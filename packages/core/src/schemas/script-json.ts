@@ -120,7 +120,9 @@ export const scriptJsonSchema = z
         const n = s.native_animation;
         if (!n || n.shot_id !== s.id || s.id !== `take_${s.order}` || !cast.has(n.character_id) || s.animation ||
           s.story_visual?.speaker_id !== n.character_id || s.story_visual.on_stage.length !== 1 || s.story_visual.on_stage[0] !== n.character_id ||
-          Math.abs(s.duration_seconds - n.frames/24) > 1e-9 || s.transition !== "cut" || s.ken_burns !== "static" || s.asset_landscape !== null || !s.asset_portrait ||
+          Math.abs(s.duration_seconds - n.frames/native.output_fps) > 1e-9 ||
+          (native.provider==="puter" ? n.frames<148||n.frames>152 : n.frames<116||n.frames>124) ||
+          s.transition !== "cut" || s.ken_burns !== "static" || s.asset_landscape !== null || !s.asset_portrait ||
           s.narration_text.trim().split(/\s+/).length < 3 || s.narration_text.trim().split(/\s+/).length > 8)
           ctx.addIssue({code:"custom",path:["scenes",s.order],message:"Tomada nativa exige clipe identificado, fala curta visível e duração medida sem conversão"});
       }
@@ -200,8 +202,8 @@ export const scriptJsonSchema = z
     // Regra 9 (ADR-006): duration_seconds é TARGET para o Gemini, não constraint de render
     const totalTarget = script.scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     if (
-      totalTarget < (native ? nativeShotCount(script.fiction!.context)*116/24 : animation ? ANIMATED_CHAPTER_SECONDS.min : TOTAL_DURATION_TARGET_SECONDS.min) - 1e-9 ||
-      totalTarget > (native ? nativeShotCount(script.fiction!.context)*124/24 : animation ? ANIMATED_CHAPTER_SECONDS.max : TOTAL_DURATION_TARGET_SECONDS.max) + 1e-9
+      totalTarget < (native ? nativeShotCount(script.fiction!.context)*(native.provider==="puter"?148/30:116/24) : animation ? ANIMATED_CHAPTER_SECONDS.min : TOTAL_DURATION_TARGET_SECONDS.min) - 1e-9 ||
+      totalTarget > (native ? nativeShotCount(script.fiction!.context)*(native.provider==="puter"?152/30:124/24) : animation ? ANIMATED_CHAPTER_SECONDS.max : TOTAL_DURATION_TARGET_SECONDS.max) + 1e-9
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

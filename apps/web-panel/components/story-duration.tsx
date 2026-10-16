@@ -1,16 +1,17 @@
 "use client";
 import {useRef,useState} from "react";
 type Wallet={id:string;label:string;native_enabled?:boolean;balance_fresh?:boolean;sync_failed?:boolean;budget_only_shots?:number|null;source_blockers?:string[]};
-export function StoryDuration({seriesId,shots,revision,frozenShots,wallets,onSaved}:{seriesId:string;shots:3|6|9;revision:number;frozenShots?:number;wallets:Wallet[];onSaved:()=>void}) {
+export function StoryDuration({seriesId,shots,revision,frozenShots,wallets,source="auray",onSaved}:{source?:"auray"|"puter";seriesId:string;shots:3|6|9;revision:number;frozenShots?:number;wallets:Wallet[];onSaved:()=>void}) {
  const [selected,setSelected]=useState(shots),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const request=useRef<{shots:number;id:string}|null>(null);
  return <section className="story-production-setup" aria-label="Duração e orçamento" data-format-revision={revision}>
   <h4>Duração e orçamento</h4>
-  <label>Duração dos próximos capítulos<select value={selected} disabled={busy} onChange={e=>{setSelected(Number(e.target.value) as 3|6|9);setNotice("");}}>{[3,6,9].map(n=><option key={n} value={n}>Aproximadamente {n*5}s · {n} cenas</option>)}</select></label>
-  <p><strong>Reserva por capítulo: {selected*5} créditos gratuitos Auray.</strong></p>
-  <p className="muted">Mais duração acrescenta cenas originais a 24 FPS, com áudio nativo. A escolha vale para capítulos ainda não preparados; o padrão visual e as referências permanecem os mesmos. Não há reserva de créditos ao salvar.</p>
-  {frozenShots!==undefined&&<p role="status">O capítulo já preparado mantém {frozenShots} cenas, aproximadamente {frozenShots*5}s e custo total de {frozenShots*5} créditos, inclusive numa nova tentativa dele.</p>}
-  {wallets.filter(w=>w.native_enabled).map(w=>{
+  <label>Duração dos próximos capítulos<select value={selected} disabled={busy} onChange={e=>{setSelected(Number(e.target.value) as 3|6|9);setNotice("");}}>{[3,6,9].map(n=><option key={n} value={n} disabled={source==="puter"&&n>3}>Aproximadamente {n*5}s · {n} cenas</option>)}</select></label>
+  <p><strong>Reserva por capítulo: {selected*(source==="puter"?330:5)} créditos {source==="puter"?"Puter (estimativa)":"gratuitos Auray"}.</strong></p>
+  <p className="muted">Mais duração acrescenta cenas originais a {source==="puter"?30:24} FPS, com áudio nativo. A escolha vale para capítulos ainda não preparados; o padrão visual e as referências permanecem os mesmos. Não há reserva de créditos ao salvar.</p>
+  {frozenShots!==undefined&&<p role="status">O capítulo já preparado mantém {frozenShots} cenas, aproximadamente {frozenShots*5}s e custo total de {frozenShots*(source==="puter"?330:5)} créditos{source==="puter"?" estimados":""}, inclusive numa nova tentativa dele.</p>}
+  {source==="puter"&&<p>A franquia mensal de 1.000 créditos comporta no máximo um capítulo estimado de 15s antes de outros consumos. Confira o saldo Puter acima. Não há troca automática de fonte.</p>}
+  {wallets.filter(w=>source==="auray"&&w.native_enabled).map(w=>{
     const fresh=w.balance_fresh===true&&!w.sync_failed&&w.budget_only_shots!=null;
     const count=fresh?Math.floor(w.budget_only_shots!/selected):null;
     return <p key={w.id}>{w.label}: {count===null?"atualize o saldo para estimar a capacidade":`até ${count} capítulo(s) de aproximadamente ${selected*5}s pelo orçamento confirmado, sem reserva para refações`}.{fresh&&!!w.source_blockers?.length&&" A conexão ainda tem pendências indicadas na seção de saldo."} Cada cena refeita exige até cinco créditos adicionais. As capacidades de outras fontes não são somadas.</p>;

@@ -59,6 +59,7 @@ jobs:
       - run: bash -n deploy.sh scripts/setup-piper.sh
       - name: Typecheck + testes (@content-ai/core)
         run: |
+          npx tsc --noEmit --strict --target ES2022 --module nodenext --moduleResolution nodenext --allowImportingTsExtensions --skipLibCheck scripts/run-puter-story-chapter.mts
           npm run typecheck
           npm test
           node scripts/test-render.mjs
@@ -108,6 +109,7 @@ jobs:
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/native-repair.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/native-duration.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/automatic-references.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/puter-account.sql -f supabase/tests/puter-panel.sql -f supabase/tests/puter-chapter.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
           pids=()
           for i in $(seq 1 12); do

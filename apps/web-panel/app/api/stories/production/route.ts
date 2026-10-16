@@ -5,6 +5,7 @@ import { seriesProductionProfileSchema,productionProfileHash } from "../../../..
 import { downloadProductionMedia } from "../../../../lib/production-storage";
 import {patternIdentity,patternQuery} from "../../../../lib/story-pattern";
 import {nativeProfileSchema,NATIVE_AURAY} from "../../../../../../packages/core/src/stories/native-contract";
+import {NATIVE_PUTER} from "../../../../../../packages/core/src/stories/puter-contract";
 import {canonicalStringify,sha256Hex} from "../../../../../../packages/core/src/validators/hash-utils";
 import {readVerifiedStorySample} from "../../../../lib/verified-private-media.mjs";
 export const dynamic="force-dynamic";
@@ -20,7 +21,7 @@ export async function POST(request:Request) {
       const pattern=patternIdentity(input.presentationRevision,input.styleId);
       if(!pattern || input.confirmed!==true || input.nativeVoices!==true || !Array.isArray(input.selection))throw new PanelError("Confira o exemplo e aceite as vozes nativas antes de salvar.",400);
       const view=await studioRpc("studio_story_pattern_view",{...args,p_revision:pattern.revision,p_style:pattern.style});
-      if(view.source!=="auray" || view.voice_policy!=="approved_variants" || !view.can_configure && !view.profile)throw new PanelError("Escolha Auray e permita versões de voz nas preferências da novela.",409);
+      if(!["auray","puter"].includes(view.source) || view.voice_policy!=="approved_variants" || !view.can_configure && !view.profile)throw new PanelError("Escolha uma fonte nativa e permita versões de voz nas preferências da novela.",409);
       const exampleId=uuid(input.exampleId);
       if(!view.native_examples?.some((s:{id:string})=>s.id===exampleId))throw new PanelError("Escolha um exemplo revisado desta fonte e deste estilo.",400);
       const example=await studioRpc("studio_story_style_media",{p_workspace:user.workspaceId,p_actor:user.id,p_id:exampleId}),cfg=config();
@@ -36,10 +37,11 @@ export async function POST(request:Request) {
         await downloadProductionMedia(row,user.workspaceId);
         references.push({character_id:c.id,path:row.path,sha256:row.sha256});voice_directions.push({character_id:c.id,description:selected.voice_description});
       }
-      const parsed=nativeProfileSchema.safeParse({version:NATIVE_AURAY.version,model:NATIVE_AURAY.model,contract_sha256:NATIVE_AURAY.contractSha256,
-        style:input.style,orientation:"portrait",output_fps:24,width:768,height:1344,references,voice_directions,example:{id:exampleId,sha256:example.sha256},voice_policy:"provider_generated_review",native_voice_acknowledged:true});
+      const engine=view.source==="puter"?NATIVE_PUTER:NATIVE_AURAY;
+      const parsed=nativeProfileSchema.safeParse({version:engine.version,model:engine.model,contract_sha256:engine.contractSha256,
+        style:input.style,orientation:"portrait",output_fps:view.source==="puter"?30:24,width:view.source==="puter"?720:768,height:view.source==="puter"?1280:1344,references,voice_directions,example:{id:exampleId,sha256:example.sha256},voice_policy:"provider_generated_review",native_voice_acknowledged:true});
       if(!parsed.success)throw new PanelError("Descreva o estilo em 30–700 caracteres e cada voz em 20–240 caracteres.",400);
-      return Response.json(await studioRpc("studio_native_pattern_finalize",{...args,p_revision:pattern.revision,p_style:pattern.style,p_profile:parsed.data,p_hash:await sha256Hex(canonicalStringify(parsed.data))}),{headers:{"Cache-Control":"no-store"}});
+      return Response.json(await studioRpc(view.source==="puter"?"studio_puter_pattern_finalize":"studio_native_pattern_finalize",{...args,p_revision:pattern.revision,p_style:pattern.style,p_profile:parsed.data,p_hash:await sha256Hex(canonicalStringify(parsed.data))}),{headers:{"Cache-Control":"no-store"}});
     }
     if(input.action==="voices") {
       const cfg=config();

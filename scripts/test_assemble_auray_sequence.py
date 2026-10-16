@@ -8,6 +8,25 @@ from assemble_auray_sequence import assemble, command, probe, sha
 
 
 class NativeMontageTest(unittest.TestCase):
+    def test_puter_30fps_keeps_original_pixels_and_audio_without_rate_conversion(self):
+        sources = []
+        for i in range(3):
+            path = self.directory / f"puter-{i}.mp4"
+            command(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=90x160:r=30:d=1.2",
+                     "-f", "lavfi", "-i", f"aevalsrc=0.25*sin(2*PI*({440+i*150}*t+80*t*t)):s=32000:d=1.2",
+                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", str(path)])
+            sources.append({"path": str(path), "sha256": sha(path), "speaker": f"puter-{i}"})
+        with self.assertRaises(ValueError):
+            assemble(sources, self.directory / "puter-wrong-grid")
+        result = assemble(sources, self.directory / "puter-native", fps=30)
+        self.assertEqual(result["frames"], 108)
+        self.assertEqual(result["encoded_fps"], 30)
+        self.assertAlmostEqual(result["seconds"], 3.6)
+        self.assertTrue(result["all_decoded_frames_pixel_identical"])
+        self.assertFalse(result["video_reencoded"])
+        for cut in result["cuts"]:
+            self.assertLess(abs(cut["audio_transport"]["measured_lag_seconds"]), .002)
+
     @classmethod
     def setUpClass(cls):
         cls.directory = Path(tempfile.mkdtemp(prefix="auray-native-montage-test-")).resolve()

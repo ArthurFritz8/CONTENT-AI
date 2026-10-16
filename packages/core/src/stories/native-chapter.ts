@@ -1,4 +1,4 @@
-import {nativeProfileSchema,nativeDraftSchema,nativeSceneSchema,NATIVE_AURAY} from "./native-contract.ts";
+import {nativeProfileSchema,nativeDraftSchema,nativeSceneSchema} from "./native-contract.ts";
 import {storyContextSchema,nativeShotCount} from "./schema.ts";
 import {scriptJsonSchema} from "../schemas/script-json.ts";
 import {canonicalStringify,sha256Hex} from "../validators/hash-utils.ts";
@@ -44,15 +44,16 @@ export function nativeShot(draft:unknown,context:unknown,profile:unknown,episode
 export async function buildNativeScript(args:{episode:string;context:unknown;profile:unknown;draft:unknown;clips:Array<{request_key:string;sha256:string;frames:number;path:string}>;origin:string}) {
  const c=storyContextSchema.parse(args.context),p=nativeProfileSchema.parse(args.profile),d=validateNativeDraft(args.draft,c,p);
  if(args.clips.length!==d.scenes.length || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(args.origin))throw Error("Montagem nativa incompleta");
- const profileHash=await sha256Hex(canonicalStringify(p));
+ const profileHash=await sha256Hex(canonicalStringify(p)),isPuter=p.output_fps===30;
  const scenes=d.scenes.map((s,i)=>{
   const clip=args.clips[i]!,reference=p.references.find(r=>r.character_id===s.visual.speaker_id)!;
   const binding=nativeSceneSchema.parse({shot_id:`take_${i}`,character_id:s.visual.speaker_id,reference_sha256:reference.sha256,request_key:clip.request_key,video_sha256:clip.sha256,frames:clip.frames});
+  if(isPuter?clip.frames<148||clip.frames>152:clip.frames<116||clip.frames>124)throw Error("Quadros incompatíveis com o motor do perfil");
   if(!clip.path.startsWith(`episodes/${args.episode}/native/`) || /\.\.|[?#\\]/.test(clip.path))throw Error("Mídia fora do capítulo");
-  return {id:binding.shot_id,order:i,role:i===0?"hook":i===d.scenes.length-1?"cta":"content",duration_seconds:clip.frames/24,narration_text:s.narration_text,transition:"cut",ken_burns:"static",visual:{description:s.prompt,search_query:"original native dialogue fiction"},story_visual:s.visual,native_animation:binding,
+  return {id:binding.shot_id,order:i,role:i===0?"hook":i===d.scenes.length-1?"cta":"content",duration_seconds:clip.frames/p.output_fps,narration_text:s.narration_text,transition:"cut",ken_burns:"static",visual:{description:s.prompt,search_query:"original native dialogue fiction"},story_visual:s.visual,native_animation:binding,
    asset_landscape:null,asset_portrait:{url:`${args.origin}/storage/v1/object/authenticated/studio-private/${clip.path}`,license:"generated",source:"system"},subtitle_position:"bottom_center",highlight_words:[],presenter:false};
  });
- const description=`Ficção original criada com IA. Vídeo MiniMax H3 via Auray. ${c.bible.title} — capítulo ${c.chapter_number}/${c.bible.chapters.length}. ${d.summary}`;
- return scriptJsonSchema.parse({episode_id:args.episode,prompt_version:"3.0.0",editorial_style:"storytelling_pessoal",fiction:{context:c,summary:d.summary,native_animation:{version:"1.0.0",provider:"auray",profile_sha256:profileHash,width:NATIVE_AURAY.width,height:NATIVE_AURAY.height,output_fps:24,voice_identity_preserved:false,speech_transcription_verified:false,human_review_required:true}},
+ const description=`Ficção original criada com IA. Vídeo ${isPuter?"Wan 2.7 via Puter":"MiniMax H3 via Auray"}. ${c.bible.title} — capítulo ${c.chapter_number}/${c.bible.chapters.length}. ${d.summary}`;
+ return scriptJsonSchema.parse({episode_id:args.episode,prompt_version:"3.0.0",editorial_style:"storytelling_pessoal",fiction:{context:c,summary:d.summary,native_animation:{version:"1.0.0",provider:isPuter?"puter":"auray",profile_sha256:profileHash,width:p.width,height:p.height,output_fps:p.output_fps,voice_identity_preserved:false,speech_transcription_verified:false,human_review_required:true}},
  metadata:{youtube:{title:d.title,description,tags:["ficção","novela","história original"],category:"24"},tiktok:{title:d.title,description,hashtags:["#Ficcao","#Novela","#CriadoComIA"]}},narration:{full_text:scenes.map(s=>s.narration_text).join(" "),language:"pt-BR",estimated_duration_seconds:scenes.reduce((n,s)=>n+s.duration_seconds,0)},scenes,gap_seconds:0,music:null,sources:[],disclosures:{contains_synthetic_media:true,commercial_content:false,commercial_disclosure_text:null}});
 }

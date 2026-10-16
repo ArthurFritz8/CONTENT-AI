@@ -12,6 +12,12 @@ export async function advancePipeline(
   if (error) throw new AppError("Erro ao selecionar trabalho", 500, "DB_ERROR");
   const episode = data?.[0];
   if (!episode) return null;
+  if(episode.status==="research" && episode.metadata?.puter_chapter===true) {
+    const {data:step,error}=await db.rpc("studio_puter_step",{p_episode:episode.id});
+    if(error)throw new AppError("Falha ao retomar as tomadas Puter",503,"NATIVE_STEP_FAILED");
+    if(step.code==="dispatch")await dispatchGithub("story-puter.yml",episode.id);
+    return {episode_id:episode.id,puter_chapter:true,...step};
+  }
   if(episode.status==="research" && episode.metadata?.native_chapter===true) {
     const {data:step,error}=await db.rpc("studio_native_step",{p_episode:episode.id});
     if(error)throw new AppError("Falha ao retomar as tomadas nativas",503,"NATIVE_STEP_FAILED");

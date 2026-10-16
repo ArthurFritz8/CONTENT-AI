@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Discovery } from "./discovery";
 import { StoryProductionSetup } from "./story-production-setup";
 import {StoryNativeSetup} from "./story-native-setup";
+import {StoryPuterSource,type PuterView} from "./story-puter-source";
 import {StoryDuration} from "./story-duration";
 import {StoryEditorial} from "./story-editorial";
 import {StoryReferenceSource} from "./story-reference-source";
@@ -21,7 +22,7 @@ type VideoWallet = { id: string; label: string; unit: string; remaining_units: n
   minimum_chapter_estimate?: { shots: number; planned_seconds: number; required_units: number; shortfall_units: number | null; comparison_only: true } };
 type Overview = { series: Series[]; remaining: number; daily_cap: number; generated_today: number; active: number; proposals_remaining: number; capacity: { unavailable?: boolean };
   animationProgress?: { chapters: Array<{ episode_id: string; completed_shots: number; total_shots: number; planned_seconds: number; output_fps: number; stage: string; prepared_audio?: number }>; unavailable?: boolean };
-  videoCapacity?: { wallets: VideoWallet[]; series_profiles: Array<{ series_id: string; profile_sha256: string; compatible_wallets: string[] }>; unavailable?: boolean;
+  videoCapacity?: { puter?:PuterView; wallets: VideoWallet[]; series_profiles: Array<{ series_id: string; profile_sha256: string; compatible_wallets: string[] }>; unavailable?: boolean;
     native_enabled?:boolean;native_chapters?:Array<{episode_id:string;completed_shots:number;total_shots:number;planned_seconds:number;output_fps:number;stage:string;last_code:string|null;cancel_requested:boolean;closed:boolean}>;
     patterns?:Array<{series_id:string;revision:number;style_id:StoryStyleId;profile_sha256:string}>;
     preparation_enabled?: boolean; chapter_quotes?: Array<{ episode_id:string; series_id:string; wallet_id:string; required_units:number; planned_seconds:number; can_reserve:boolean }> } };
@@ -60,6 +61,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   const [nativeShots,setNativeShots]=useState<3|6|9>(3);
   const [creationMode,setCreationMode] = useState<"manual" | "automatic">("manual");
   const [presentation,setPresentation]=useState(defaultStoryPresentation);
+  useEffect(()=>{if(presentation.source==="puter")setNativeShots(3);},[presentation.source]);
   const [chapterStyles,setChapterStyles]=useState<Record<string,StoryStyleId>>({});
   const [data,setData] = useState<Overview | null>(null), [error,setError] = useState(""), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false);
   const request = useRef<{ key: string; id: string } | null>(null);
@@ -90,7 +92,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   async function propose() {
     setBusy(true);setError("");setNotice("");
     try {
-      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation,...(presentation.source==="auray"?{native_shots:nativeShots}:{}) }, key = JSON.stringify(input);
+      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation,...(["auray","puter"].includes(presentation.source)?{native_shots:nativeShots}:{}) }, key = JSON.stringify(input);
       await jsonPost("/api/stories",{ action:"propose",input,requestId:requestId(key) });
       request.current=null;setVersion(v=>v+1);setNotice("Proposta criada. Confira os personagens e capítulos abaixo antes de gerar.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível criar a proposta."); }
@@ -140,6 +142,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
       </div>
     </section>
     {kind === "factual" ? <Discovery onSaved={onSaved}/> : <>
+      <StoryPuterSource view={data?.videoCapacity?.puter} onUpdated={()=>setVersion(v=>v+1)}/>
       <section className="panel studio-feature">
         <h2>{storyKinds[kind]}</h2>
         <p>Crie a proposta, confira o elenco e gere um capítulo por vez. Escolha o formato ilustrado ou configure imagens e vozes antes do primeiro capítulo para usar animação.</p>
@@ -179,7 +182,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
         </div>
         <div className="studio-form-grid">
           <label>Tom da história<select value={genre} onChange={e=>setGenre(e.target.value)}>{Object.entries(genres).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
-          {presentation.source==="auray"&&<label>Duração de cada capítulo<select value={nativeShots} onChange={e=>setNativeShots(Number(e.target.value) as 3|6|9)}>{[3,6,9].map(n=><option key={n} value={n}>Aproximadamente {n*5}s · {n} cenas · {n*5} créditos</option>)}</select></label>}
+          {["auray","puter"].includes(presentation.source)&&<label>Duração de cada capítulo<select value={nativeShots} onChange={e=>setNativeShots(Number(e.target.value) as 3|6|9)}>{[3,6,9].map(n=><option key={n} value={n} disabled={presentation.source==="puter"&&n>3}>Aproximadamente {n*5}s · {n} cenas · {n*(presentation.source==="puter"?330:5)} créditos{presentation.source==="puter"?" estimados":""}</option>)}</select></label>}
           <label>Quantidade de capítulos<select value={chapters} onChange={e=>setChapters(Number(e.target.value))}>{[1,3,6].map(n=><option key={n} value={n}>{n===1 ? "1 — história independente" : `${n} — minissérie`}</option>)}</select></label>
         </div>
         <label>{creationMode==="automatic" ? "Preferências (opcional)" : "Sua ideia"}<textarea rows={3} maxLength={1000} value={premise} onChange={e=>setPremise(e.target.value)} placeholder={creationMode==="automatic" ? "Pode deixar em branco ou sugerir: mistério na feira, amizade e uma grande revelação…" : kind==="fruits" ? "Uma maçã e uma laranja disputam a barraca da feira, mas encontram um segredo que muda a amizade…" : "Dois vizinhos encontram uma carta antiga e precisam decidir quem vai descobrir seu segredo…"}/></label>
@@ -196,11 +199,13 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           const production = !s.presentation && data?.videoCapacity?.series_profiles.find(p=>p.series_id===s.id);
           const chosenStyle=s.presentation && chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation?.preferences.primary_style;
           const pattern=s.presentation && data?.videoCapacity?.patterns?.find(p=>p.series_id===s.id && p.revision===s.presentation?.revision && p.style_id===chosenStyle);
-          const native=s.presentation?.preferences.source==="auray";
+          const puter=s.presentation?.preferences.source==="puter",sourceLabel=puter?"Puter (estimativa)":"Auray";
+          const native=puter||s.presentation?.preferences.source==="auray";
           const shots=(pending||retry?last?.native_shots:s.native_shots)??3;
-          const nativeCost=shots*5;
+          const nativeCost=shots*(puter?330:5);
           const stylePending=!retry && !!s.presentation && (chosenStyle==="illustrated"?presentationNeedsAdapter(s.presentation.preferences,chosenStyle):!(supportsPreparedPattern(s.presentation.preferences,chosenStyle!)||supportsNativePattern(s.presentation.preferences,chosenStyle!)) || !pattern);
-          const preparationPending=!!(production || pattern) && !(native?data?.videoCapacity?.native_enabled:data?.videoCapacity?.preparation_enabled);
+          const preparationPending=!!(production || pattern) && !(native?(puter?data?.videoCapacity?.puter?.enabled:data?.videoCapacity?.native_enabled):data?.videoCapacity?.preparation_enabled);
+          const puterBudgetBlocked=puter&&!waiting&&!pending&&!(shots===3&&data?.videoCapacity?.puter?.accounts.some(a=>a.balance_fresh&&a.financially_eligible&&!a.reserved&&(a.estimated_chapters??0)>0));
           const illustrativePreview=!production && (!s.presentation || s.presentation.preferences.primary_style==="illustrated");
           const context = {series_id:s.id,bible:s.bible,chapter_number:1,previous_summaries:[]};
           const preview = storyArtwork(context,{speaker_id:s.bible.cast[0]!.id,on_stage:s.bible.cast.map(c=>c.id),setting:"garden",mood:"happy"},"portrait");
@@ -220,11 +225,11 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
             </div></div>
             {!s.presentation && <StoryProductionSetup seriesId={s.id} onSaved={()=>setVersion(v=>v+1)}/>}
             {s.presentation?.preferences.allowed_styles.filter(id=>supportsPreparedPattern(s.presentation!.preferences,id)).map(id=><StoryProductionSetup key={`${s.presentation!.revision}:${id}`} seriesId={s.id} presentationRevision={s.presentation!.revision} styleId={id} onSaved={()=>setVersion(v=>v+1)}/>)}
-            {s.presentation?.preferences.allowed_styles.filter(id=>supportsNativePattern(s.presentation!.preferences,id)).map(id=><StoryNativeSetup key={`native:${s.presentation!.revision}:${id}`} seriesId={s.id} revision={s.presentation!.revision} styleId={id} onSaved={()=>setVersion(v=>v+1)}/>)}
-            {native&&s.presentation?.preferences.voice_policy==="preserve"&&<p role="status">A Auray gera vozes próprias. Para usar esta fonte, abra Estilo e fontes e escolha permitir versões de voz; depois confira o exemplo e confirme o padrão Auray.</p>}
+            {s.presentation?.preferences.allowed_styles.filter(id=>supportsNativePattern(s.presentation!.preferences,id)).map(id=><StoryNativeSetup key={`native:${s.presentation!.revision}:${id}`} seriesId={s.id} revision={s.presentation!.revision} styleId={id} source={puter?"puter":"auray"} onSaved={()=>setVersion(v=>v+1)}/>)}
+            {native&&s.presentation?.preferences.voice_policy==="preserve"&&<p role="status">{puter?"Puter":"Auray"} gera vozes próprias. Para usar esta fonte, abra Estilo e fontes e escolha permitir versões de voz; depois confira o exemplo e confirme o padrão da fonte.</p>}
             <StoryPresentationSettings seriesId={s.id} current={s.presentation ?? null} history={s.presentation_history ?? []} chapterActive={!!last && !last.approved} onSaved={()=>setVersion(v=>v+1)}/>
             {s.presentation?.preferences.continuity_mode==="per_chapter" && !last?.status?.includes("failed") && <label>Estilo para o próximo capítulo<select value={chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation.preferences.primary_style} onChange={e=>setChapterStyles(v=>({...v,[s.id]:e.target.value as StoryStyleId}))}>{s.presentation.preferences.allowed_styles.map(id=><option key={id} value={id}>{storyStyles.find(v=>v.id===id)?.label}</option>)}</select></label>}
-            {native&&<StoryDuration key={`${s.id}:${s.native_format_revision??0}`} seriesId={s.id} shots={s.native_shots??3} revision={s.native_format_revision??0} frozenShots={pending||waiting||retry?last?.native_shots??3:undefined} wallets={data?.videoCapacity?.wallets??[]} onSaved={()=>setVersion(v=>v+1)}/>}
+            {native&&<StoryDuration key={`${s.id}:${s.native_format_revision??0}`} seriesId={s.id} source={puter?"puter":"auray"} shots={s.native_shots??3} revision={s.native_format_revision??0} frozenShots={pending||waiting||retry?last?.native_shots??3:undefined} wallets={data?.videoCapacity?.wallets??[]} onSaved={()=>setVersion(v=>v+1)}/>}
             <StoryEditorial seriesId={s.id} onSaved={()=>setVersion(v=>v+1)}/>
             <div className="story-chapters">{s.chapters.map(c=>{
               const nativeProgress=data?.videoCapacity?.native_chapters?.find(p=>p.episode_id===c.episode_id);
@@ -237,7 +242,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
                 {nativeProgress&&!nativeProgress.closed&&c.status==="research"&&<><p className="muted">{nativeProgress.cancel_requested?"Encerrando: nenhuma nova tomada será enviada. Aguardando a confirmação dos envios e cobranças existentes.":nativeProgress.stage==="reconciliation_required"?"Um envio precisa de conferência. Retomar consulta o mesmo trabalho; não cria outra tomada.":nativeProgress.stage==="awaiting_capacity"?"Conferindo a franquia gratuita para as tomadas desta tentativa. As cenas já salvas serão preservadas.":"As cenas são geradas uma de cada vez. O áudio permanece original."}</p><button className="button small secondary" disabled={busy} onClick={()=>void nativeAction(c.episode_id!,"resume")}>Retomar acompanhamento</button>{!nativeProgress.cancel_requested&&<button className="button small secondary" disabled={busy} onClick={()=>void nativeAction(c.episode_id!,"cancel")}>Encerrar tentativa</button>}</>}
                 {c.episode_id && <Link className="button small secondary" href={`/studio/episodes/${c.episode_id}`}>{c.status==="review" ? "Revisar vídeo" : "Ver geração"}</Link>}</div>;
             })}</div>
-            <div className="studio-actions"><button className="button primary" disabled={busy || stylePending || preparationPending || waiting || finished || cancelled || !data || data.active>0 || data.remaining===0} onClick={()=>void next(s)}>{finished ? "História concluída" : cancelled ? "Capítulo cancelado" : waiting ? "Aguarde e revise o capítulo" : stylePending ? "Geração deste padrão em preparação" : preparationPending ? "Ativação da criação animada pendente" : retry ? `Gerar capítulo ${last!.number} novamente${native ? ` · ${nativeCost} créditos Auray` : ""}` : !last || pending ? `Gerar capítulo ${last?.number ?? 1}${native ? ` · ${nativeCost} créditos Auray` : ""}` : `Continuar história · capítulo ${last.number+1}${native ? ` · ${nativeCost} créditos Auray` : ""}`}</button><p className="muted">{waiting ? "A continuação usa o resumo da versão aprovada. Abra a geração para revisar ou consultar uma falha." : stylePending ? "Configure as imagens e vozes deste estilo, quando disponível. O sistema aguarda um padrão salvo e uma fonte validada; escolher o estilo não reserva créditos de vídeo." : native && pattern ? `${shots} tomadas com vozes nativas: reserva de ${nativeCost} créditos gratuitos e duração aproximada de ${nativeCost} segundos. Confira falas, aparência e sincronia antes de aprovar. Não há substituição automática por outro motor.` : production || pattern ? "As falas são preparadas primeiro. A animação aguarda orçamento para o capítulo completo. A publicação depende da sua aprovação." : "Só este capítulo será gerado. A publicação sempre depende da sua aprovação."}</p>
+            <div className="studio-actions"><button className="button primary" disabled={busy || stylePending || preparationPending || puterBudgetBlocked || waiting || finished || cancelled || !data || data.active>0 || data.remaining===0} onClick={()=>void next(s)}>{finished ? "História concluída" : cancelled ? "Capítulo cancelado" : waiting ? "Aguarde e revise o capítulo" : stylePending ? "Geração deste padrão em preparação" : preparationPending ? "Ativação da criação animada pendente" : puterBudgetBlocked ? "Atualize ou aguarde saldo Puter para um capítulo completo" : retry ? `Gerar capítulo ${last!.number} novamente${native ? ` · ${nativeCost} créditos ${sourceLabel}` : ""}` : !last || pending ? `Gerar capítulo ${last?.number ?? 1}${native ? ` · ${nativeCost} créditos ${sourceLabel}` : ""}` : `Continuar história · capítulo ${last.number+1}${native ? ` · ${nativeCost} créditos ${sourceLabel}` : ""}`}</button><p className="muted">{waiting ? "A continuação usa o resumo da versão aprovada. Abra a geração para revisar ou consultar uma falha." : stylePending ? "Configure as imagens e vozes deste estilo, quando disponível. O sistema aguarda um padrão salvo e uma fonte validada; escolher o estilo não reserva créditos de vídeo." : native && pattern ? `${shots} tomadas com vozes nativas: reserva de ${nativeCost} créditos gratuitos e duração aproximada de ${shots*5} segundos${puter?" (custo estimado, não cotação do provedor)":""}. Confira falas, aparência e sincronia antes de aprovar. Não há substituição automática por outro motor.` : production || pattern ? "As falas são preparadas primeiro. A animação aguarda orçamento para o capítulo completo. A publicação depende da sua aprovação." : "Só este capítulo será gerado. A publicação sempre depende da sua aprovação."}</p>
             {(!last || finished || retry || last.approved) && <button className="button secondary" disabled={busy} onClick={async()=>{
               setBusy(true);setError("");try { const d=await jsonPost("/api/stories",{action:"archive",seriesId:s.id});if(d.code!=="archived")throw Error("Conclua o capítulo pendente antes de arquivar.");setVersion(v=>v+1);setNotice("História arquivada. Seus vídeos permanecem em Gerações.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível arquivar.");}finally{setBusy(false);}
             }}>Arquivar história</button>}</div>

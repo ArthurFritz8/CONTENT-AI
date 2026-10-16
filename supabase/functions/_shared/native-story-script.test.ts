@@ -5,18 +5,20 @@ import {nativeFingerprint,prepareNativeDraft} from "../../../packages/core/src/s
 import {generateStoryScript} from "./story-script.ts";
 import {createServiceClient} from "./supabase-client.ts";
 import {JobLogger} from "./logger.ts";
+import {NATIVE_PUTER} from "../../../packages/core/src/stories/puter-contract.ts";
 
-for(const shots of [3,6,9] as const)Deno.test(`native writer freezes ${shots} visible dialogues once and never calls audio, animation or paid video`,async()=>{
+for(const provider of ["auray","puter"])for(const shots of (provider==="puter"?[3] as const:[3,6,9] as const))Deno.test(`${provider} writer freezes ${shots} visible dialogues once without video calls`,async()=>{
  const keys=["SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","CONTENT_AI_SERVICE_ROLE_KEY","GEMINI_API_KEY","OPENROUTER_API_KEY","CONTENT_AI_ANIMATION_PREPARATION_ENABLED"],previous=keys.map(k=>Deno.env.get(k)),original=globalThis.fetch;
  keys.forEach(k=>Deno.env.delete(k));Deno.env.set(keys[0],"https://story.supabase.co");Deno.env.set(keys[1],"test-service");Deno.env.set(keys[3],"test-gemini");
- const a=nativeFixtureInput(shots),profileHash=await sha256Hex(canonicalStringify(a.profile)),fingerprint=await nativeFingerprint(prepareNativeDraft(a.draft,a.context,a.profile),a.context,a.profile);
+ const a=nativeFixtureInput(shots),profile=provider==="puter"?{...a.profile,version:NATIVE_PUTER.version,model:NATIVE_PUTER.model,contract_sha256:NATIVE_PUTER.contractSha256,width:720,height:1280,output_fps:30}:a.profile;
+ const profileHash=await sha256Hex(canonicalStringify(profile)),fingerprint=await nativeFingerprint(prepareNativeDraft(a.draft,a.context,profile),a.context,profile);
  let saved=false,textCalls=0,saves=0;
  const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
  globalThis.fetch=(async(input,init)=>{
   const u=new URL(input instanceof Request?input.url:String(input)),body=init?.body?JSON.parse(String(init.body)):null;
-  if(u.pathname.endsWith("/rpc/studio_story_episode_profile"))return json({profile:a.profile,profile_sha256:profileHash});
-  if(u.pathname.endsWith("/studio_native_preparations"))return json(saved?{episode_id:a.episodeId}:null);
-  if(u.pathname.endsWith("/rpc/save_native_draft")){assertEquals(body.p_profile,profileHash);assertEquals(body.p_fingerprint,fingerprint);assertEquals(body.p_draft.scenes.length,shots);saved=true;saves++;return json({code:"prepared"});}
+  if(u.pathname.endsWith("/rpc/studio_story_episode_profile"))return json({profile,profile_sha256:profileHash});
+  if(u.pathname.endsWith(provider==="puter"?"/studio_puter_preparations":"/studio_native_preparations"))return json(saved?{episode_id:a.episodeId}:null);
+  if(u.pathname.endsWith(provider==="puter"?"/rpc/save_puter_draft":"/rpc/save_native_draft")){assertEquals(body.p_profile,profileHash);assertEquals(body.p_fingerprint,fingerprint);assertEquals(body.p_draft.scenes.length,shots);saved=true;saves++;return json({code:"prepared"});}
   if(u.pathname.endsWith("/system_config"))return json({value:{}});
   if(u.pathname.endsWith("/rpc/reserve_gemini_call"))return json(true);
   if(u.hostname==="generativelanguage.googleapis.com"){textCalls++;return json({candidates:[{content:{parts:[{text:JSON.stringify(a.draft)}]}}]});}

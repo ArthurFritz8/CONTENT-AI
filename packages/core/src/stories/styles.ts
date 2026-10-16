@@ -10,14 +10,14 @@ export const storyStyles = [
   {id:"realistic",label:"Realista",description:"Personagens e cenários com aparência fotográfica.",delivery:"animated"},
   {id:"motion_comic",label:"HQ com voz",description:"Quadros ilustrados, vozes, efeitos e movimentos de câmera. Não equivale a animação corporal contínua.",delivery:"comic"},
 ] as const;
-export const storySources = {automatic:"Automático: fontes compatíveis",modal:"Modal",auray:"Auray",local:"Renderizador próprio"} as const;
+export const storySources = {automatic:"Automático: fontes compatíveis",modal:"Modal",auray:"Auray",puter:"Puter",local:"Renderizador próprio"} as const;
 /** Preview availability is independent from selectable production sources. */
 export const storySampleSources = {...storySources,puter:"Puter"} as const;
 export const storyPresentationSchema = z.object({
   version:z.literal("1.0.0"), primary_style:z.enum(storyStyleIds),
   continuity_mode:z.enum(["fixed","per_chapter"]),
   allowed_styles:z.array(z.enum(storyStyleIds)).min(1).max(storyStyleIds.length),
-  source:z.enum(["automatic","modal","auray","local"]),
+  source:z.enum(["automatic","modal","auray","puter","local"]),
   voice_policy:z.enum(["preserve","approved_variants"]),
 }).strict().superRefine((v,ctx)=>{
   if(new Set(v.allowed_styles).size!==v.allowed_styles.length || !v.allowed_styles.includes(v.primary_style) ||
@@ -41,7 +41,7 @@ export function supportsPreparedPattern(p:StoryPresentation,chosen:StoryStyleId)
 }
 export function supportsNativePattern(p:StoryPresentation,chosen:StoryStyleId) {
   const value=storyPresentationSchema.parse(p);
-  return value.source==="auray" && value.voice_policy==="approved_variants" && value.allowed_styles.includes(chosen) && ["cinematic_3d","cartoon_2d","anime","realistic"].includes(chosen);
+  return ["auray","puter"].includes(value.source) && value.voice_policy==="approved_variants" && value.allowed_styles.includes(chosen) && ["cinematic_3d","cartoon_2d","anime","realistic"].includes(chosen);
 }
 export const storyStyleSampleSchema = z.object({
   id:z.string().uuid(),style_id:z.enum(storyStyleIds),source:z.enum(["modal","auray","local","puter"]),

@@ -23,11 +23,23 @@ const samples=JSON.parse(readFileSync(new URL('../../../../docs/stories/style-ga
 const nativeBytes=Buffer.from('isolated-native-example-bytes'),nativeHash=createHash('sha256').update(nativeBytes).digest('hex'),nativeExample=samples.find(s=>s.source==='auray');
 const samplePath=`${workspace}/story-samples/${nativeExample.id}/${nativeHash}.mp4`;files.set(samplePath,nativeBytes);
 const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
+const puterId='abababab-abab-4bab-8bab-abababababab';
+const puterView=()=>({enabled:true,accounts:[{id:puterId,remaining_credits:677.7,monthly_allowance:1000,checked_at:new Date().toISOString(),balance_fresh:true,financially_eligible:true,estimated_chapters:0,estimated_seconds:10,reserved:false,busy:false,sync_failed:false,blockers:[]}]});
 globalThis.fetch=async(input,init)=>{
  const u=new URL(input instanceof Request? input.url:String(input));
  // Every unexpected request is rejected, including external generation and storage.
+ if(u.origin==='https://api.puter.com'){
+  if(u.pathname==='/whoami')return json({uuid:'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',username:'fixture-puter',subscribed:false,subscription:null,is_temp:false,email_confirmed:true,requires_email_confirmation:false,requires_phone_verification:false,requires_card_verification:false,card_fallback_available:false});
+  if(u.pathname==='/metering/usage')return json({allowanceInfo:{remaining:677.7,monthUsageAllowance:1000,unit:'credits',addons:{}}});
+  if(u.pathname==='/df')return json({capacity:25000000,used:5000000});
+  if(u.pathname==='/drivers/call'&&JSON.parse(String(init.body)).method==='models')return json({success:true,result:[{id:'togetherai:wan-ai/wan2.7-i2v',provider:'together-video-generation',costs_currency:'usd-cents',costs:{'per-second':2},durationSeconds:[5],fps:[30],dimensions:['720P'],ratios:['9:16'],keyframes:['first']}]});
+  throw Error('fixture_generation_forbidden');
+ }
  if(u.origin!=='https://fixture.supabase.co')throw Error('fixture_egress_denied');
  const body=init?.body && !u.pathname.startsWith('/storage/')?JSON.parse(String(init.body)):{};
+ if(u.pathname==='/rest/v1/rpc/studio_puter_view'){if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_puter_foreign_scope');return json(puterView());}
+ if(u.pathname==='/rest/v1/rpc/claim_puter_inspection'){if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_account!==puterId)throw Error('fixture_puter_foreign_scope');return json({code:'claimed',credential:'fixture-only-not-a-real-token'});}
+ if(u.pathname==='/rest/v1/rpc/finish_puter_inspection'){if(body.p_observation?.financially_eligible!==true||body.p_observation?.remaining_credits!==677.7)throw Error('fixture_invalid_puter_observation');return new Response(null,{status:204});}
  if(u.pathname==='/rest/v1/rpc/studio_story_duration_save') {
   if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_series!==series||![3,6,9].includes(body.p_shots))throw Error('fixture_scope_mismatch');
   if(formatRequests.has(body.p_request))return json(formatRequests.get(body.p_request));
@@ -65,7 +77,7 @@ globalThis.fetch=async(input,init)=>{
  if(u.pathname==='/functions/v1/studio-story' && body.action==='capacity')return json({estimated_script_capacity:3});
  if(u.pathname==='/functions/v1/studio-story' && body.action==='native') {if(body.operation==='cancel')cancelRequested=true;return json({code:'waiting_for_runner'});}
  if(u.pathname==='/rest/v1/rpc/studio_story_style_gallery')return json(samples);
- if(u.pathname==='/rest/v1/rpc/studio_video_overview')return json({wallets:[{id:'99999999-9999-4999-8999-999999999999',label:'Auray fixture',unit:'credits',remaining_units:50,reserved_units:5,available_units:45,balance_fresh:true,native_enabled:true,budget_only_shots:9,native_budget_chapters:3,source_blockers:[]}],series_profiles:[],patterns:patterns.map(({profile,...p})=>p),preparation_enabled:false,native_enabled:true,native_chapters:nativeChapter?[{episode_id:nativeChapter.episode_id,total_shots:3,completed_shots:0,planned_seconds:15,output_fps:24,stage:cancelRequested?'cancellation_pending':'awaiting_capacity',cancel_requested:cancelRequested,closed:false,last_code:null}]:[]});
+ if(u.pathname==='/rest/v1/rpc/studio_video_overview')return json({puter:puterView(),wallets:[{id:'99999999-9999-4999-8999-999999999999',label:'Auray fixture',unit:'credits',remaining_units:50,reserved_units:5,available_units:45,balance_fresh:true,native_enabled:true,budget_only_shots:9,native_budget_chapters:3,source_blockers:[]}],series_profiles:[],patterns:patterns.map(({profile,...p})=>p),preparation_enabled:false,native_enabled:true,native_chapters:nativeChapter?[{episode_id:nativeChapter.episode_id,total_shots:3,completed_shots:0,planned_seconds:15,output_fps:24,stage:cancelRequested?'cancellation_pending':'awaiting_capacity',cancel_requested:cancelRequested,closed:false,last_code:null}]:[]});
  if(u.pathname==='/rest/v1/rpc/studio_animated_progress')return json({chapters:[]});
  if(u.pathname==='/rest/v1/rpc/studio_story_overview')return json({series:[{id:series,bible,native_shots:formatShots,native_format_revision:formatRevision,chapters:nativeChapter?[nativeChapter]:[],presentation:versions.at(-1),presentation_history:versions}],daily_cap:3,daily_remaining:3,generated_today:0,active:nativeChapter?1:0,proposals_remaining:3});
  if(u.pathname==='/rest/v1/rpc/studio_story_next_presented'){if(!nativeChapter)nativeChapter={number:1,native_shots:formatShots,idea_id:'66666666-6666-4666-8666-666666666666',revision:1,idea_status:'pending',episode_id:null,status:null,approved:false,style_id:'cinematic_3d',presentation_revision:versions.at(-1).revision};return json({code:'queued',chapter_number:1,idea_id:nativeChapter.idea_id});}

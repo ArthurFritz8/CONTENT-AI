@@ -14,8 +14,7 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
     onChange({...value,primary_style:id,allowed_styles:value.continuity_mode==="fixed" ? [id] : [...new Set([...value.allowed_styles,id])]});
   }
   function chooseSample(s:Sample) {
-    if(s.source==="puter")return;
-    onChange({...value,primary_style:s.style_id,allowed_styles:value.continuity_mode==="fixed" ? [s.style_id] : [...new Set([...value.allowed_styles,s.style_id])],source:s.source,...(s.source==="auray"?{voice_policy:"approved_variants" as const}:{})});
+    onChange({...value,primary_style:s.style_id,allowed_styles:value.continuity_mode==="fixed" ? [s.style_id] : [...new Set([...value.allowed_styles,s.style_id])],source:s.source,...(["auray","puter"].includes(s.source)?{voice_policy:"approved_variants" as const}:{})});
   }
   return <fieldset className="story-styles" disabled={disabled}>
     <legend>Escolha como sua novela vai parecer</legend>
@@ -31,7 +30,7 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
           <p><strong>{s.title}</strong></p><p className="muted">{s.model} · {s.width} × {s.height} · entrega {s.output_fps} FPS{s.native_fps ? ` · animação nativa ${s.native_fps} FPS` : " · fluidez nativa não aferida"}.</p>
           <p className="muted">{s.motion==="interpolated" ? "Há interpolação de quadros na entrega." : s.motion==="mixed" ? "Combina animação com planos sobre imagens; FPS de entrega não mede atuação." : s.motion==="illustrated" ? "Imagens com montagem e câmera digital." : "Vídeo gerado, sem interpolação nesta amostra."} {s.review_scope==="reviewed_sample" ? "Aprovação limitada a esta amostra." : "Verificação técnica; revisão artística pendente."}</p>
           <ul>{s.limitations.map((text,i)=><li key={i}>{text}</li>)}</ul>
-          {s.source==="puter" ? <p role="status">Puter: prévia aprovada. A criação de capítulos por essa fonte está em preparação.</p> : <button type="button" className="button secondary" onClick={()=>chooseSample(s)}>{s.source==="auray"?"Planejar com este exemplo e vozes nativas":"Planejar com este estilo e fonte"}</button>}
+          {<button type="button" className="button secondary" onClick={()=>chooseSample(s)}>{["auray","puter"].includes(s.source)?"Planejar com este exemplo e vozes nativas":"Planejar com este estilo e fonte"}</button>}
         </details>)}
       </article>;
     })}</div>
@@ -50,6 +49,6 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
       <option value="preserve">Preservar as vozes aprovadas</option><option value="approved_variants">Permitir versões de voz após ouvir e aprovar</option>
     </select></label>
     <p className="muted">No automático, a fonte só pode mudar se for compatível com a novela. Uma fonte fixada aguarda saldo e integração; não é substituída escondida. Permitir versões de voz não aprova automaticamente uma voz nova.</p>
-    {supportsNativePattern(value,value.primary_style) ? <p role="status">Depois de criar a proposta, confira as imagens e o exemplo de voz na configuração Auray. Cada capítulo de cerca de 15 segundos exige 15 créditos gratuitos e revisão. Nenhuma geração começa ao escolher este estilo.</p> : presentationNeedsAdapter(value) && <p role="status">Você pode criar a proposta neste estilo. A geração de capítulos ainda depende de integração e validação deste padrão; o sistema não substituirá sua escolha pelo ilustrado clássico.</p>}
+    {supportsNativePattern(value,value.primary_style) ? <p role="status">Depois de criar a proposta, confira as imagens e o exemplo de voz na configuração da fonte escolhida. {value.source==="puter"?"A reserva estimada é de 990 créditos para 15 segundos; a franquia mensal é compartilhada com outros usos da conta.":"Cada capítulo de cerca de 15 segundos exige 15 créditos gratuitos."} Todo capítulo exige revisão. Nenhuma geração começa ao escolher este estilo.</p> : presentationNeedsAdapter(value) && <p role="status">Você pode criar a proposta neste estilo. A geração de capítulos ainda depende de integração e validação deste padrão; o sistema não substituirá sua escolha pelo ilustrado clássico.</p>}
   </fieldset>;
 }
