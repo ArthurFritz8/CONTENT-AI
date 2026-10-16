@@ -2,7 +2,9 @@
 
 ## Resultado e estado do projeto
 
-**Ainda não existe uma segunda fonte gratuita de vídeo habilitada para capítulos.** Auray tem piloto aprovado e integração real; a última inspeção autenticada de 16/10 encontrou saldo zero. Modal permanece desativado. Cloudflare está conectado para imagens e não gera os vídeos deste fluxo. O teste de imagem Cloudflare não preservou a identidade da Malu e não substituiu suas referências aprovadas.
+**Estado atualizado em 16/10, após a pesquisa inicial:** Puter já possui integração de capítulos no painel e worker, descrita no [ADR-086](../ADR/ADR-086-capitulos-puter-com-franquia-recorrente.md). A amostra de cinco segundos está aprovada; a avaliação artística de um capítulo completo aguarda saldo. Os parágrafos seguintes preservam as observações da descoberta e não substituem o contrato implementado. A busca posterior por outra fonte está na [pesquisa da terceira fonte](terceira-fonte-video-2026-10-16.md).
+
+Auray tem piloto aprovado e integração real; a última inspeção autenticada de 16/10 encontrou saldo zero. Modal permanece desativado. Cloudflare está conectado para imagens e não gera os vídeos deste fluxo. O teste de imagem Cloudflare não preservou a identidade da Malu e não substituiu suas referências aprovadas.
 
 **Atualização após autorização e aprovação do usuário:** o primeiro teste real Puter gerou cinco segundos em 720×1280, 30 FPS e áudio, usando a referência aprovada. O usuário aprovou a amostra e sua prévia será adicionada à galeria privada ([ADR-085](../ADR/ADR-085-previa-puter-aprovada-na-galeria.md)). O saldo mais recente observado é de aproximadamente 677,7 créditos. Detalhes, custos, limites e retomada no [relatório do teste](puter-malu-audition-2026-10-16.md). As descrições abaixo preservam o estágio inicial de descoberta; não habilitam produção.
 
