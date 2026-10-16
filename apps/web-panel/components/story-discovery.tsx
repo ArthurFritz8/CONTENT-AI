@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Discovery } from "./discovery";
 import { StoryProductionSetup } from "./story-production-setup";
 import {StoryNativeSetup} from "./story-native-setup";
+import {StoryDuration} from "./story-duration";
 import {StoryEditorial} from "./story-editorial";
 import {StoryReferenceSource} from "./story-reference-source";
 import {StoryStyleSelector} from "./story-style-selector";
@@ -11,8 +12,8 @@ import {StoryPresentationSettings,type PresentationVersion} from "./story-presen
 import {defaultStoryPresentation,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
 import { storyArtwork } from "../../../packages/core/src/stories/art";
 import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories/schema";
-type Chapter = { number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean;style_id?:StoryStyleId|null;presentation_revision?:number|null };
-type Series = { id: string; bible: SeriesBible; chapters: Chapter[];presentation?:PresentationVersion|null;presentation_history?:PresentationVersion[] };
+type Chapter = { native_shots?:3|6|9; number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean;style_id?:StoryStyleId|null;presentation_revision?:number|null };
+type Series = { native_shots?:3|6|9; native_format_revision?:number; id: string; bible: SeriesBible; chapters: Chapter[];presentation?:PresentationVersion|null;presentation_history?:PresentationVersion[] };
 type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null; balance_kind?: string; billing_may_lag?: boolean; source_ready?: boolean; balance_fresh?: boolean; source_blockers?: string[];
   candidate?:boolean;monthly_allowance?:number|null;period?:string|null;sync_failed?:boolean;sync_running?:boolean;budget_only_shots?:number|null;
   native_enabled?:boolean;native_budget_chapters?:number|null;
@@ -56,6 +57,7 @@ const nativeMessages:Record<string,string>={complete_chapter_budget_required:"O 
 export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refresh: number }) {
   const [kind,setKind] = useState<"factual" | "original" | "fruits">("factual");
   const [premise,setPremise] = useState(""), [genre,setGenre] = useState("comedy"), [chapters,setChapters] = useState(3);
+  const [nativeShots,setNativeShots]=useState<3|6|9>(3);
   const [creationMode,setCreationMode] = useState<"manual" | "automatic">("manual");
   const [presentation,setPresentation]=useState(defaultStoryPresentation);
   const [chapterStyles,setChapterStyles]=useState<Record<string,StoryStyleId>>({});
@@ -88,7 +90,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   async function propose() {
     setBusy(true);setError("");setNotice("");
     try {
-      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation }, key = JSON.stringify(input);
+      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation,...(presentation.source==="auray"?{native_shots:nativeShots}:{}) }, key = JSON.stringify(input);
       await jsonPost("/api/stories",{ action:"propose",input,requestId:requestId(key) });
       request.current=null;setVersion(v=>v+1);setNotice("Proposta criada. Confira os personagens e capítulos abaixo antes de gerar.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível criar a proposta."); }
@@ -154,7 +156,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
             {w.candidate && <>
               <p className="muted">Franquia mensal: {w.monthly_allowance==null ? "não confirmada" : `${w.monthly_allowance} créditos gratuitos`}{w.period ? ` · período ${w.period}` : ""}. {w.native_enabled ? "Diálogo nativo disponível com aceite de vozes variáveis e revisão." : "Esta fonte ainda está em avaliação para capítulos."}</p>
               {w.sync_failed && <p role="status">A última consulta não terminou. O saldo anterior foi preservado como histórico. Tente atualizar novamente; os mesmos trabalhos serão consultados.</p>}
-              {w.native_enabled && <p>Capítulo Auray: três tomadas de aproximadamente 5 segundos, a 15 créditos gratuitos no total. {w.native_budget_chapters==null?"Atualize o saldo para consultar o orçamento.":`O último saldo, após reservas, comporta até ${w.native_budget_chapters} capítulo(s), sem margem para novas tentativas.`} Esta capacidade não é somada ao Modal. Cada capítulo exige revisão.</p>}
+              {w.native_enabled && <p>Referência de capacidade: capítulo Auray de 15s, com três tomadas e custo de 15 créditos gratuitos. Para 30 ou 45s, confira a capacidade na própria novela. {w.native_budget_chapters==null?"Atualize o saldo para consultar o orçamento.":`O último saldo, após reservas, comporta até ${w.native_budget_chapters} capítulo(s), sem margem para novas tentativas.`} Esta capacidade não é somada ao Modal. Cada capítulo exige revisão.</p>}
               {w.budget_only_shots!=null && !w.native_enabled && <p>Comparação de orçamento: até {w.budget_only_shots} tomada(s) de 5 segundos ({w.budget_only_shots*5} segundos brutos), a 5 créditos cada. Isso não inclui novas tentativas nem garante capítulos completos. Esse valor não é somado ao Modal.</p>}
               {!!w.jobs?.length && <details><summary>Testes e trabalhos existentes ({w.jobs.length})</summary><p className="muted">A retomada consulta o mesmo envio e recolhe o vídeo concluído. Não cria outra geração. Prévias preservam o áudio e os quadros originais; não certificam continuidade.</p>
                 {w.jobs.map(j=><div key={j.id}><p><strong>{j.label}</strong> · {j.ready ? "Teste disponível para revisão" : candidateJobStatus[j.status] || "Consulta pendente"} · {j.charged_credits} créditos{!j.settled ? " (cobrança ainda não liquidada)" : ""}</p>
@@ -177,6 +179,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
         </div>
         <div className="studio-form-grid">
           <label>Tom da história<select value={genre} onChange={e=>setGenre(e.target.value)}>{Object.entries(genres).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
+          {presentation.source==="auray"&&<label>Duração de cada capítulo<select value={nativeShots} onChange={e=>setNativeShots(Number(e.target.value) as 3|6|9)}>{[3,6,9].map(n=><option key={n} value={n}>Aproximadamente {n*5}s · {n} cenas · {n*5} créditos</option>)}</select></label>}
           <label>Quantidade de capítulos<select value={chapters} onChange={e=>setChapters(Number(e.target.value))}>{[1,3,6].map(n=><option key={n} value={n}>{n===1 ? "1 — história independente" : `${n} — minissérie`}</option>)}</select></label>
         </div>
         <label>{creationMode==="automatic" ? "Preferências (opcional)" : "Sua ideia"}<textarea rows={3} maxLength={1000} value={premise} onChange={e=>setPremise(e.target.value)} placeholder={creationMode==="automatic" ? "Pode deixar em branco ou sugerir: mistério na feira, amizade e uma grande revelação…" : kind==="fruits" ? "Uma maçã e uma laranja disputam a barraca da feira, mas encontram um segredo que muda a amizade…" : "Dois vizinhos encontram uma carta antiga e precisam decidir quem vai descobrir seu segredo…"}/></label>
@@ -194,6 +197,8 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           const chosenStyle=s.presentation && chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation?.preferences.primary_style;
           const pattern=s.presentation && data?.videoCapacity?.patterns?.find(p=>p.series_id===s.id && p.revision===s.presentation?.revision && p.style_id===chosenStyle);
           const native=s.presentation?.preferences.source==="auray";
+          const shots=(pending||retry?last?.native_shots:s.native_shots)??3;
+          const nativeCost=shots*5;
           const stylePending=!retry && !!s.presentation && (chosenStyle==="illustrated"?presentationNeedsAdapter(s.presentation.preferences,chosenStyle):!(supportsPreparedPattern(s.presentation.preferences,chosenStyle!)||supportsNativePattern(s.presentation.preferences,chosenStyle!)) || !pattern);
           const preparationPending=!!(production || pattern) && !(native?data?.videoCapacity?.native_enabled:data?.videoCapacity?.preparation_enabled);
           const illustrativePreview=!production && (!s.presentation || s.presentation.preferences.primary_style==="illustrated");
@@ -219,6 +224,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
             {native&&s.presentation?.preferences.voice_policy==="preserve"&&<p role="status">A Auray gera vozes próprias. Para usar esta fonte, abra Estilo e fontes e escolha permitir versões de voz; depois confira o exemplo e confirme o padrão Auray.</p>}
             <StoryPresentationSettings seriesId={s.id} current={s.presentation ?? null} history={s.presentation_history ?? []} chapterActive={!!last && !last.approved} onSaved={()=>setVersion(v=>v+1)}/>
             {s.presentation?.preferences.continuity_mode==="per_chapter" && !last?.status?.includes("failed") && <label>Estilo para o próximo capítulo<select value={chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation.preferences.primary_style} onChange={e=>setChapterStyles(v=>({...v,[s.id]:e.target.value as StoryStyleId}))}>{s.presentation.preferences.allowed_styles.map(id=><option key={id} value={id}>{storyStyles.find(v=>v.id===id)?.label}</option>)}</select></label>}
+            {native&&<StoryDuration key={`${s.id}:${s.native_format_revision??0}`} seriesId={s.id} shots={s.native_shots??3} revision={s.native_format_revision??0} frozenShots={pending||waiting||retry?last?.native_shots??3:undefined} wallets={data?.videoCapacity?.wallets??[]} onSaved={()=>setVersion(v=>v+1)}/>}
             <StoryEditorial seriesId={s.id} onSaved={()=>setVersion(v=>v+1)}/>
             <div className="story-chapters">{s.chapters.map(c=>{
               const nativeProgress=data?.videoCapacity?.native_chapters?.find(p=>p.episode_id===c.episode_id);
@@ -231,7 +237,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
                 {nativeProgress&&!nativeProgress.closed&&c.status==="research"&&<><p className="muted">{nativeProgress.cancel_requested?"Encerrando: nenhuma nova tomada será enviada. Aguardando a confirmação dos envios e cobranças existentes.":nativeProgress.stage==="reconciliation_required"?"Um envio precisa de conferência. Retomar consulta o mesmo trabalho; não cria outra tomada.":nativeProgress.stage==="awaiting_capacity"?"Conferindo a franquia gratuita para as tomadas desta tentativa. As cenas já salvas serão preservadas.":"As cenas são geradas uma de cada vez. O áudio permanece original."}</p><button className="button small secondary" disabled={busy} onClick={()=>void nativeAction(c.episode_id!,"resume")}>Retomar acompanhamento</button>{!nativeProgress.cancel_requested&&<button className="button small secondary" disabled={busy} onClick={()=>void nativeAction(c.episode_id!,"cancel")}>Encerrar tentativa</button>}</>}
                 {c.episode_id && <Link className="button small secondary" href={`/studio/episodes/${c.episode_id}`}>{c.status==="review" ? "Revisar vídeo" : "Ver geração"}</Link>}</div>;
             })}</div>
-            <div className="studio-actions"><button className="button primary" disabled={busy || stylePending || preparationPending || waiting || finished || cancelled || !data || data.active>0 || data.remaining===0} onClick={()=>void next(s)}>{finished ? "História concluída" : cancelled ? "Capítulo cancelado" : waiting ? "Aguarde e revise o capítulo" : stylePending ? "Geração deste padrão em preparação" : preparationPending ? "Ativação da criação animada pendente" : retry ? `Gerar capítulo ${last!.number} novamente${native ? " · 15 créditos Auray" : ""}` : !last || pending ? `Gerar capítulo ${last?.number ?? 1}${native ? " · 15 créditos Auray" : ""}` : `Continuar história · capítulo ${last.number+1}${native ? " · 15 créditos Auray" : ""}`}</button><p className="muted">{waiting ? "A continuação usa o resumo da versão aprovada. Abra a geração para revisar ou consultar uma falha." : stylePending ? "Configure as imagens e vozes deste estilo, quando disponível. O sistema aguarda um padrão salvo e uma fonte validada; escolher o estilo não reserva créditos de vídeo." : native && pattern ? "Três tomadas com vozes nativas: reserva de 15 créditos gratuitos e duração aproximada de 15 segundos. Confira falas, aparência e sincronia antes de aprovar. Não há substituição automática por outro motor." : production || pattern ? "As falas são preparadas primeiro. A animação aguarda orçamento para o capítulo completo. A publicação depende da sua aprovação." : "Só este capítulo será gerado. A publicação sempre depende da sua aprovação."}</p>
+            <div className="studio-actions"><button className="button primary" disabled={busy || stylePending || preparationPending || waiting || finished || cancelled || !data || data.active>0 || data.remaining===0} onClick={()=>void next(s)}>{finished ? "História concluída" : cancelled ? "Capítulo cancelado" : waiting ? "Aguarde e revise o capítulo" : stylePending ? "Geração deste padrão em preparação" : preparationPending ? "Ativação da criação animada pendente" : retry ? `Gerar capítulo ${last!.number} novamente${native ? ` · ${nativeCost} créditos Auray` : ""}` : !last || pending ? `Gerar capítulo ${last?.number ?? 1}${native ? ` · ${nativeCost} créditos Auray` : ""}` : `Continuar história · capítulo ${last.number+1}${native ? ` · ${nativeCost} créditos Auray` : ""}`}</button><p className="muted">{waiting ? "A continuação usa o resumo da versão aprovada. Abra a geração para revisar ou consultar uma falha." : stylePending ? "Configure as imagens e vozes deste estilo, quando disponível. O sistema aguarda um padrão salvo e uma fonte validada; escolher o estilo não reserva créditos de vídeo." : native && pattern ? `${shots} tomadas com vozes nativas: reserva de ${nativeCost} créditos gratuitos e duração aproximada de ${nativeCost} segundos. Confira falas, aparência e sincronia antes de aprovar. Não há substituição automática por outro motor.` : production || pattern ? "As falas são preparadas primeiro. A animação aguarda orçamento para o capítulo completo. A publicação depende da sua aprovação." : "Só este capítulo será gerado. A publicação sempre depende da sua aprovação."}</p>
             {(!last || finished || retry || last.approved) && <button className="button secondary" disabled={busy} onClick={async()=>{
               setBusy(true);setError("");try { const d=await jsonPost("/api/stories",{action:"archive",seriesId:s.id});if(d.code!=="archived")throw Error("Conclua o capítulo pendente antes de arquivar.");setVersion(v=>v+1);setNotice("História arquivada. Seus vídeos permanecem em Gerações.");}catch(e){setError(e instanceof Error?e.message:"Não foi possível arquivar.");}finally{setBusy(false);}
             }}>Arquivar história</button>}</div>

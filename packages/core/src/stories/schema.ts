@@ -2,6 +2,9 @@ import { z } from "zod";
 import { storyDirectionSchema } from "./direction.ts";
 import { storyPresentationSchema } from "./styles.ts";
 
+export const nativeShotCountSchema = z.union([z.literal(3),z.literal(6),z.literal(9)]);
+export function nativeShotCount(context:{native_format?:{shots:3|6|9}}) {return context.native_format?.shots ?? 3;}
+
 export const storyKinds = { original: "Histórias originais", fruits: "Novela de frutas" } as const;
 export const storyRequestSchema = z.object({
   kind: z.enum(["original", "fruits"]),
@@ -10,6 +13,7 @@ export const storyRequestSchema = z.object({
   premise: z.string().trim().max(1000).default(""),
   chapters: z.number().int().min(1).max(6),
   presentation:storyPresentationSchema.optional(),
+  native_shots:nativeShotCountSchema.optional(),
 }).superRefine((v, ctx) => {
   if (v.creation_mode === "manual" && v.premise.length < 30)
     ctx.addIssue({ code: "custom", path: ["premise"], message: "Descreva sua ideia em pelo menos 30 caracteres" });
@@ -58,6 +62,7 @@ export const storyContextSchema = z.object({
   series_id: z.string().uuid(), bible: seriesBibleSchema,
   chapter_number: z.number().int().min(1).max(60),
   previous_summaries: z.array(z.string().min(30).max(1200)).max(59),
+  native_format:z.object({shots:nativeShotCountSchema}).strict().optional(),
   editorial: z.object({revision:z.number().int().positive(),guidance:z.string().max(1000),
     memory:z.object({relationships:z.string().max(1500),secrets:z.string().max(1500),
       characters:z.string().max(1500),setting:z.string().max(1500),open_threads:z.string().max(1500)}).strict(),

@@ -20,7 +20,7 @@ export async function generateNativeStoryDraft(db:ReturnType<typeof createServic
     let draft;
     try{draft=prepareNativeDraft(extractJson(result.text),context,profile);}catch(e){correction=e instanceof Error?e.message.slice(0,1200):"Rascunho inválido";continue;}
     const {data,error}=await db.rpc("save_native_draft",{p_episode:episode,p_profile:production.profile_sha256,p_fingerprint:await nativeFingerprint(draft,context,profile),p_draft:draft});
-    if(error)throw new AppError("Não foi possível salvar as três tomadas",503,"NATIVE_DRAFT_SAVE_FAILED");
+    if(error)throw new AppError("Não foi possível salvar as tomadas planejadas",503,"NATIVE_DRAFT_SAVE_FAILED");
     return jsonResponse({episode_id:episode,native_chapter:true,code:data.code});
   }
   await markEpisodeFailed(db,logger,episode,"native_draft_invalid",correction,"research");

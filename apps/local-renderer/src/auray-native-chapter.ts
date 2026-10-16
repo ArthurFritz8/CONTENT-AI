@@ -1,14 +1,14 @@
 /** Durable native-dialogue executor. No fallback provider, episode approval or publishing. */
 import {z} from "zod";
-import {nativeProfileSchema,nativeDraftSchema,NATIVE_AURAY} from "../../../packages/core/src/stories/native-contract.ts";
-import {storyContextSchema} from "../../../packages/core/src/stories/schema.ts";
+import {nativeProfileSchema,nativeDraftSchema} from "../../../packages/core/src/stories/native-contract.ts";
+import {storyContextSchema,nativeShotCount} from "../../../packages/core/src/stories/schema.ts";
 import {nativeFingerprint,nativeShot,validateNativeDraft} from "../../../packages/core/src/stories/native-chapter.ts";
 import {AurayError,aurayAuditionKey,aurayAuditionSchema,type AurayVideoProvider,type AurayInspection} from "./auray-video-provider.ts";
 
 const sha=z.string().regex(/^[a-f0-9]{64}$/);
 export const nativeClipSchema=z.object({request_key:sha,sha256:sha,frames:z.number().int().min(116).max(124),path:z.string().max(500)}).strict();
 export type NativeClip=z.infer<typeof nativeClipSchema>;
-export const nativeReuseSchema=z.object({index:z.number().int().min(0).max(2),episode_id:z.string().uuid(),clip:nativeClipSchema}).strict();
+export const nativeReuseSchema=z.object({index:z.number().int().min(0).max(8),episode_id:z.string().uuid(),clip:nativeClipSchema}).strict();
 const taskSchema=z.object({request_key:sha,job_id:z.string().regex(/^video_[a-f0-9]{64}$/),
   phase:z.enum(["planned","submission_started","submitted","submission_unknown","rejected","waiting","failed","ready"]),
   charged_credits:z.number().int().min(0).max(5),settled:z.boolean(),clip:nativeClipSchema.nullable(),error_code:z.string().regex(/^[a-z_]{1,80}$/).nullable(),
@@ -19,8 +19,8 @@ export const nativeRunSchema=z.object({version:z.literal(1),episode_id:z.string(
   reserved_at:z.string().datetime(),
   profile:nativeProfileSchema,context:storyContextSchema,draft:nativeDraftSchema,
   account_id:z.string().uuid(),key_id:z.string().min(1).max(200),period:z.string().regex(/^\d{4}-\d{2}$/),contract_sha256:sha,
-  initial_plan_remaining:z.number().int().min(5),initial_key_remaining:z.number().int().min(5),reserved_credits:z.union([z.literal(5),z.literal(15)]),
-  tasks:z.array(taskSchema).length(3),revision:z.number().int().nonnegative(),
+  initial_plan_remaining:z.number().int().min(5),initial_key_remaining:z.number().int().min(5),reserved_credits:z.union([z.literal(5),z.literal(15),z.literal(30),z.literal(45)]),
+  tasks:z.array(taskSchema).min(3).max(9),revision:z.number().int().nonnegative(),
   not_before:z.string().datetime().nullable().optional(),
   output:z.object({path:z.string().max(500),sha256:sha,bytes:z.number().int().positive().max(50*1024*1024),
     script_path:z.string().max(500),script_sha256:sha,qa_path:z.string().max(500),qa_sha256:sha}).strict().nullable(),
@@ -35,12 +35,12 @@ function currentFree(report:AurayInspection,now:number) {
 }
 export async function createNativeRun(input:{episode_id:string;profile:unknown;context:unknown;draft:unknown;reuse?:Array<z.infer<typeof nativeReuseSchema>>},report:AurayInspection,now=Date.now()):Promise<NativeRun> {
   const profile=nativeProfileSchema.parse(input.profile),context=storyContextSchema.parse(input.context),draft=validateNativeDraft(input.draft,context,profile);
-  const reuse=z.array(nativeReuseSchema).max(2).parse(input.reuse??[]),needed=(3-reuse.length)*5;
-  if(reuse.length!==0&&reuse.length!==2 || new Set(reuse.map(r=>r.index)).size!==reuse.length || reuse.some(r=>r.episode_id===input.episode_id || r.clip.path!==`episodes/${r.episode_id}/native/${r.clip.sha256}.mp4`))throw new AurayError("native_checkpoint_mismatch");
+  const count=nativeShotCount(context),reuse=z.array(nativeReuseSchema).max(count-1).parse(input.reuse??[]),needed=(count-reuse.length)*5;
+  if(reuse.length!==0&&reuse.length!==count-1 || new Set(reuse.map(r=>r.index)).size!==reuse.length || reuse.some(r=>r.index>=count || r.episode_id===input.episode_id || r.clip.path!==`episodes/${r.episode_id}/native/${r.clip.sha256}.mp4`))throw new AurayError("native_checkpoint_mismatch");
   if(!currentFree(report,now) || !report.financially_eligible || !report.account_id || !report.key_id ||
     report.contract_sha256!==profile.contract_sha256 || Math.min(report.plan_remaining!,report.key_remaining!)<needed)throw new AurayError("complete_chapter_budget_required");
   const fingerprint=await nativeFingerprint(draft,context,profile);
-  const tasks=Array.from({length:NATIVE_AURAY.shots},(_,i)=>{
+  const tasks=Array.from({length:count},(_,i)=>{
     const shot=aurayAuditionSchema.parse(nativeShot(draft,context,profile,input.episode_id,fingerprint,i)),key=aurayAuditionKey(shot,report);
     const reused=reuse.find(r=>r.index===i);
     return {request_key:key,job_id:`video_${key}`,phase:reused?"ready" as const:"planned" as const,charged_credits:0,settled:!!reused,
@@ -52,8 +52,8 @@ export async function createNativeRun(input:{episode_id:string;profile:unknown;c
 }
 export async function validateNativeRun(raw:unknown):Promise<NativeRun> {
   const run=nativeRunSchema.parse(raw);
-  const reused=run.tasks.filter(t=>t.reused);
-  if((reused.length!==0&&reused.length!==2) || run.reserved_credits!==(3-reused.length)*5 || Math.min(run.initial_plan_remaining,run.initial_key_remaining)<run.reserved_credits)throw new AurayError("native_checkpoint_mismatch");
+  const count=nativeShotCount(run.context),reused=run.tasks.filter(t=>t.reused);
+  if((reused.length!==0&&reused.length!==count-1) || run.tasks.length!==count || run.reserved_credits!==(count-reused.length)*5 || Math.min(run.initial_plan_remaining,run.initial_key_remaining)<run.reserved_credits)throw new AurayError("native_checkpoint_mismatch");
   if(await nativeFingerprint(run.draft,run.context,run.profile)!==run.fingerprint || run.contract_sha256!==run.profile.contract_sha256)throw new AurayError("native_checkpoint_mismatch");
   let unfinished=false;
   for(const [i,t] of run.tasks.entries()) {
@@ -104,7 +104,7 @@ export async function advanceNativeChapter(raw:unknown,deps:NativeChapterDepende
       const charged=run.tasks.reduce((n,t)=>n+t.charged_credits,0);
       if(!currentFree(r,clock()) || r.account_id!==run.account_id || r.key_id!==run.key_id)return {code:"review_pending",poll_after_seconds:60,budget_reconciled:false};
       // Remain reserved while billing is delayed. A new month cannot submit any
-      // remaining shot: all three are already immutable, settled and downloaded.
+      // remaining shot: all takes are already immutable, settled and downloaded.
       if(r.period!==run.period || (r.plan_remaining!<=run.initial_plan_remaining-charged && r.key_remaining!<=run.initial_key_remaining-charged)) {
         run.budget_reconciled=true;await save();
       }

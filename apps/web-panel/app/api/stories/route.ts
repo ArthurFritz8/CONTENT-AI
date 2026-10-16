@@ -1,7 +1,7 @@
 import { appUrl, body, config, errorResponse, requireUser } from "../../../lib/server";
 import { assertOrigin, PanelError, uuid } from "../../../lib/security.mjs";
 import { studioRpc } from "../../../lib/workspace";
-import { storyRequestSchema } from "../../../../../packages/core/src/stories/schema";
+import { storyRequestSchema, nativeShotCountSchema } from "../../../../../packages/core/src/stories/schema";
 import {storyPresentationSchema,storyStyleIds} from "../../../../../packages/core/src/stories/styles";
 import {storyEditorialSaveSchema,editorialSectionSchema,seasonSchema} from "../../../../../packages/core/src/stories/editorial";
 export const dynamic = "force-dynamic";
@@ -32,6 +32,11 @@ export async function POST(request: Request) {
   try {
     assertOrigin(request, appUrl());
     const user = await requireUser(), input = await body(request,150000);
+    if(input.action==="duration") {
+      const shots=nativeShotCountSchema.safeParse(input.shots);
+      if(!shots.success||!Number.isSafeInteger(input.revision)||input.revision<0||input.revision>998)throw new PanelError("Escolha uma duração de 15, 30 ou 45 segundos.",400);
+      return Response.json(await studioRpc("studio_story_duration_save",{p_workspace:user.workspaceId,p_actor:user.id,p_series:uuid(input.seriesId),p_request:uuid(input.requestId),p_revision:input.revision,p_shots:shots.data}),{headers:{"Cache-Control":"no-store"}});
+    }
     if(input.action==="editorial") {
       const parsed=storyEditorialSaveSchema.safeParse(input.input);
       if(!parsed.success)throw new PanelError("Confira os textos, personagens e arcos. Um campo ficou fora do tamanho permitido.",400);

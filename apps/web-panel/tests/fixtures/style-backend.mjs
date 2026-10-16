@@ -16,6 +16,8 @@ for(const [index,character_id] of ['lia','rui'].entries()) {
 const bible={kind:'fruits',genre:'mystery',title:'A chave da feira — teste isolado',premise:'Duas frutas encontram uma chave misteriosa na feira e procuram quem perdeu o objeto.',cast:[{id:'lia',name:'Lia',appearance:'apple',color:'#ef1234',personality:'Curiosa e amiga de todos.',voice:'female'},{id:'rui',name:'Rui',appearance:'orange',color:'#fab123',personality:'Impulsivo e curioso.',voice:'male'}],chapters:[{title:'A chave',arc:'Os dois amigos encontram uma chave e descobrem uma pista.'},{title:'A porta',arc:'Abrem a porta e descobrem o segredo da feira.'}]};
 const editorial={revision:0,pins:[],memory:{relationships:'',secrets:'',characters:'',setting:'',open_threads:''},guidance:''};
 let repaired=false;
+let formatShots=3,formatRevision=0;
+const formatRequests=new Map();
 const samples=JSON.parse(readFileSync(new URL('../../../../docs/stories/style-gallery-samples.json',import.meta.url),'utf8')).map(({sample:{sha256,bytes,...s}})=>({...s,created_at:'2026-10-14T00:00:00Z'}));
 // Opaque private-byte fixture: verifies scope/hash transport, not artistic quality.
 const nativeBytes=Buffer.from('isolated-native-example-bytes'),nativeHash=createHash('sha256').update(nativeBytes).digest('hex'),nativeExample=samples.find(s=>s.source==='auray');
@@ -26,6 +28,12 @@ globalThis.fetch=async(input,init)=>{
  // Every unexpected request is rejected, including external generation and storage.
  if(u.origin!=='https://fixture.supabase.co')throw Error('fixture_egress_denied');
  const body=init?.body && !u.pathname.startsWith('/storage/')?JSON.parse(String(init.body)):{};
+ if(u.pathname==='/rest/v1/rpc/studio_story_duration_save') {
+  if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_series!==series||![3,6,9].includes(body.p_shots))throw Error('fixture_scope_mismatch');
+  if(formatRequests.has(body.p_request))return json(formatRequests.get(body.p_request));
+  if(body.p_revision!==formatRevision)return json({code:'revision_changed'});
+  formatShots=body.p_shots;formatRevision++;const value={code:'saved',revision:formatRevision,shots:formatShots};formatRequests.set(body.p_request,value);return json(value);
+ }
  if(u.pathname==='/rest/v1/rpc/studio_reference_view')return json({connection:null,jobs:[],daily_request_cap:6,remaining_neurons:null});
  if(u.pathname==='/rest/v1/rpc/studio_story_editorial_view')return json({...editorial,bible,cast_locked:false,planned_through:0,seasons:[{number:1,title:'Temporada 1',starts_at:1,ends_at:2}],history:[],storyboards:[]});
  if(u.pathname==='/rest/v1/rpc/studio_story_editorial_save'){
@@ -57,10 +65,10 @@ globalThis.fetch=async(input,init)=>{
  if(u.pathname==='/functions/v1/studio-story' && body.action==='capacity')return json({estimated_script_capacity:3});
  if(u.pathname==='/functions/v1/studio-story' && body.action==='native') {if(body.operation==='cancel')cancelRequested=true;return json({code:'waiting_for_runner'});}
  if(u.pathname==='/rest/v1/rpc/studio_story_style_gallery')return json(samples);
- if(u.pathname==='/rest/v1/rpc/studio_video_overview')return json({wallets:[],series_profiles:[],patterns:patterns.map(({profile,...p})=>p),preparation_enabled:false,native_enabled:true,native_chapters:nativeChapter?[{episode_id:nativeChapter.episode_id,total_shots:3,completed_shots:0,planned_seconds:15,output_fps:24,stage:cancelRequested?'cancellation_pending':'awaiting_capacity',cancel_requested:cancelRequested,closed:false,last_code:null}]:[]});
+ if(u.pathname==='/rest/v1/rpc/studio_video_overview')return json({wallets:[{id:'99999999-9999-4999-8999-999999999999',label:'Auray fixture',unit:'credits',remaining_units:50,reserved_units:5,available_units:45,balance_fresh:true,native_enabled:true,budget_only_shots:9,native_budget_chapters:3,source_blockers:[]}],series_profiles:[],patterns:patterns.map(({profile,...p})=>p),preparation_enabled:false,native_enabled:true,native_chapters:nativeChapter?[{episode_id:nativeChapter.episode_id,total_shots:3,completed_shots:0,planned_seconds:15,output_fps:24,stage:cancelRequested?'cancellation_pending':'awaiting_capacity',cancel_requested:cancelRequested,closed:false,last_code:null}]:[]});
  if(u.pathname==='/rest/v1/rpc/studio_animated_progress')return json({chapters:[]});
- if(u.pathname==='/rest/v1/rpc/studio_story_overview')return json({series:[{id:series,bible,chapters:nativeChapter?[nativeChapter]:[],presentation:versions.at(-1),presentation_history:versions}],daily_cap:3,daily_remaining:3,generated_today:0,active:nativeChapter?1:0,proposals_remaining:3});
- if(u.pathname==='/rest/v1/rpc/studio_story_next_presented'){if(!nativeChapter)nativeChapter={number:1,idea_id:'66666666-6666-4666-8666-666666666666',revision:1,idea_status:'pending',episode_id:null,status:null,approved:false,style_id:'cinematic_3d',presentation_revision:versions.at(-1).revision};return json({code:'queued',chapter_number:1,idea_id:nativeChapter.idea_id});}
+ if(u.pathname==='/rest/v1/rpc/studio_story_overview')return json({series:[{id:series,bible,native_shots:formatShots,native_format_revision:formatRevision,chapters:nativeChapter?[nativeChapter]:[],presentation:versions.at(-1),presentation_history:versions}],daily_cap:3,daily_remaining:3,generated_today:0,active:nativeChapter?1:0,proposals_remaining:3});
+ if(u.pathname==='/rest/v1/rpc/studio_story_next_presented'){if(!nativeChapter)nativeChapter={number:1,native_shots:formatShots,idea_id:'66666666-6666-4666-8666-666666666666',revision:1,idea_status:'pending',episode_id:null,status:null,approved:false,style_id:'cinematic_3d',presentation_revision:versions.at(-1).revision};return json({code:'queued',chapter_number:1,idea_id:nativeChapter.idea_id});}
  if(u.pathname==='/rest/v1/rpc/studio_command' && body.p_action==='generate_video'){nativeChapter={...nativeChapter,episode_id:'77777777-7777-4777-8777-777777777777',idea_status:'consumed',status:'research'};return json({code:'started',episode_id:nativeChapter.episode_id});}
  if(u.pathname==='/rest/v1/rpc/studio_story_presentation_save'){
   if(body.p_actor!==actor || body.p_workspace!==workspace || body.p_series!==series || body.p_confirmed!==true)throw Error('fixture_scope_mismatch');

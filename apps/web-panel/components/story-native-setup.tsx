@@ -27,7 +27,7 @@ export function StoryNativeSetup({seriesId,revision,styleId,onSaved}:{seriesId:s
   const ready=!!view&&view.bible.cast.every(c=>!!ref(c.id))&&!!example;
   return <details className="story-production-setup" open={open} onToggle={e=>setOpen(e.currentTarget.open)}>
     <summary>Configurar Auray · {storyStyles.find(s=>s.id===styleId)?.label} · versão {revision}</summary>
-    {open&&<div><p>Capítulos de aproximadamente 15 segundos, com três tomadas e áudio nativo. Reserva de 15 créditos gratuitos por capítulo. Salvar este padrão não gera vídeo.</p>
+    {open&&<div><p>Capítulos com áudio nativo e tomadas de aproximadamente cinco segundos. Escolha 15, 30 ou 45 segundos na duração da novela; cada tomada exige cinco créditos gratuitos. Salvar este padrão não gera vídeo.</p>
       {!view&&!error&&<p role="status">Consultando configuração…</p>}
       {view&&<>
         {view.profile&&<p role="status"><strong>Padrão Auray salvo.</strong> A história e as referências permanecem vinculadas ao capítulo; as vozes são geradas pelo motor e podem variar.</p>}

@@ -60,8 +60,8 @@ def alignment(reference, assembled, offset_seconds, seconds):
 
 
 def assemble(sources, directory):
-    if not 2 <= len(sources) <= 5:
-        raise ValueError("Review montage requires two to five identified clips")
+    if not 2 <= len(sources) <= 9:
+        raise ValueError("Review montage requires two to nine identified clips")
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     cuts, intermediates, expected_frames, audio = [], [], [], []

@@ -10,8 +10,8 @@ function report(remaining=30):AurayInspection {
     plan_remaining:remaining,key_remaining:remaining,audition_remaining:Math.min(5,remaining),contract_sha256:"d".repeat(64),
     financially_eligible:remaining>=5,blockers:remaining>=5?[]:["insufficient_free_credits"]};
 }
-async function fixture(remaining=30) {
-  const a=nativeFixtureInput();let current=await createNativeRun({episode_id:a.episodeId,...a},report(remaining),now);
+async function fixture(remaining=30,shots:3|6|9=3) {
+  const a=nativeFixtureInput(shots);let current=await createNativeRun({episode_id:a.episodeId,...a},report(remaining),now);
   const calls:string[]=[],remote=new Map<string,AurayJob>();let budget=remaining,lease=true;
   const deps:NativeChapterDependencies={now:()=>now,guard:async()=>{calls.push("guard");if(!lease)throw Error("lease_lost");},
     provider:{inspect:async()=>report(budget),upload:async(_image,key,id)=>{calls.push("upload");return `${id}/api-${key}.png`;},
@@ -209,4 +209,35 @@ test("a definite rate-limit recovery still requires the entire remaining budget 
  assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"blocked");assert.equal(f.state.tasks[0]!.rate_limit_retries,undefined);
  f.deps.provider.inspect=async()=>({...report(),checked_at:new Date(now+60_000).toISOString()});f.lease=false;
  await assert.rejects(advanceNativeChapter(f.state,f.deps),/lease_lost/);assert.equal(f.calls.filter(c=>c.startsWith("submit:")).length,0);
+});
+
+
+test("30s and 45s require a complete reservation, execute every shot once and repair only the selected shot",async()=>{
+ for(const shots of [6,9] as const) {
+  const a=nativeFixtureInput(shots);
+  await assert.rejects(createNativeRun({episode_id:a.episodeId,...a},report(shots*5-1),now),/complete_chapter_budget_required/);
+  const f=await fixture(shots*5,shots);assert.equal(f.state.reserved_credits,shots*5);
+  for(let i=0;i<shots;i++) {
+   assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"submitted");
+   assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"collected");
+   // Recover from persisted JSON between each shot; no accepted submission repeats.
+   f.state=await validateNativeRun(JSON.parse(JSON.stringify(f.state)));
+  }
+  assert.equal((await advanceNativeChapter(f.state,f.deps)).budget_reconciled,true);
+  assert.equal(f.calls.filter(c=>c.startsWith("submit:")).length,shots);
+  for(const index of [0,shots-1]) {
+   const origin=f.state.episode_id,target="55555555-5555-4555-8555-555555555555";
+   const reuse=f.state.tasks.flatMap((t,i)=>i===index?[]:[{index:i,episode_id:origin,clip:t.clip!}]);
+   const repaired=await fixture(shots*5,shots);
+   repaired.state=await createNativeRun({episode_id:target,...a,reuse},report(5),now);repaired.budget=5;
+   assert.equal(repaired.state.reserved_credits,5);assert.equal(repaired.state.tasks.filter(t=>t.reused).length,shots-1);
+   await advanceNativeChapter(repaired.state,repaired.deps);await advanceNativeChapter(repaired.state,repaired.deps);
+   assert.equal((await advanceNativeChapter(repaired.state,repaired.deps)).budget_reconciled,true);
+   assert.equal(repaired.calls.filter(c=>c.startsWith("submit:")).length,1);
+   assert.equal(repaired.calls.filter(c=>c.startsWith("status:")).length,1);
+   assert.ok(repaired.calls.indexOf("verify_reuse")<repaired.calls.indexOf("upload"));
+  }
+  const short=structuredClone(f.state);short.tasks.pop();await assert.rejects(validateNativeRun(short));
+  await assert.rejects(createNativeRun({episode_id:a.episodeId,...a,reuse:[{index:shots,episode_id:"55555555-5555-4555-8555-555555555555",clip:f.state.tasks[0]!.clip!}]},report(50),now));
+ }
 });

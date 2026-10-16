@@ -16,8 +16,8 @@ export const nativeProfileSchema=z.object({
 export type NativeProfile=z.infer<typeof nativeProfileSchema>;
 export const nativeDraftSchema=z.object({title:z.string().trim().min(5).max(100),summary:z.string().trim().min(30).max(1200),
  generation_policy:z.literal("reference_dialogue_v2").optional(),
- scenes:z.array(z.object({narration_text:z.string().trim().min(4).max(120),visual:storyVisualSchema,prompt:z.string().trim().min(40).max(1600),seed:z.number().int().min(0).max(2147483647)}).strict()).length(3),
+ scenes:z.array(z.object({narration_text:z.string().trim().min(4).max(120),visual:storyVisualSchema,prompt:z.string().trim().min(40).max(1600),seed:z.number().int().min(0).max(2147483647)}).strict()).min(3).max(9).refine(s=>[3,6,9].includes(s.length),"Escolha 3, 6 ou 9 tomadas"),
 }).strict();
 export const nativeOutputSchema=z.object({version:z.literal("1.0.0"),provider:z.literal("auray"),profile_sha256:sha,
  width:z.literal(768),height:z.literal(1344),output_fps:z.literal(24),voice_identity_preserved:z.literal(false),speech_transcription_verified:z.literal(false),human_review_required:z.literal(true)}).strict();
-export const nativeSceneSchema=z.object({shot_id:z.string().regex(/^take_[0-2]$/),character_id:character,reference_sha256:sha,request_key:sha,video_sha256:sha,frames:z.number().int().min(116).max(124)}).strict();
+export const nativeSceneSchema=z.object({shot_id:z.string().regex(/^take_[0-8]$/),character_id:character,reference_sha256:sha,request_key:sha,video_sha256:sha,frames:z.number().int().min(116).max(124)}).strict();

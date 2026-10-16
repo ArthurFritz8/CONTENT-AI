@@ -1,5 +1,8 @@
 # Auray: avaliação automática de uma fonte candidata
 
+Atualização de 16/10: a segunda versão do piloto real foi aprovada pelo usuário, sem publicação. O saldo observado após o piloto é zero. O [ADR-084](ADR/ADR-084-duracao-nativa-por-capitulo.md) implementa capítulos de aproximadamente 15/30/45s por 15/30/45 créditos gratuitos, conservando perfil, áudio e quadros originais. Refazer uma cena custa até cinco créditos e reaproveita as demais. Só o piloto de 15s tem aprovação artística; nenhuma nova geração foi executada nesta ampliação. Os status e saldos de 14/10 abaixo são históricos.
+
+
 Status em 14/10/2026: quatro gerações concluídas por cinco créditos cada, com saldo final observado de 30. [Teste visual](research/auray-audition-2026-10-14.md), [fala nativa aprovada como amostra individual](research/auray-native-dialogue-2026-10-14.md) e [sequência entre personagens aprovada pelo usuário como amostra audiovisual](research/auray-continuity-2026-10-14.md). O monitor de saldo e trabalhos privados está implementado na [ADR-077](ADR/ADR-077-monitoramento-e-retomada-auray-no-studio.md). A aprovação geral da sequência não elimina a mudança de roupa/aparência observada no bruto masculino; continuidade técnica e homologação da fonte continuam pendentes. A carteira monitorada permanece desativada para produção e não habilita fallback no Studio. A direção Modal anteriormente aprovada também depende das verificações de execução de produção descritas em `modal-operator.md`.
 
 ## Conectar uma vez

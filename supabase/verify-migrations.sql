@@ -132,3 +132,15 @@ begin
   if not exists(select 1 from pg_class where oid=('public.'||tab)::regclass and relrowsecurity) or has_table_privilege('authenticated','public.'||tab,'select') then raise exception 'Editorial/reference data exposed: %',tab;end if;
  end loop;
 end $$;
+
+
+-- ADR-084: duration is separate from immutable visual profiles and frozen chapters.
+do $$begin
+ if has_function_privilege('authenticated','public.studio_story_duration_save(uuid,uuid,uuid,uuid,int,int)','execute') or
+    has_function_privilege('anon','public.native_chapter_shots(jsonb)','execute') or
+    has_function_privilege('service_role','public.studio_story_overview_before_duration(uuid,uuid)','execute') or
+    has_table_privilege('authenticated','public.studio_story_format_history','select') or
+    not exists(select 1 from pg_class where oid='public.studio_story_format_history'::regclass and relrowsecurity) or
+    not exists(select 1 from pg_trigger where tgname='story_format_history_immutable' and not tgisinternal) then raise exception 'Native duration history or RPC exposed';end if;
+ if public.native_chapter_shots('{}')<>3 or public.native_chapter_shots('{"native_format":{"shots":9}}')<>9 then raise exception 'Native format contract missing';end if;
+end $$;

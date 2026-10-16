@@ -92,7 +92,7 @@ async function main() {
     const frames=run.tasks.reduce((n,t)=>n+t.clip!.frames,0);
     if(qa.width!==768 || qa.height!==1344 || qa.encoded_fps!==24 || qa.frames!==frames || Math.abs(qa.seconds-frames/24)>1e-9 ||
       qa.all_decoded_frames_pixel_identical!==true || qa.video_reencoded!==false || qa.decode_verified!==true || qa.audio_encoded_once_from_native_pcm!==true ||
-      qa.human_review_required!==true || qa.voice_continuity_approved!==false || qa.production_ready!==false || !Array.isArray(qa.cuts) || qa.cuts.length!==3 ||
+      qa.human_review_required!==true || qa.voice_continuity_approved!==false || qa.production_ready!==false || !Array.isArray(qa.cuts) || qa.cuts.length!==run.tasks.length ||
       qa.cuts.some((cut:Record<string,any>,i:number)=>cut.speaker!==sources[i]!.speaker || cut.source_sha256!==sources[i]!.sha256 || cut.frames!==run.tasks[i]!.clip!.frames ||
         cut.original_audio!==true || cut.audio_transport?.silent_reference || !Number.isFinite(cut.audio_transport?.correlation) || cut.audio_transport.correlation<.90 ||
         !Number.isFinite(cut.audio_transport?.measured_lag_seconds) || Math.abs(cut.audio_transport.measured_lag_seconds)>.02))throw new AurayError("native_assembly_invalid");

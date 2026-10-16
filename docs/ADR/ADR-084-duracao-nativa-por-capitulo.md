@@ -1,0 +1,17 @@
+# ADR-084 — Duração nativa por capítulo
+
+Data: 16/10/2026. Complementa ADR-081/083.
+
+O formato Auray deixa de exigir sempre três tomadas. O usuário escolhe aproximadamente 15, 30 ou 45 segundos, correspondentes a três, seis ou nove tomadas originais de cinco segundos. O custo contratual continua em cinco créditos gratuitos por tomada: a admissão exige 15, 30 ou 45 créditos para o capítulo inteiro. Duração maior não usa interpolação, repetição de quadros ou alteração de velocidade. Cada tomada preserva a resolução, os 24 FPS e o áudio original; a montagem verifica todos os quadros e o alinhamento de áudio.
+
+A escolha inicial acompanha a proposta, inclusive a criação automática. Na novela existente, **Duração e orçamento** salva a preferência para capítulos ainda não preparados. Ela tem comparação de versão própria, pedido idempotente e histórico privado imutável, sem interferir na revisão editorial ou no perfil audiovisual. O painel mostra o custo escolhido, a capacidade por carteira com saldo confirmado e, separadamente, o formato congelado do capítulo em andamento. O botão de gerar usa o custo do capítulo efetivo, inclusive em uma nova tentativa. Capacidade desconhecida exige atualização; não se somam moedas, fontes ou carteiras compartilhadas.
+
+O contexto contém `native_format: {shots: 6|9}` somente para novos formatos maiores. Contextos anteriores, sem esse campo, continuam em três tomadas. Não se acrescenta valor padrão ao objeto serializado: os fingerprints, request keys e checkpoints anteriores precisam continuar válidos. A preferência da série nunca reescreve pautas, episódios ou aprovações existentes. Continuação usa o novo formato junto aos mesmos resumos aprovados, memória e perfil.
+
+O roteirista, admissão, executor sequencial, cancelamento, montagem, QA, conferência auxiliar e progresso trabalham com a quantidade congelada no contexto. Tarefas ausentes, quantidade divergente, orçamento parcial e alterações de identidade continuam recusadas. A refação preserva cinco ou oito tomadas quando o capítulo tem seis ou nove cenas; somente a escolhida gera nova solicitação e reserva até cinco créditos. Todos os arquivos reutilizados são verificados antes de qualquer novo envio.
+
+A migração aditiva `20261016030000_native_chapter_duration.sql` atualiza as funções atuais, conservando as barreiras financeiras e o invólucro de validação da política de qualidade. Migrações anteriormente aplicadas não são editadas. Publicar código exige manter as quatro funções Edge e o worker na mesma versão. Não é necessário gerar vídeo para implantar.
+
+Validação: banco novo com 53 migrações e seed, 26 suítes SQL e verificação estrutural; reservas e refações de seis/nove cenas; montagem completa de nove cenas com recibos vinculados; execução sequencial com reinício entre tomadas; QA do roteiro maior; montagem FFmpeg real com quadros idênticos e áudio alinhado; roteirista simulado nos três formatos; painel autenticado no navegador e celular; dois checkpoints reais antigos revalidados sem alteração ou inferência.
+
+Limites: o piloto artisticamente aprovado continua sendo o de aproximadamente 15 segundos. Capítulos reais de 30/45 segundos ainda precisam de revisão com saldo disponível; testes técnicos não comprovam estabilidade visual ou vocal em cenas novas. Não existe segunda fonte de vídeo operacional. Cloudflare continua sendo uma conexão opcional de imagens aguardando conta/token e teste real. Nenhuma geração nova ou publicação faz parte desta entrega.

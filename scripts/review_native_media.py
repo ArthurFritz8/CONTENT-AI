@@ -101,8 +101,8 @@ def transcribe(model, path):
 
 
 def review(manifest):
-    if len(manifest["takes"]) != 3:
-        raise ValueError("Three frozen takes required")
+    if len(manifest["takes"]) not in (3, 6, 9):
+        raise ValueError("Three, six or nine frozen takes required")
     checked_bytes(manifest["video_path"], manifest["video_sha256"])
     try:
         model = load_speech_model()

@@ -27,9 +27,12 @@ class NativeMediaReviewTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/"clip.mp4";p.write_bytes(b"fixture");sha=hashlib.sha256(b"fixture").hexdigest()
    manifest={"episode_id":"11111111-1111-4111-8111-111111111111","video_path":str(p),"video_sha256":sha,"takes":[{"path":str(p),"sha256":sha,"speaker":"malu","expected_text":"Onde está a passagem?"}]*3}
-   with patch.object(review,"load_speech_model",side_effect=ImportError),patch.object(review,"appearance",side_effect=ValueError):
-    report=review.review(manifest)
-   self.assertEqual(report['speech_engine'],'unavailable');self.assertFalse(report['lip_sync_verified']);self.assertFalse(report['identity_verified'])
-   self.assertTrue(all(t['speech_status']=='unavailable' and t['appearance_status']=='unavailable' for t in report['takes']))
+   for count in [3, 6, 9]:
+    manifest['takes'] = [manifest['takes'][0]] * count
+    with patch.object(review,"load_speech_model",side_effect=ImportError),patch.object(review,"appearance",side_effect=ValueError):
+     report=review.review(manifest)
+    self.assertEqual(len(report['takes']),count)
+    self.assertEqual(report['speech_engine'],'unavailable');self.assertFalse(report['lip_sync_verified']);self.assertFalse(report['identity_verified'])
+    self.assertTrue(all(t['speech_status']=='unavailable' and t['appearance_status']=='unavailable' for t in report['takes']))
 
 if __name__=="__main__":unittest.main()

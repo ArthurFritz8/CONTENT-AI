@@ -43,6 +43,19 @@ class NativeMontageTest(unittest.TestCase):
         self.assertEqual(float(video["start_time"]), 0)
         self.assertEqual([c["speaker"] for c in result["cuts"]], ["fixture-0", "fixture-1", "fixture-2"])
 
+    def test_nine_takes_preserve_every_frame_and_native_audio(self):
+        sources = [{**self.sources[i % 3], "speaker": f"take-{i}"} for i in range(9)]
+        result = assemble(sources, self.directory / "nine-takes")
+        self.assertEqual(result["frames"], 270)
+        self.assertEqual(result["encoded_fps"], 24)
+        self.assertAlmostEqual(result["seconds"], 11.25)
+        self.assertTrue(result["all_decoded_frames_pixel_identical"])
+        self.assertFalse(result["video_reencoded"])
+        self.assertEqual([c["speaker"] for c in result["cuts"]], [f"take-{i}" for i in range(9)])
+        for cut in result["cuts"]:
+            self.assertLess(abs(cut["audio_transport"]["measured_lag_seconds"]), .002)
+            self.assertGreater(cut["audio_transport"]["correlation"], .97)
+
     def test_changed_source_cannot_be_mounted(self):
         with self.assertRaisesRegex(ValueError, "identity changed"):
             assemble([{**self.sources[0], "sha256": "0"*64}, self.sources[1]], self.directory / "bad-hash")

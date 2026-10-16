@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {nativeFixtureInput} from "../testing/native-fixture.ts";
 import {buildNativeScript,nativeFingerprint,nativeShot,validateNativeDraft,nativeChapterPrompt,prepareNativeDraft} from "./native-chapter.ts";
+import {repairNativeDraft} from "./native-repair.ts";
+import {unavailableNativeMediaReview} from "./native-review.ts";
 import {nativeProfileSchema} from "./native-contract.ts";
 import {scriptJsonSchema,isRenderReady} from "../schemas/script-json.ts";
 import {createScriptQualityChecker} from "../validators/script-quality.ts";
@@ -66,4 +68,27 @@ test("native script rejects mixed motors, missing identity, forged durations and
   ]){const v=structuredClone(script);change(v);assert.equal(scriptJsonSchema.safeParse(v).success,false);}
   input.clips[0]!.path="episodes/someone-else/native/test.mp4";
   await assert.rejects(buildNativeScript(input));
+});
+
+
+test("longer chapters bind every original clip and the last scene while preserving the native profile",async()=>{
+ for(const shots of [6,9] as const) {
+  const a=nativeFixtureInput(shots),profile=JSON.stringify(a.profile);
+  const cs=Array.from({length:shots},(_,i)=>({request_key:(i+1).toString(16).repeat(64),sha256:(i+4).toString(16).repeat(64),frames:120,path:`episodes/${a.episodeId}/native/${(i+4).toString(16).repeat(64)}.mp4`}));
+  const script=await buildNativeScript({episode:a.episodeId,...a,clips:cs,origin:"https://fixture.supabase.co"});
+  assert.equal(script.scenes.length,shots);assert.equal(script.narration.estimated_duration_seconds,shots*5);
+  assert.equal(script.scenes.at(-1)!.role,"cta");assert.equal(script.scenes[2]!.role,"content");
+  assert.equal(script.fiction!.native_animation!.output_fps,24);assert.equal(JSON.stringify(a.profile),profile);
+  assert.ok(nativeChapterPrompt(a.context,a.profile).includes(`exatamente ${shots} tomadas`));
+  const quality=createScriptQualityChecker({blocked_patterns:{absolute:["único no mercado"]},require_source_per_claim:true});assert.equal(quality(script,[],false).passed,true);
+  const scene=a.draft.scenes[shots-1]!;
+  const repaired=repairNativeDraft(a.draft,a.context,a.profile,{index:shots-1,dialogue:scene.narration_text,prompt:scene.prompt,summary:a.draft.summary});
+  assert.deepEqual(repaired.scenes.slice(0,-1),a.draft.scenes.slice(0,-1));
+  assert.equal(repaired.scenes.at(-1)!.seed,scene.seed+1);
+  assert.throws(()=>repairNativeDraft(a.draft,a.context,a.profile,{index:shots,dialogue:scene.narration_text,prompt:scene.prompt,summary:a.draft.summary}));
+  assert.throws(()=>validateNativeDraft(a.draft,{...a.context,native_format:{shots:3}},a.profile));
+  const report=unavailableNativeMediaReview(a.episodeId,"a".repeat(64),cs.map((c,i)=>({speaker:a.draft.scenes[i]!.visual.speaker_id,sha256:c.sha256,expected_text:a.draft.scenes[i]!.narration_text})));
+  assert.equal(report.takes.length,shots);
+  const bad=structuredClone(script);bad.scenes.pop();assert.equal(scriptJsonSchema.safeParse(bad).success,false);
+ }
 });

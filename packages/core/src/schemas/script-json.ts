@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { platformCtasSchema } from "../publish/growth-strategy.ts";
-import { storyContextSchema, storyVisualSchema } from "../stories/schema.ts";
+import { storyContextSchema, storyVisualSchema, nativeShotCount } from "../stories/schema.ts";
 import { animatedOutputSchema, animatedSceneSchema, ANIMATED_CHAPTER_SECONDS, ANIMATED_SHOT_SECONDS } from "../stories/animation-contract.ts";
 import { nativeOutputSchema, nativeSceneSchema } from "../stories/native-contract.ts";
 
@@ -97,7 +97,7 @@ export const scriptJsonSchema = z
         volume: z.number().min(0).max(1),
       })
       .nullable(),
-    scenes: z.array(sceneSchema).min(SCENE_COUNT.min).max(SCENE_COUNT.max),
+    scenes: z.array(sceneSchema).min(SCENE_COUNT.min).max(9),
     // formato exige claims com evidência — mínimo 1 fonte
     sources: z
       .array(z.object({ claim: z.string().min(1), source_url: z.string().url() }))
@@ -111,9 +111,10 @@ export const scriptJsonSchema = z
   .superRefine((script, ctx) => {
     const animation = script.fiction?.animation;
     const native = script.fiction?.native_animation;
+    if(!native && script.scenes.length>SCENE_COUNT.max)ctx.addIssue({code:"custom",path:["scenes"],message:"Até oito cenas neste formato"});
     if (native) {
-      if (animation || script.scenes.length !== 3 || script.gap_seconds !== 0 || script.music !== null || script.platform_ctas)
-        ctx.addIssue({code:"custom",path:["fiction","native_animation"],message:"Capítulo nativo exige três tomadas, áudio original e nenhum segundo motor"});
+      if (animation || script.scenes.length !== nativeShotCount(script.fiction!.context) || script.gap_seconds !== 0 || script.music !== null || script.platform_ctas)
+        ctx.addIssue({code:"custom",path:["fiction","native_animation"],message:"Capítulo nativo exige a quantidade planejada de tomadas, áudio original e nenhum segundo motor"});
       const cast = new Set(script.fiction!.context.bible.cast.map(c => c.id));
       for (const s of script.scenes) {
         const n = s.native_animation;
@@ -125,7 +126,7 @@ export const scriptJsonSchema = z
       }
       if(new Set(script.scenes.map(s=>s.story_visual?.speaker_id)).size < 2)
         ctx.addIssue({code:"custom",path:["scenes"],message:"O capítulo precisa alternar pelo menos dois personagens"});
-      if(new Set(script.scenes.map(s=>s.native_animation?.request_key)).size !== 3)
+      if(new Set(script.scenes.map(s=>s.native_animation?.request_key)).size !== script.scenes.length)
         ctx.addIssue({code:"custom",path:["scenes"],message:"Cada tomada exige uma solicitação própria"});
     } else if(script.scenes.some(s=>s.native_animation)) {
       ctx.addIssue({code:"custom",path:["scenes"],message:"Clipes nativos exigem o contrato do capítulo"});
@@ -199,8 +200,8 @@ export const scriptJsonSchema = z
     // Regra 9 (ADR-006): duration_seconds é TARGET para o Gemini, não constraint de render
     const totalTarget = script.scenes.reduce((sum, s) => sum + s.duration_seconds, 0);
     if (
-      totalTarget < (native ? 348/24 : animation ? ANIMATED_CHAPTER_SECONDS.min : TOTAL_DURATION_TARGET_SECONDS.min) - 1e-9 ||
-      totalTarget > (native ? 372/24 : animation ? ANIMATED_CHAPTER_SECONDS.max : TOTAL_DURATION_TARGET_SECONDS.max) + 1e-9
+      totalTarget < (native ? nativeShotCount(script.fiction!.context)*116/24 : animation ? ANIMATED_CHAPTER_SECONDS.min : TOTAL_DURATION_TARGET_SECONDS.min) - 1e-9 ||
+      totalTarget > (native ? nativeShotCount(script.fiction!.context)*124/24 : animation ? ANIMATED_CHAPTER_SECONDS.max : TOTAL_DURATION_TARGET_SECONDS.max) + 1e-9
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
