@@ -1,8 +1,10 @@
 # Avaliação gratuita de clipes
 
+**Atualização de 16/10/2026:** Auray já tem piloto aprovado e integração de capítulos no Studio; a última inspeção encontrou saldo zero. As descrições de avaliação abaixo são históricas. A busca de uma segunda fonte de vídeo e a consulta Puter, ainda sem geração ou conta validada, estão em [segunda-fonte-video-2026-10-16.md](research/segunda-fonte-video-2026-10-16.md). Cloudflare está conectado para imagens e não substitui o motor de vídeo. Nenhuma nova fonte foi habilitada nesta rodada.
+
 Ferramenta do operador, fora da produção do Studio. Gadgets e histórias ilustradas seguem seus fluxos atuais. Os testes não são episódios nem publicações.
 
-A fonte candidata Auray tem executor próprio com inspeção de saldo autenticado e teste limitado de reação silenciosa: [auray-operator.md](auray-operator.md). Não usa a quota Hugging Face, não substitui diálogos e ainda não foi aprovada para produção.
+O estado atual do executor, dos diálogos e dos capítulos Auray está em [auray-operator.md](auray-operator.md). As limitações de avaliação silenciosa e de produção deste documento se referem às rotas antigas, não ao piloto Auray aprovado.
 
 Política vigente desde ADR-066: somente gratuidade recorrente ou serviço gratuito comprovado entra no roteador. Créditos introdutórios são recusados com `non_recurring_offer`; recorrência não comprovada com `unverified_free_access`. A classificação não substitui saldo, qualidade, quota, revisão ou ausência de cobrança.
 

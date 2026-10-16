@@ -1,0 +1,260 @@
+{
+  "checked_on": "2026-10-16",
+  "purpose": "Public eligibility observations only. Not account entitlement, price quote or generation approval.",
+  "vercel": {
+    "checked_on": "2026-10-16",
+    "source": "https://vercel.com/ai-gateway/models?freeTier=true&capabilities=video-generation",
+    "method": "public first-party model directory serialized data; URL query is not proof of filtering",
+    "models": [
+      {
+        "id": "heygen/heygen-video-1",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v3.0-t2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v2.5-turbo-i2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "minimax/minimax-h3-max",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "google/veo-3.1-generate-001",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.6-r2v-flash",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.5-t2v-preview",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v3.0-i2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-2.0",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "spacexai/grok-imagine-video-1.5-lite",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v2.6-motion-control",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "google/veo-3.0-fast-generate-001",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v2.5-turbo-t2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "spacexai/grok-imagine-video-1.5",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.6-i2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v2.6-t2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "google/veo-3.1-lite-generate-001",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "google/veo-3.1-fast-generate-001",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-2.5",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-2.0-fast",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.7-t2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-v1.5-pro",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v3.0-motion-control",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v3.0-video",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "spacexai/grok-imagine-video",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.7-r2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-v1.0-pro-fast",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v3.0-video-prime",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-2.0-mini",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "klingai/kling-v2.6-i2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "minimax/minimax-h3",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.6-t2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.6-i2v-flash",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "alibaba/wan-v2.6-r2v",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "topaz/proteus",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "topaz/starlight-precise-2.6",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "google/veo-3.0-generate-001",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bytedance/seedance-v1.0-pro",
+        "availableToFreeTier": false
+      },
+      {
+        "id": "bfl/flux-3-video",
+        "availableToFreeTier": false
+      }
+    ]
+  },
+  "pollinations": {
+    "source": "https://gen.pollinations.ai/video/models",
+    "models": [
+      {
+        "id": "mirelo/sfx-2.0",
+        "paid_only": true
+      },
+      {
+        "id": "kandinskylab/kandinsky-6.0-lite",
+        "paid_only": true
+      },
+      {
+        "id": "x-ai/grok-imagine-video-1.5-lite",
+        "paid_only": true
+      },
+      {
+        "id": "heygen/heygen-video-1",
+        "paid_only": true
+      },
+      {
+        "id": "minimax/minimax-h3-max",
+        "paid_only": true
+      },
+      {
+        "id": "minimax/minimax-h3-max-turbo",
+        "paid_only": true
+      },
+      {
+        "id": "google/gemini-omni-1.1-flash",
+        "paid_only": true
+      },
+      {
+        "id": "alibaba/wan-3.0",
+        "paid_only": true
+      },
+      {
+        "id": "bytedance/seedance-2.0-fast",
+        "paid_only": true
+      },
+      {
+        "id": "bytedance/seedance-2.0-mini",
+        "paid_only": true
+      },
+      {
+        "id": "minimax/minimax-h3",
+        "paid_only": true
+      },
+      {
+        "id": "bytedance/seedance-2.5",
+        "paid_only": true
+      },
+      {
+        "id": "x-ai/grok-imagine-video-1.5",
+        "paid_only": true
+      },
+      {
+        "id": "alibaba/happyhorse-1.1",
+        "paid_only": true
+      },
+      {
+        "id": "alibaba/wan-2.7",
+        "paid_only": true
+      },
+      {
+        "id": "bytedance/seedance-2.0",
+        "paid_only": true
+      },
+      {
+        "id": "alibaba/wan-2.2-fast",
+        "paid_only": true
+      },
+      {
+        "id": "x-ai/grok-imagine-video",
+        "paid_only": true
+      },
+      {
+        "id": "prunaai/p-video",
+        "paid_only": true
+      },
+      {
+        "id": "alibaba/wan-2.6",
+        "paid_only": true
+      },
+      {
+        "id": "bytedance/seedance-1-pro-fast",
+        "paid_only": true
+      },
+      {
+        "id": "google/veo-3.1-fast",
+        "paid_only": true
+      }
+    ]
+  }
+}
