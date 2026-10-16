@@ -2,7 +2,7 @@
 
 ## Resultado desta rodada
 
-**CNAPS é candidato, ainda não é uma fonte de produção.** A pesquisa inicial encontrou evidência oficial de capacidade gratuita recorrente e automação. A atualização autenticada abaixo confirma o plano e o catálogo da conta; a qualidade e a capacidade em segundos/capítulos ainda não foram medidas. Não somar essa oferta às carteiras existentes.
+**CNAPS não está liberado para produção: o primeiro pedido real foi recusado por franquia insuficiente.** A pesquisa encontrou documentação de capacidade gratuita recorrente e automação, e a conta/catálogo retornam Free e 0% usado. Mesmo assim, não foi possível iniciar o teste. Nenhum vídeo foi gerado, a qualidade não foi avaliada e a capacidade não entra nas carteiras. Consulte a [evidência do teste real](cnaps-malu-audition-2026-10-16.md).
 
 ### Atualização autenticada de 16/10
 
@@ -10,7 +10,7 @@ A chave fornecida pelo titular foi configurada apenas em `.env.cloud`, ignorado 
 
 O catálogo liberou `Txt2Video-MiniMax-H3-Ref2VA`, com plano mínimo Free. As consultas de detalhes e parâmetros confirmaram a seleção de 124 quadros, `768x1344 (9:16)`, 30 passos e seed 42016. O contrato permite imagem de referência e texto; o teste proposto continua com a imagem original aprovada da Malu. A API não retornou a franquia absoluta de GPU nem o instante exato da próxima reposição. Por isso **não há estimativa de capítulos, segundos ou reserva de produção** a partir do percentual.
 
-Não houve criação de fluxo, upload, inferência, alteração de assinatura ou publicação. Relatório privado: `output/cnaps-discovery/inspection.json`. O plano local do primeiro teste fica em `output/cnaps-malu-audition/plano.json`; é preparação, sem executor de geração ou envio agendado. O catálogo estima tempo elevado de processamento no modelo padrão; isso não é medição realizada pelo projeto.
+Na conexão inicial não houve criação de fluxo, upload ou inferência. Depois, com autorização para continuar, o teste criou um fluxo privado e registrou a referência, mas a única chamada de geração foi recusada. Há agora uma CLI limitada ao teste, com checkpoint durável; nenhuma execução está agendada e não há executor de capítulos CNAPS. Relatório privado de conexão: `output/cnaps-discovery/inspection.json`. O catálogo estima tempo elevado no modelo padrão; isso não foi medido pelo projeto, pois o processamento não iniciou.
 
 Puter já tem integração de capítulos, não apenas teste: [ADR-086](../ADR/ADR-086-capitulos-puter-com-franquia-recorrente.md). Sua amostra de cinco segundos foi aprovada; o capítulo inteiro ainda aguarda saldo e avaliação artística. A última consulta anterior a esta pesquisa registrou aproximadamente 677,65 créditos, abaixo da reserva estimada de 990 para três tomadas. **Esta rodada não atualizou esse saldo.** O roteiro separado de “A passagem escondida — teste Puter” e suas duas referências já foram preparados; não houve agendamento ou geração de capítulo.
 

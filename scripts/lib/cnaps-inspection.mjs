@@ -25,7 +25,7 @@ function rpcResult(message, id) {
 }
 
 /** Reads a bounded response; SSE stops at this request's reply, not at connection close. */
-async function readReply(response, id) {
+export async function readReply(response, id) {
   const type = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
   if (!['application/json', 'text/event-stream'].includes(type)) fail('unexpected_content_type');
   const reader = response.body?.getReader();
@@ -81,7 +81,7 @@ function shape(value, depth = 0) {
   return {type: 'object', fields: Object.fromEntries(retained.map(([key, item]) =>
     [key, shape(item, depth + 1)])), omitted_fields: entries.length - retained.length};
 }
-function toolData(result) {
+export function toolData(result) {
   if (!record(result) || result.isError === true) fail('provider_tool_error');
   if (record(result.structuredContent)) return result.structuredContent;
   if (Array.isArray(result.content) && result.content.length === 1 &&

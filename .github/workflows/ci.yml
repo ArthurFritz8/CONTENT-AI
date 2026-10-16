@@ -57,7 +57,7 @@ jobs:
       - name: Descoberta Puter offline, sem credenciais ou geração
         run: node --test scripts/test-puter-inspection.test.mjs
       - name: Descoberta CNAPS offline, sem credenciais ou geração
-        run: node --test scripts/test-cnaps-inspection.test.mjs
+        run: node --test scripts/test-cnaps-inspection.test.mjs scripts/test-cnaps-audition.test.mjs
       - run: bash -n deploy.sh scripts/setup-piper.sh
       - name: Typecheck + testes (@content-ai/core)
         run: |
