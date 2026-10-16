@@ -48,5 +48,31 @@
         "A aprovação do usuário vale para esta amostra; a integração de capítulos por esta fonte continua pendente."
       ]
     }
+  },
+  {
+    "path": "output/puter-malu-audition/original.mp4",
+    "sample": {
+      "id": "b9eaae6b-657c-5757-b869-1500979a7d51",
+      "style_id": "cinematic_3d",
+      "source": "puter",
+      "title": "Malu — fala e gesto aprovados no Puter",
+      "model": "Wan 2.7 I2V via Puter",
+      "sha256": "a8413815fbac011370fe60f5beb2e914dfbe5c2a4b6b00f247fe0e57ed372991",
+      "bytes": 5009970,
+      "seconds": 5,
+      "width": 720,
+      "height": 1280,
+      "output_fps": 30,
+      "native_fps": null,
+      "has_audio": true,
+      "motion": "generated",
+      "review_scope": "reviewed_sample",
+      "limitations": [
+        "Aprovação do usuário limitada a esta amostra de cinco segundos; não comprova continuidade de um capítulo inteiro.",
+        "As vozes são geradas pelo serviço; preservação da identidade vocal entre capítulos ainda não validada.",
+        "Entrega em 30 FPS, sem interpolação local; FPS nativo do modelo não foi aferido independentemente.",
+        "Prévia disponível; a criação de capítulos pelo Puter está em preparação."
+      ]
+    }
   }
 ]

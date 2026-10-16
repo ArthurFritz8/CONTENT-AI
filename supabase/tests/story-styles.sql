@@ -55,5 +55,16 @@ begin
  perform pg_temp.style_assert(not has_function_privilege('authenticated','public.register_story_style_sample(uuid,jsonb)','execute'),'browser cannot forge examples');
  perform pg_temp.style_assert(not has_function_privilege('service_role','public.studio_story_next_before_presentation(uuid,uuid,uuid)','execute'),'old entry point is not an adapter bypass');
  perform pg_temp.style_assert(not exists(select 1 from public.studio_video_jobs where workspace_id=w),'preferences and gallery never submit GPU work');
+ -- Reviewed Puter media is a private preview, never a production-source permission.
+ sample_id:=gen_random_uuid();sample:=sample||jsonb_build_object('id',sample_id,'source','puter','native_fps',null,'output_fps',30,'review_scope','reviewed_sample');
+ result:=public.register_story_style_sample(w,sample);
+ perform pg_temp.style_assert(public.register_story_style_sample(w,sample)=result,'Puter sample import is idempotent');
+ perform public.ready_story_style_sample(w,sample_id,repeat('a',64));
+ perform pg_temp.style_assert(jsonb_array_length(public.studio_story_style_gallery(w,actor))=2,'Puter approved preview visible beside old sources');
+ perform pg_temp.style_assert(not public.valid_story_presentation(p||'{"source":"puter"}'),'Puter preview cannot select an unimplemented chapter source');
+ perform pg_temp.style_assert(jsonb_array_length(public.studio_story_style_gallery(fw,outsider))=0,'Puter preview stays private to workspace');
+ begin perform public.studio_story_style_media(fw,outsider,sample_id);raise exception 'Foreign Puter sample read';exception when no_data_found then null;end;
+ begin perform public.register_story_style_sample(w,sample||'{"source":"puter_unknown"}');raise exception 'Unknown provider admitted';exception when check_violation then null;end;
+ perform pg_temp.style_assert(not exists(select 1 from public.studio_native_runs where workspace_id=w),'Puter preview never starts native chapter generation');
 end $$;
 rollback;

@@ -48,7 +48,14 @@ test('real style controls save versioned choices and keep unsupported production
  const selector=page.getByRole('group',{name:'Escolha como sua novela vai parecer'}).first();
  await expect(selector.getByRole('heading',{name:'3D cinematográfico'})).toBeVisible();
  const card=selector.locator('article').filter({has:page.getByRole('heading',{name:'3D cinematográfico'})});
- await expect(card.locator('video')).toHaveCount(2);
+ await expect(card.locator('video')).toHaveCount(3);
+ await card.getByText('Assistir · Puter',{exact:false}).click();
+ const puter=card.locator('details').filter({has:page.getByText('Assistir · Puter',{exact:false})});
+ await expect(puter.getByText('Puter: prévia aprovada.',{exact:false})).toBeVisible();
+ await expect(puter.locator('video')).toHaveAttribute('preload','none');
+ await expect(puter.getByRole('button')).toHaveCount(0);
+ await expect(selector.getByLabel('Fonte de geração').locator('option[value="puter"]')).toHaveCount(0);
+ await expect(selector.getByLabel('Fonte de geração')).toHaveValue('automatic');
  await card.getByText('Assistir · Auray',{exact:false}).click();
  await expect(card.getByText('animação nativa 24 FPS',{exact:false})).toBeVisible();
  await expect(card.locator('video').last()).toHaveAttribute('preload','none');

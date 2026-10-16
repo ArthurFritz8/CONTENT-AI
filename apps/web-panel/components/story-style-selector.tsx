@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
-import {storyStyles,storySources,presentationNeedsAdapter,supportsNativePattern,type StoryPresentation,type StoryStyleId,type StoryStyleSample} from "../../../packages/core/src/stories/styles";
+import {storyStyles,storySources,storySampleSources,presentationNeedsAdapter,supportsNativePattern,type StoryPresentation,type StoryStyleId,type StoryStyleSample} from "../../../packages/core/src/stories/styles";
 type Sample=Omit<StoryStyleSample,"sha256"|"bytes"> & {created_at:string};
 export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryPresentation;onChange:(value:StoryPresentation)=>void;disabled?:boolean}) {
   const [samples,setSamples]=useState<Sample[]>([]),[status,setStatus]=useState("loading"),[retry,setRetry]=useState(0);
@@ -13,6 +13,10 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
   function primary(id:StoryStyleId) {
     onChange({...value,primary_style:id,allowed_styles:value.continuity_mode==="fixed" ? [id] : [...new Set([...value.allowed_styles,id])]});
   }
+  function chooseSample(s:Sample) {
+    if(s.source==="puter")return;
+    onChange({...value,primary_style:s.style_id,allowed_styles:value.continuity_mode==="fixed" ? [s.style_id] : [...new Set([...value.allowed_styles,s.style_id])],source:s.source,...(s.source==="auray"?{voice_policy:"approved_variants" as const}:{})});
+  }
   return <fieldset className="story-styles" disabled={disabled}>
     <legend>Escolha como sua novela vai parecer</legend>
     <p>Assistir aos exemplos salvos não usa créditos de geração. Escolher um estilo planeja a novela; não ativa uma fonte nem gera uma prévia nova.</p>
@@ -22,12 +26,12 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
         <h4>{style.label}</h4><p>{style.description}</p>
         <small>{style.id==="illustrated" ? "Formato ilustrado existente" : examples.length ? "Exemplo disponível · confira a fonte" : "Em preparação · sem amostra validada"}</small>
         <button type="button" className="button secondary" aria-pressed={value.primary_style===style.id} onClick={()=>primary(style.id)}>{value.primary_style===style.id ? "Estilo principal escolhido" : "Planejar neste estilo"}</button>
-        {examples.map(s=><details key={s.id}><summary>Assistir · {storySources[s.source]} · {s.seconds.toLocaleString("pt-BR",{maximumFractionDigits:1})}s</summary>
+        {examples.map(s=><details key={s.id}><summary>Assistir · {storySampleSources[s.source]} · {s.seconds.toLocaleString("pt-BR",{maximumFractionDigits:1})}s</summary>
           <video controls playsInline preload="none" width={240} aria-label={s.title} src={`/api/stories/styles/media?id=${s.id}`}/>
           <p><strong>{s.title}</strong></p><p className="muted">{s.model} · {s.width} × {s.height} · entrega {s.output_fps} FPS{s.native_fps ? ` · animação nativa ${s.native_fps} FPS` : " · fluidez nativa não aferida"}.</p>
           <p className="muted">{s.motion==="interpolated" ? "Há interpolação de quadros na entrega." : s.motion==="mixed" ? "Combina animação com planos sobre imagens; FPS de entrega não mede atuação." : s.motion==="illustrated" ? "Imagens com montagem e câmera digital." : "Vídeo gerado, sem interpolação nesta amostra."} {s.review_scope==="reviewed_sample" ? "Aprovação limitada a esta amostra." : "Verificação técnica; revisão artística pendente."}</p>
           <ul>{s.limitations.map((text,i)=><li key={i}>{text}</li>)}</ul>
-          <button type="button" className="button secondary" onClick={()=>onChange({...value,primary_style:s.style_id,allowed_styles:value.continuity_mode==="fixed" ? [s.style_id] : [...new Set([...value.allowed_styles,s.style_id])],source:s.source,...(s.source==="auray"?{voice_policy:"approved_variants" as const}:{})})}>{s.source==="auray"?"Planejar com este exemplo e vozes nativas":"Planejar com este estilo e fonte"}</button>
+          {s.source==="puter" ? <p role="status">Puter: prévia aprovada. A criação de capítulos por essa fonte está em preparação.</p> : <button type="button" className="button secondary" onClick={()=>chooseSample(s)}>{s.source==="auray"?"Planejar com este exemplo e vozes nativas":"Planejar com este estilo e fonte"}</button>}
         </details>)}
       </article>;
     })}</div>

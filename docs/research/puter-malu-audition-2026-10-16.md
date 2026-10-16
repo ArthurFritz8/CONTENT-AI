@@ -1,6 +1,8 @@
 # Puter: primeiro teste da Malu — 16/10/2026
 
-## Resultado real, ainda para revisão do usuário
+## Resultado real aprovado pelo usuário
+
+O usuário aprovou o vídeo com **“ficou bom!”**. A aprovação editorial se refere a esta amostra; o [ADR-085](../ADR/ADR-085-previa-puter-aprovada-na-galeria.md) registra sua inclusão na galeria privada, mantendo a geração de capítulos Puter em preparação.
 
 Foi enviada **uma única geração** Wan 2.7 I2V, com a referência aprovada da Malu, áudio solicitado em português e um gesto de mão ao peito. Não houve chamada ao Modal, Auray ou ZeroGPU, compra ou publicação. O filme original e a novela aprovada não foram alterados.
 
@@ -8,7 +10,7 @@ Arquivo local: `output/puter-malu-audition/original.mp4`. SHA-256: `a8413815fbac
 
 Verificação com FFmpeg/ffprobe: **5,000 s, 720×1280, 30 FPS, 150 quadros**, áudio presente e decode completo sem erro. Os 150 hashes dos quadros decodificados são distintos. O arquivo entregue é o original; não houve reencodificação, ampliação ou interpolação local. Esses números não demonstram, por si, FPS nativo do modelo ou sincronização labial.
 
-As seis amostras visuais mostram rosto, vestido e cenário semelhantes à referência, mudança de expressão e gesto corporal. Essa inspeção não aprova identidade perfeita, anatomia em todos os frames ou qualidade de um capítulo inteiro. A revisão artística permanece pendente.
+As seis amostras visuais mostram rosto, vestido e cenário semelhantes à referência, mudança de expressão e gesto corporal. Essa inspeção não comprova identidade perfeita, anatomia em todos os frames ou qualidade de um capítulo inteiro. A revisão artística da amostra foi aprovada pelo usuário.
 
 Fala solicitada: **“Você ia embora sem me contar?”**. O reconhecimento local Whisper base transcreveu “Você ir embora sem me contar?”, marcando possível divergência. É uma conferência auxiliar; pode haver erro do reconhecedor. Conferir a fala e a boca assistindo ao vídeo. `lip_sync_verified`, `identity_verified` e `production_ready` continuam **false**.
 
@@ -37,4 +39,4 @@ Os nove testes offline cobrem plano gratuito, recusa de cartão/assinatura/addon
 
 ## Próxima etapa
 
-O usuário precisa avaliar o filme. Só depois de aprovação artística será preparado um perfil Puter próprio, com quota, reserva, retomada e prévia no painel. Este teste não adiciona um botão de produção nem substitui o perfil Auray da novela existente. Voz, referência, duração, continuidade e preço precisam ser tratados no contrato do novo perfil.
+Com a amostra aprovada, sua prévia pode ser apresentada no painel. Continua pendente preparar um perfil Puter próprio, com quota, reserva e retomada. Este teste não adiciona um botão de produção nem substitui o perfil Auray da novela existente. Voz, referência, duração, continuidade e preço precisam ser tratados no contrato do novo perfil.

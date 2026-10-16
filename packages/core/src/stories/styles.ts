@@ -11,6 +11,8 @@ export const storyStyles = [
   {id:"motion_comic",label:"HQ com voz",description:"Quadros ilustrados, vozes, efeitos e movimentos de câmera. Não equivale a animação corporal contínua.",delivery:"comic"},
 ] as const;
 export const storySources = {automatic:"Automático: fontes compatíveis",modal:"Modal",auray:"Auray",local:"Renderizador próprio"} as const;
+/** Preview availability is independent from selectable production sources. */
+export const storySampleSources = {...storySources,puter:"Puter"} as const;
 export const storyPresentationSchema = z.object({
   version:z.literal("1.0.0"), primary_style:z.enum(storyStyleIds),
   continuity_mode:z.enum(["fixed","per_chapter"]),
@@ -42,7 +44,7 @@ export function supportsNativePattern(p:StoryPresentation,chosen:StoryStyleId) {
   return value.source==="auray" && value.voice_policy==="approved_variants" && value.allowed_styles.includes(chosen) && ["cinematic_3d","cartoon_2d","anime","realistic"].includes(chosen);
 }
 export const storyStyleSampleSchema = z.object({
-  id:z.string().uuid(),style_id:z.enum(storyStyleIds),source:z.enum(["modal","auray","local"]),
+  id:z.string().uuid(),style_id:z.enum(storyStyleIds),source:z.enum(["modal","auray","local","puter"]),
   title:z.string().trim().min(5).max(100),model:z.string().trim().min(2).max(120),
   sha256:z.string().regex(/^[a-f0-9]{64}$/),bytes:z.number().int().min(1).max(50*1024*1024),
   seconds:z.number().finite().min(1).max(120),width:z.number().int().min(480).max(4096),height:z.number().int().min(480).max(4096),

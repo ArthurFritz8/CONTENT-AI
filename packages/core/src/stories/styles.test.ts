@@ -1,7 +1,14 @@
 import {test} from "node:test";
 import {strictEqual,throws,deepStrictEqual} from "node:assert";
-import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern} from "./styles.ts";
+import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,storyStyleSampleSchema,storySampleSources,storySources} from "./styles.ts";
 import {storyRequestSchema} from "./schema.ts";
+
+test("approved Puter previews do not grant a selectable chapter source",()=>{
+ const sample=storyStyleSampleSchema.parse({id:"11111111-2222-4333-8444-555555555555",source:"puter",style_id:"cinematic_3d",title:"Malu — prévia aprovada",model:"Wan 2.7 I2V",sha256:"a".repeat(64),bytes:100,seconds:5,width:720,height:1280,output_fps:30,native_fps:null,has_audio:true,motion:"generated",review_scope:"reviewed_sample",limitations:["Integração de capítulos em preparação."]});
+ strictEqual(sample.source,"puter");strictEqual(storySampleSources.puter,"Puter");
+ strictEqual(Object.hasOwn(storySources,"puter"),false);
+ throws(()=>storyPresentationSchema.parse({...defaultStoryPresentation(),source:"puter"}));
+});
 test("old requests keep their exact shape; style intent never masquerades as legacy illustration",()=>{
   const old={kind:"fruits",genre:"mystery",creation_mode:"automatic",premise:"",chapters:2};
   deepStrictEqual(storyRequestSchema.parse(old),old);
