@@ -1,0 +1,29 @@
+name: Studio automatic character references
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Pedido de imagem já autorizado pelo painel
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: story-character-references
+  cancel-in-progress: false
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      REFERENCE_JOB_ID: ${{ inputs.job_id }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.15'
+          cache: npm
+      - run: npm ci
+      - run: node --experimental-strip-types scripts/run-story-references.mts

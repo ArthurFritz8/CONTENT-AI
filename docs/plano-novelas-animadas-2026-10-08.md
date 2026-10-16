@@ -1,5 +1,9 @@
 # Plano de implementação: novelas animadas no Studio
 
+Atualização de execução — 16/10/2026: o diagnóstico e os andamentos de 08–09/10 abaixo são históricos. O fluxo Auray já produziu um capítulo novo em nuvem, cuja segunda versão foi aprovada pelo usuário, sem publicação. O [ADR-083](ADR/ADR-083-editorial-temporadas-e-refacao-por-cena.md) acrescenta edição seletiva/fixação, memória e orientação congeladas por capítulo, storyboard, temporadas até 60 capítulos, refação de uma cena com reaproveitamento e conexão opcional para referências automáticas. A validação local cobre 52 migrações, 25 suítes SQL e o painel no navegador/celular. Implantação e verificação pública são registradas no encerramento da entrega.
+
+O plano integral ainda tem limites explícitos: não existe segunda fonte de vídeo operacional; o formato nativo validado continua em três tomadas (~15s); outros estilos sem amostra aprovada não entram em produção. Cloudflare é uma rota de **imagens** aguardando conta/token do titular e validação real. A cota Auray esgotada impede testar uma nova refação e a continuidade do segundo capítulo com inferência. Código/testes não equivalem a validação artística ou saldo disponível. Nenhuma dessas pendências habilita fallback pago ou troca visual silenciosa.
+
 Data: 08/10/2026. Estado: proposta para revisão do operador; não representa funcionalidades já implantadas. Base: inspeção do código, histórico dos testes aprovados/reprovados e documentação dos provedores. Esta rodada não executa geração, não consome créditos de vídeo e não altera produção.
 
 Revisão 2, em 08/10: incorpora criação automática de conceito e estrutura da novela, padrão audiovisual fixado por novela (inclusive entre capítulos), distinção entre infraestrutura e modelo, capacidade específica para continuidade e validação de migração antes de trocar o gerador. Substitui a preferência anterior de apenas manter uma fonte por capítulo.

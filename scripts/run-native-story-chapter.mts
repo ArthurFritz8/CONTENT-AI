@@ -68,6 +68,14 @@ async function main() {
     return {path,sha256,bytes:bytes.length};
   };
   const guard=async(submission=false)=>{await rpc("guard_native_chapter",{...base,p_submission:submission});};
+  const verifyReuse=async(run:NativeRun)=>{
+    for(const t of run.tasks.filter(t=>t.reused)) {
+      const original=await privateBytes(t.reused!.clip.path,50*1024*1024);
+      if(hash(original)!==t.clip!.sha256)throw new AurayError("cached_output_changed");
+      await guard();const copied=await put(original,"mp4");
+      if(copied.path!==t.clip!.path)throw new AurayError("native_checkpoint_mismatch");
+    }
+  };
   const assemble=async(run:NativeRun)=>{
     const sources:Array<{path:string;sha256:string;speaker:string}>=[];
     for(const [i,t] of run.tasks.entries()) {
@@ -111,7 +119,7 @@ async function main() {
       if(await rpc("native_cancellation_pending",base)===true) {
         if(state.not_before&&Date.parse(state.not_before)>Date.now()){await reportFailure("cancellation_pending");return;}
         const jobs=[];
-        for(const task of state.tasks.filter(t=>t.phase!=="planned")) {
+        for(const task of state.tasks.filter(t=>t.phase!=="planned"&&!t.reused)) {
           if(task.phase==="rejected" && aurayDefiniteRejections.some(code=>code===task.error_code)) {jobs.push({id:task.job_id,status:"rejected",settled:true,credits_charged:0,no_acceptance:true});continue;}
           try{const j=await provider.status(task.job_id);jobs.push({id:j.id,status:j.status,settled:j.settled,credits_charged:j.credits_charged});}
           catch{await reportFailure("cancellation_pending");process.stdout.write('{"code":"cancellation_pending"}\n');return;}
@@ -120,7 +128,7 @@ async function main() {
         const closed=z.object({code:z.string()}).parse(await rpc("close_native_chapter",{...base,p_proof:{jobs,account_id:inspected.account_id,key_id:inspected.key_id,checked_at:inspected.checked_at,period:inspected.period,plan_remaining:inspected.plan_remaining,key_remaining:inspected.key_remaining,trustworthy:inspected.blockers.every(b=>b==="insufficient_free_credits")}}));
         await reportFailure(closed.code);process.stdout.write(JSON.stringify(closed)+"\n");return;
       }
-      const result=await advanceNativeChapter(state,{provider,guard,
+      const result=await advanceNativeChapter(state,{provider,guard,verifyReuse,
         save:async(next)=>{await rpc("save_native_chapter",{...base,p_state:next});state=next;},
         reference:async(path,sha256)=>{
           if(!state.profile.references.some(r=>r.path===path && r.sha256===sha256))throw new AurayError("invalid_reference");

@@ -119,3 +119,16 @@ begin
   raise exception 'Auray monitoring must preserve workspace privacy and production lock';
  end if;
 end $$;
+
+-- ADR-083: editorial and credential-bearing operations are server-only.
+do $$
+declare fn text;tab text;
+begin
+ foreach fn in array array['studio_story_editorial_view(uuid,uuid,uuid)','studio_story_editorial_save(uuid,uuid,uuid,uuid,jsonb)','studio_story_revision_claim(uuid,uuid,uuid,uuid,jsonb)','studio_story_season_add(uuid,uuid,uuid,uuid,integer,jsonb)','studio_native_repair_view(uuid,uuid,uuid)','studio_native_repair_prepare(uuid,uuid,uuid,uuid,jsonb,jsonb,text)','studio_native_repair_restore(uuid,uuid,uuid)','studio_reference_view(uuid,uuid,uuid)','studio_reference_request(uuid,uuid,uuid,uuid,integer,text,text)','claim_reference_job(uuid,uuid)','finish_reference_job(uuid,uuid,text,uuid)','reference_recovery_jobs()'] loop
+  if has_function_privilege('anon','public.'||fn,'execute') or has_function_privilege('authenticated','public.'||fn,'execute') or not has_function_privilege('service_role','public.'||fn,'execute') then raise exception 'Editorial/reference RPC exposed: %',fn;end if;
+ end loop;
+ if has_function_privilege('service_role','public.native_worker_input_before_repair(uuid)','execute') then raise exception 'Legacy worker admission exposed';end if;
+ foreach tab in array array['studio_story_editorial_history','studio_story_revisions','studio_story_seasons','studio_native_repairs','studio_reference_jobs'] loop
+  if not exists(select 1 from pg_class where oid=('public.'||tab)::regclass and relrowsecurity) or has_table_privilege('authenticated','public.'||tab,'select') then raise exception 'Editorial/reference data exposed: %',tab;end if;
+ end loop;
+end $$;

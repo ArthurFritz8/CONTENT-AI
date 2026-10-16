@@ -1,6 +1,7 @@
 "use client";
 import { useEffect,useRef,useState } from "react";
 import {storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
+import {GenerateCharacterReference} from "./story-reference-source";
 type Media={id:string;character_id:string;kind:"reference"|"voice_sample";sha256?:string;metadata:{voice_id?:string;width?:number;height?:number}};
 type View={media:Media[];can_configure:boolean;voice_enabled:boolean;voice_state:string;voice_retry_allowed?:boolean;voice_attempts?:number;voice_policy?:string;previous_voices?:Array<{character_id:string;sample_sha256:string}>;profile:{style:string;references?:Array<{character_id:string;sha256:string}>;voices?:Array<{character_id:string;sample_sha256:string}>}|null;bible:{cast:Array<{id:string;name:string;voice:string}>}};
 const defaultStyle="Animação 3D cinematográfica com personagens expressivos, olhos nítidos, iluminação natural e expressões legíveis. Preserve a aparência, as roupas e as proporções das imagens aprovadas em todas as cenas.";
@@ -56,6 +57,7 @@ export function StoryProductionSetup({seriesId,onSaved,presentationRevision,styl
         <div className="story-profile-cast">{view.bible.cast.map(c=>{
           const ref=choice(c.id,"reference"),voice=choice(c.id,"voice_sample"),refs=view.media.filter(m=>m.character_id===c.id && m.kind==="reference"),samples=view.media.filter(m=>m.character_id===c.id && m.kind==="voice_sample");
           return <section key={c.id}><h5>{c.name}</h5>
+            {view.can_configure&&pattern&&<GenerateCharacterReference seriesId={seriesId} revision={presentationRevision!} styleId={styleId!} characterId={c.id} onReady={()=>void load()}/>}
             {view.can_configure && <label>Imagem de {c.name}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];if(file)void upload(c.id,file);}}/></label>}
             {ref ? <img src={`${base}/media?id=${ref.id}`} alt={`Referência cadastrada de ${c.name}`} width={176} height={300}/> : <p className="muted">{view.profile?"Referência já fixada; a prévia deste cadastro não está disponível.":"Imagem ainda não cadastrada."}</p>}
             {refs.length>1 && view.can_configure && <label>Imagem que será usada<select value={ref?.id} onChange={e=>{setSelected(v=>({...v,[`${c.id}:reference`]:e.target.value}));setConfirmed(false);}}>{refs.map((r,i)=><option key={r.id} value={r.id}>Referência {i+1} · {r.metadata.width} × {r.metadata.height}</option>)}</select></label>}

@@ -21,6 +21,7 @@ async function fixture(remaining=30) {
         const id=`video_${key}`;remote.set(id,{id,job_id:id,object:"job",product:"video",model:"auray-ai/minimax-h3/text-to-video",status:"succeeded",settled:true,credits_charged:5,poll_after_seconds:30,created_at:new Date(now).toISOString()});return id;
       },status:async(id)=>{calls.push(`status:${id}`);const value=remote.get(id);if(!value)throw new AurayError("not_found");return value;}},
     reference:async()=>{calls.push("reference");return new Uint8Array([1]);},
+    verifyReuse:async()=>{calls.push("verify_reuse");},
     save:async(next)=>{calls.push(`save:${next.revision}`);assert.equal(next.revision,current.revision+1);current=structuredClone(next);},
     collect:async(job)=>{calls.push(`collect:${job}`);const i=current.tasks.findIndex(t=>t.job_id===job);assert.equal(current.tasks[i]!.charged_credits,5);
       const sha=String(i+1).repeat(64);return {request_key:job.slice(6),sha256:sha,frames:120,path:`episodes/${current.episode_id}/native/${sha}.mp4`};},
@@ -29,6 +30,30 @@ async function fixture(remaining=30) {
   };
   return {deps,calls,remote,get state(){return current;},set state(v:NativeRun){current=v;},set budget(v:number){budget=v;},set lease(v:boolean){lease=v;}};
 }
+
+test("a scene repair reserves five credits, reuses untouched clips, and never submits them",async()=>{
+ for(const index of [0,1,2]) {
+  const f=await fixture(5+15),source=nativeFixtureInput(),origin="55555555-5555-4555-8555-555555555555";
+  const reuse=[0,1,2].filter(i=>i!==index).map(i=>({index:i,episode_id:origin,clip:{request_key:String(i+1).repeat(64),sha256:String(i+4).repeat(64),frames:120,path:`episodes/${origin}/native/${String(i+4).repeat(64)}.mp4`}}));
+  f.state=await createNativeRun({episode_id:source.episodeId,...source,reuse},report(5),now);f.budget=5;
+  assert.equal(f.state.reserved_credits,5);assert.equal(f.state.tasks[index]!.phase,"planned");assert.equal(f.state.tasks.filter(t=>t.reused).length,2);
+  await validateNativeRun(f.state);
+  assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"submitted");
+  assert.equal((await advanceNativeChapter(f.state,f.deps)).code,"collected");
+  assert.equal((await advanceNativeChapter(f.state,f.deps)).budget_reconciled,true);
+  assert.equal(f.calls.filter(c=>c.startsWith("submit:")).length,1);assert.equal(f.calls.filter(c=>c.startsWith("status:")).length,1);
+  assert.ok(f.calls.indexOf("verify_reuse")<f.calls.indexOf("upload"));
+  if(index===1) {
+    const blocked=await fixture(20);blocked.state=await createNativeRun({episode_id:source.episodeId,...source,reuse},report(5),now);blocked.budget=5;
+    blocked.deps.verifyReuse=async()=>{throw Error("cached_output_changed");};
+    await assert.rejects(advanceNativeChapter(blocked.state,blocked.deps),/cached_output_changed/);
+    delete blocked.deps.verifyReuse;await assert.rejects(advanceNativeChapter(blocked.state,blocked.deps),/native_reuse_unverified/);
+    assert.equal(blocked.calls.some(c=>c.startsWith("submit:")||c==="upload"),false);
+  }
+  const tampered=structuredClone(f.state),reused= tampered.tasks.find(t=>t.reused)!;
+  reused.clip!.sha256="f".repeat(64);await assert.rejects(validateNativeRun(tampered));
+ }
+});
 test("full chapter requires all fifteen recurring Free credits before any new request",async()=>{
   const a=nativeFixtureInput();
   for(const remaining of [0,5,10,14])await assert.rejects(createNativeRun({episode_id:a.episodeId,...a},report(remaining),now),/complete_chapter_budget_required/);

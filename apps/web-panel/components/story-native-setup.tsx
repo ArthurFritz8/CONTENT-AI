@@ -1,6 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import {storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
+import {GenerateCharacterReference} from "./story-reference-source";
 type Ref={id:string;character_id:string;kind:string;sha256:string};
 type Profile={style:string;references:Array<{character_id:string;sha256:string}>;voice_directions:Array<{character_id:string;description:string}>;example:{id:string}};
 type View={bible:{cast:Array<{id:string;name:string;voice:string}>};media:Ref[];can_configure:boolean;profile:Profile|null;native_examples:Array<{id:string;title:string;limitations:string[]}>};
@@ -37,6 +38,7 @@ export function StoryNativeSetup({seriesId,revision,styleId,onSaved}:{seriesId:s
         </>}
         <h4>Imagens e direção das vozes</h4><p className="muted">Use imagens verticais, com rosto, roupa e mãos visíveis. PNG, JPEG ou WebP de até 12 MB e pelo menos 480 pixels de largura. A direção vocal orienta a atuação; não fixa nem clona uma voz.</p>
         <div className="story-profile-cast">{view.bible.cast.map(c=><section key={c.id}><h5>{c.name}</h5>
+          {view.can_configure&&<GenerateCharacterReference seriesId={seriesId} revision={revision} styleId={styleId} characterId={c.id} onReady={()=>void load()}/>}
           {view.can_configure&&<label>Imagem de {c.name}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={e=>{const f=e.currentTarget.files?.[0];if(f)void upload(c.id,f);}}/></label>}
           {ref(c.id)&&<img src={`${base}/media?id=${ref(c.id)!.id}`} width={176} height={300} alt={`Referência Auray de ${c.name}`}/>}
           {view.can_configure&&view.media.filter(m=>m.kind==="reference"&&m.character_id===c.id).length>1&&<label>Referência de {c.name}<select value={ref(c.id)?.id} onChange={e=>{setSelected(v=>({...v,[c.id]:e.target.value}));setAccepted(false);}}>{view.media.filter(m=>m.kind==="reference"&&m.character_id===c.id).map((m,i)=><option key={m.id} value={m.id}>Imagem {i+1}</option>)}</select></label>}

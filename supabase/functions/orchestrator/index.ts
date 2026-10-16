@@ -20,6 +20,7 @@ import { JobLogger } from "../_shared/logger.ts";
 import { dispatchApprovedShort } from "../_shared/publication-dispatch.ts";
 import { dispatchApprovedBufferTikTok } from "../_shared/buffer-tiktok-dispatch.ts";
 import { dispatchApprovedBufferYoutube } from "../_shared/buffer-youtube-dispatch.ts";
+import {dispatchPendingReferences} from "../_shared/reference-dispatch.ts";
 
 interface PipelineConfig {
   enabled?: boolean;
@@ -62,6 +63,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (discovered) return jsonResponse(discovered);
     const review = await sendReview(db);
     if (review) return jsonResponse(review);
+    const references=await dispatchPendingReferences(db);
+    if(references)return jsonResponse(references);
     const advanced = await advancePipeline(db);
     if (advanced) return jsonResponse(advanced);
     if (!cfg.enabled)

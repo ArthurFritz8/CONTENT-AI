@@ -1,0 +1,45 @@
+\set ON_ERROR_STOP on
+begin;
+create function pg_temp.editorial_assert(v boolean,label text) returns void language plpgsql as $$begin if v is distinct from true then raise exception 'Editorial assertion: %',label;end if;end $$;
+do $$
+declare actor uuid:=gen_random_uuid();other_actor uuid:=gen_random_uuid();w uuid;ow uuid;sid uuid;req uuid:=gen_random_uuid();b jsonb;payload jsonb;reply jsonb;iid uuid;eid uuid;r public.review_requests;season jsonb;
+begin
+ w:=public.studio_provision(actor,'Editorial test',false);ow:=public.studio_provision(other_actor,'Other editorial',false);
+ b:='{"kind":"fruits","genre":"mystery","title":"A carta escondida","premise":"Duas frutas procuram uma carta que desapareceu durante a feira.","cast":[{"id":"lia","name":"Lia","appearance":"apple","color":"#ff0000","personality":"Curiosa e sempre atenta.","voice":"female"},{"id":"rui","name":"Rui","appearance":"orange","color":"#ff9900","personality":"Amigo leal mas impulsivo.","voice":"male"}],"chapters":[{"title":"A carta perdida","arc":"Lia encontra a carta e Rui admite que a guardou para proteger a amiga."}]}';
+ perform public.studio_story_claim(w,actor,req,'{"kind":"fruits","genre":"mystery","chapters":1}');sid:=public.studio_story_save(w,actor,req,b);
+ payload:=jsonb_build_object('revision',0,'bible',b,'pins','["cast"]'::jsonb,'guidance','Mantenha a carta com Lia.','memory','{"relationships":"Amizade recuperada.","secrets":"Rui sabe quem escreveu.","characters":"Lia usa vestido vermelho.","setting":"Feira ao entardecer.","open_threads":"A autoria da carta."}'::jsonb);
+ req:=gen_random_uuid();reply:=public.studio_story_editorial_save(w,actor,sid,req,payload);
+ perform pg_temp.editorial_assert(reply->>'revision'='1','revision increments');
+ perform pg_temp.editorial_assert(public.studio_story_editorial_save(w,actor,sid,req,payload)=reply,'lost reply is idempotent');
+ perform pg_temp.editorial_assert(public.studio_story_editorial_save(w,actor,sid,gen_random_uuid(),payload)->>'code'='revision_changed','stale tab cannot overwrite');
+ begin perform public.studio_story_editorial_view(ow,other_actor,sid);raise exception 'Cross workspace accepted';exception when no_data_found then null;end;
+ perform pg_temp.editorial_assert(public.studio_story_revision_claim(w,actor,sid,gen_random_uuid(),'{"revision":1,"section":"cast","guidance":""}')->>'code'='section_pinned','pinned section blocked in server');
+ req:=gen_random_uuid();perform pg_temp.editorial_assert(public.studio_story_revision_claim(w,actor,sid,req,'{"revision":1,"section":"arcs","guidance":""}')->>'code'='claimed','text revision claimed');
+ perform pg_temp.editorial_assert(public.studio_story_revision_claim(w,actor,sid,req,'{"revision":1,"section":"arcs","guidance":""}')->>'code'='busy','duplicate text call blocked');
+ reply:=public.studio_story_next(w,actor,sid);iid:=(reply->>'idea_id')::uuid;
+ perform pg_temp.editorial_assert((select story_context#>>'{editorial,memory,secrets}'='Rui sabe quem escreveu.' from public.idea_queue where id=iid),'memory frozen before production');
+ payload:=jsonb_set(payload,'{revision}','1');
+ perform pg_temp.editorial_assert(public.studio_story_editorial_save(w,actor,sid,gen_random_uuid(),jsonb_set(payload,'{bible,cast,0,name}','"Outra pessoa"'))->>'code'='story_locked','cast cannot change after chapter planning');
+ perform pg_temp.editorial_assert(public.studio_story_editorial_save(w,actor,sid,gen_random_uuid(),jsonb_set(payload,'{bible,chapters,0,title}','"Outro arco"'))->>'code'='chapter_locked','started arc immutable');
+ payload:=jsonb_set(payload,'{memory,secrets}','"Lia agora conhece a autoria."');
+ perform pg_temp.editorial_assert(public.studio_story_editorial_save(w,actor,sid,gen_random_uuid(),payload)->>'code'='saved','future memory editable');
+ perform pg_temp.editorial_assert((select story_context#>>'{editorial,memory,secrets}'='Rui sabe quem escreveu.' from public.idea_queue where id=iid),'in-flight memory is not rewritten');
+ season:=jsonb_build_object('title','O retorno da carta','chapters',(select jsonb_agg(b->'chapters'->0) from generate_series(1,6)),'ending','Os dois finalmente revelam a autoria da carta diante de todos na feira.');
+ perform pg_temp.editorial_assert(public.studio_story_season_add(w,actor,sid,gen_random_uuid(),2,season)->>'code'='review_required','no season without previous approvals');
+ reply:=public.studio_command(w,actor,gen_random_uuid(),'generate_video',jsonb_build_object('id',iid,'revision',(select revision from public.idea_queue where id=iid)));eid:=(reply->>'episode_id')::uuid;
+ update public.episodes set status='research' where id=eid;
+ update public.episodes set status='script',script_json=jsonb_build_object('fiction',jsonb_build_object('context',briefing->'story_context','summary','Lia recuperou a carta e Rui confessou que a guardou para proteger a amiga.'),'disclosures',jsonb_build_object('contains_synthetic_media',true,'commercial_content',false)) where id=eid;
+ update public.episodes set status='assets' where id=eid;
+ update public.episodes set status='rendered',render_url='https://example.test/editorial.mp4' where id=eid;
+ update public.episodes set status='review' where id=eid;
+ r:=public.studio_ensure_review(eid);perform public.studio_review_action(w,actor,gen_random_uuid(),r.id,r.fingerprint,'approve');
+ req:=gen_random_uuid();perform pg_temp.editorial_assert(public.studio_story_season_add(w,actor,sid,req,2,season)->>'code'='saved','season appended beyond six chapters');
+ perform pg_temp.editorial_assert(public.studio_story_season_add(w,actor,sid,req,2,season)->>'code'='saved','season retry does not append twice');
+ perform pg_temp.editorial_assert((select jsonb_array_length(bible->'chapters')=7 from public.studio_series where id=sid),'seven planned chapters retained');
+ reply:=public.studio_story_next(w,actor,sid);
+ perform pg_temp.editorial_assert(reply->>'chapter_number'='2','previous approved bible still permits continuation after season append');
+ perform pg_temp.editorial_assert((select story_context#>>'{editorial,memory,secrets}'='Lia agora conhece a autoria.' and jsonb_array_length(story_context->'previous_summaries')=1 from public.idea_queue where id=(reply->>'idea_id')::uuid),'next chapter receives new memory plus actual approved summary');
+ perform pg_temp.editorial_assert(not exists(select 1 from public.studio_outbox where workspace_id=w),'editorial never publishes');
+ perform pg_temp.editorial_assert(not has_function_privilege('authenticated','public.studio_story_editorial_save(uuid,uuid,uuid,uuid,jsonb)','execute'),'RPC requires trusted server');
+end $$;
+rollback;

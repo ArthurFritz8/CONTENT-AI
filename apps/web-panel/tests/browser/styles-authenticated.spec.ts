@@ -1,6 +1,29 @@
 import {test,expect} from '@playwright/test';
 import sharp from 'sharp';
 
+test('editorial edits persist, pinned sections stay fixed and a scene repair uses its authorized route',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',r=>r.fulfill({json:{items:[],total:0,page:1}}));await page.route('**/api/discovery',r=>r.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ await page.getByRole('button',{name:'Editar história, memória e temporadas'}).click();
+ const editor=page.getByRole('region',{name:'Edição e continuidade'});
+ await editor.getByRole('textbox',{name:'Sinopse',exact:true}).fill('Duas frutas encontram uma carta escondida e decidem investigar juntas o segredo da feira.');
+ await editor.getByLabel('Fixar personagens e relações',{exact:true}).check();
+ await editor.getByLabel('Segredos: quem sabe o quê',{exact:true}).fill('Apenas Rui sabe quem escondeu a carta.');
+ await editor.getByRole('button',{name:'Salvar edição e memória'}).click();await expect(editor.getByText('Versão salva.',{exact:false})).toBeVisible();
+ await expect(editor.getByRole('button',{name:'Recriar personagens e relações'})).toBeDisabled();
+ await editor.getByRole('button',{name:'Recriar arcos e desfecho'}).click();await expect(editor.getByText('Prévia pronta.',{exact:false})).toBeVisible();
+ await expect(editor.getByLabel('Fixar personagens e relações')).toBeChecked();await editor.getByRole('button',{name:'Salvar edição e memória'}).click();
+ await page.reload();await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();await page.getByRole('button',{name:'Editar história, memória e temporadas'}).click();
+ await expect(editor.getByLabel('Segredos: quem sabe o quê')).toHaveValue('Apenas Rui sabe quem escondeu a carta.');
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await expect.poll(()=>page.locator('aside.sidebar').evaluate(el=>el.getBoundingClientRect().right)).toBeLessThanOrEqual(0);await editor.screenshot({path:'test-results/story-editorial-mobile.png',animations:'disabled'});
+ await page.unroute('**/api/control?*');await page.goto('/studio/episodes/88888888-8888-4888-8888-888888888888');
+ const repair=page.getByRole('region',{name:'Corrigir uma cena'});await repair.getByRole('button',{name:'Escolher cena para corrigir'}).click();await repair.getByRole('combobox',{name:'Cena',exact:true}).selectOption('1');
+ await expect(repair.getByLabel('Fala (3–8 palavras)')).toHaveValue('Eu guardei sua passagem.');
+ await repair.getByLabel('Quero gerar uma nova tomada',{exact:false}).check();await repair.getByRole('button',{name:'Refazer cena 2 · até 5 créditos'}).click();await expect(repair.getByRole('link',{name:'Acompanhar correção'})).toHaveAttribute('href','/studio/episodes/77777777-7777-4777-8777-777777777777');
+ await repair.getByRole('button',{name:'Fechar correção'}).click();await repair.getByRole('button',{name:'Escolher cena para corrigir'}).click();await repair.getByRole('button',{name:'Voltar à versão anterior'}).click();await expect(repair.getByText('Versão anterior restaurada para continuidade.',{exact:false})).toBeVisible();
+});
+
 test('native review shows bounded advisory findings through the authorized server route',async({page,context})=>{
  await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
  await page.goto('/studio/episodes/88888888-8888-4888-8888-888888888888');

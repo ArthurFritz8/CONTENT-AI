@@ -40,7 +40,7 @@ export const seriesBibleSchema = z.object({
   chapters: z.array(z.object({
     title: z.string().trim().min(5).max(100),
     arc: z.string().trim().min(30).max(700),
-  })).min(1).max(6),
+  })).min(1).max(60),
 }).superRefine((v, ctx) => {
   if (new Set(v.cast.map(c => c.id)).size !== v.cast.length)
     ctx.addIssue({ code: "custom", path: ["cast"], message: "Personagens devem ter IDs únicos" });
@@ -56,8 +56,12 @@ export const proposalBibleSchema = seriesBibleSchema.refine(v =>
   "A proposta exige universo, conflito, desfecho, relações, objetivos e aparência do elenco");
 export const storyContextSchema = z.object({
   series_id: z.string().uuid(), bible: seriesBibleSchema,
-  chapter_number: z.number().int().min(1).max(6),
-  previous_summaries: z.array(z.string().min(30).max(1200)).max(5),
+  chapter_number: z.number().int().min(1).max(60),
+  previous_summaries: z.array(z.string().min(30).max(1200)).max(59),
+  editorial: z.object({revision:z.number().int().positive(),guidance:z.string().max(1000),
+    memory:z.object({relationships:z.string().max(1500),secrets:z.string().max(1500),
+      characters:z.string().max(1500),setting:z.string().max(1500),open_threads:z.string().max(1500)}).strict(),
+  }).strict().optional(),
 }).superRefine((v, ctx) => {
   if (v.chapter_number > v.bible.chapters.length || v.previous_summaries.length !== v.chapter_number - 1)
     ctx.addIssue({ code: "custom", message: "Capítulo e continuidade incompatíveis" });

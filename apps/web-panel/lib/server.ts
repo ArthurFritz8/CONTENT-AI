@@ -131,10 +131,10 @@ export function safeErrorText(value: unknown) {
       .map(([, v]) => v || ""),
   );
 }
-export async function body(request: Request) {
+export async function body(request: Request, maximum=12000) {
   if (!request.headers.get("content-type")?.startsWith("application/json"))
     throw new PanelError("Envie JSON.", 415);
-  if (Number(request.headers.get("content-length") || 0) > 12000)
+  if (Number(request.headers.get("content-length") || 0) > maximum)
     throw new PanelError("Requisição muito grande.", 413);
   const reader = request.body?.getReader();
   if (!reader) throw new PanelError("Dados ausentes.");
@@ -144,7 +144,7 @@ export async function body(request: Request) {
     const { value, done } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > 12000) {
+    if (size > maximum) {
       await reader.cancel();
       throw new PanelError("Requisição muito grande.", 413);
     }

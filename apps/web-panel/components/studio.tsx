@@ -6,6 +6,7 @@ import { Fia } from "./fia";
 import { StoryDiscovery } from "./story-discovery";
 import { ReviewActions } from "./review-actions";
 import { NativeMediaReview } from "./native-media-review";
+import { NativeSceneRepair } from "./native-scene-repair";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
@@ -1700,8 +1701,9 @@ function EpisodeDetail({
                   <ShieldCheck size={18} />
                   {t("reviewHint")}
                 </p>
-                {script?.fiction?.native_animation && <>
-                  <NativeMediaReview report={e.nativeReview} cast={script.fiction.context?.bible?.cast}/>
+                {(script?.fiction?.native_animation || e.metadata?.native_repair_of) && <>
+                  <NativeMediaReview report={e.nativeReview} cast={script?.fiction?.context?.bible?.cast}/>
+                  <NativeSceneRepair episode={e.id}/>
                   {e.status==="review" && <ReviewActions episode={e.id} onChange={()=>{}}/>}
                 </>}
               </>

@@ -14,6 +14,8 @@ for(const [index,character_id] of ['lia','rui'].entries()) {
  media.push({id,character_id,kind:'voice_sample',sha256,path,bytes:wav.length,ready:true,metadata:{engine:'edge',version:'edge-tts-7.2.8-rate0',voice_id:index?'pt-BR-AntonioNeural':'pt-BR-FranciscaNeural',mime:'audio/wav',seconds:1}});files.set(path,wav);
 }
 const bible={kind:'fruits',genre:'mystery',title:'A chave da feira — teste isolado',premise:'Duas frutas encontram uma chave misteriosa na feira e procuram quem perdeu o objeto.',cast:[{id:'lia',name:'Lia',appearance:'apple',color:'#ef1234',personality:'Curiosa e amiga de todos.',voice:'female'},{id:'rui',name:'Rui',appearance:'orange',color:'#fab123',personality:'Impulsivo e curioso.',voice:'male'}],chapters:[{title:'A chave',arc:'Os dois amigos encontram uma chave e descobrem uma pista.'},{title:'A porta',arc:'Abrem a porta e descobrem o segredo da feira.'}]};
+const editorial={revision:0,pins:[],memory:{relationships:'',secrets:'',characters:'',setting:'',open_threads:''},guidance:''};
+let repaired=false;
 const samples=JSON.parse(readFileSync(new URL('../../../../docs/stories/style-gallery-samples.json',import.meta.url),'utf8')).map(({sample:{sha256,bytes,...s}})=>({...s,created_at:'2026-10-14T00:00:00Z'}));
 // Opaque private-byte fixture: verifies scope/hash transport, not artistic quality.
 const nativeBytes=Buffer.from('isolated-native-example-bytes'),nativeHash=createHash('sha256').update(nativeBytes).digest('hex'),nativeExample=samples.find(s=>s.source==='auray');
@@ -24,6 +26,23 @@ globalThis.fetch=async(input,init)=>{
  // Every unexpected request is rejected, including external generation and storage.
  if(u.origin!=='https://fixture.supabase.co')throw Error('fixture_egress_denied');
  const body=init?.body && !u.pathname.startsWith('/storage/')?JSON.parse(String(init.body)):{};
+ if(u.pathname==='/rest/v1/rpc/studio_reference_view')return json({connection:null,jobs:[],daily_request_cap:6,remaining_neurons:null});
+ if(u.pathname==='/rest/v1/rpc/studio_story_editorial_view')return json({...editorial,bible,cast_locked:false,planned_through:0,seasons:[{number:1,title:'Temporada 1',starts_at:1,ends_at:2}],history:[],storyboards:[]});
+ if(u.pathname==='/rest/v1/rpc/studio_story_editorial_save'){
+  if(body.p_input.revision!==editorial.revision)return json({code:'revision_changed'});
+  Object.assign(bible,body.p_input.bible);Object.assign(editorial,{...body.p_input,revision:editorial.revision+1});return json({code:'saved',revision:editorial.revision});
+ }
+ if(u.pathname==='/functions/v1/studio-story'&&body.action==='revise')return json({code:'preview',bible:{...bible,chapters:bible.chapters.map(c=>({...c,arc:'A nova pista revela que a carta estava escondida no portão desde o início.'}))}});
+ if(u.pathname==='/rest/v1/rpc/studio_native_repair_view'){
+  const draft={title:'O segredo da passagem',summary:'Lia encontra a passagem e Rui revela que a guardou para proteger a amiga.',scenes:['Onde está a passagem?','Eu guardei sua passagem.','Por que escondeu isso?'].map((narration_text,index)=>({narration_text,visual:{speaker_id:index===1?'rui':'lia',on_stage:[index===1?'rui':'lia'],setting:'home',mood:'sad'},prompt:'Medium close-up, the reference character makes one clear and restrained gesture.',seed:index+1}))};
+  return json({available:true,can_repair:!repaired,draft,versions:repaired?[{source_episode:'88888888-8888-4888-8888-888888888888',episode_id:'77777777-7777-4777-8777-777777777777',shot_index:1,restored:false}]:[],context:{series_id:series,bible,chapter_number:1,previous_summaries:[]},profile:{version:'auray-native-1.0.0',model:'auray-ai/minimax-h3/text-to-video',contract_sha256:'365a74a0aeab67eebf117fd826d540017748d687ba0955fc8ed989d113a816f1',style:'Cinematic 3D characters, clear eyes and natural controlled gestures.',orientation:'portrait',output_fps:24,width:768,height:1344,references:bible.cast.map(c=>({character_id:c.id,path:`${workspace}/story-profile/${series}/${c.id}.png`,sha256:'a'.repeat(64)})),voice_directions:bible.cast.map(c=>({character_id:c.id,description:'Adult Brazilian voice with clear natural emotional delivery.'})),example:{id:nativeExample.id,sha256:nativeHash},voice_policy:'provider_generated_review',native_voice_acknowledged:true}});
+ }
+ if(u.pathname==='/rest/v1/rpc/studio_native_repair_prepare'){
+  if(body.p_edit.index!==1||body.p_draft.scenes[1].seed!==3||body.p_fingerprint.length!==64)throw Error('fixture_invalid_repair');
+  repaired=true;
+  return json({code:'started',episode_id:'77777777-7777-4777-8777-777777777777',reserved_credits:5});
+ }
+ if(u.pathname==='/rest/v1/rpc/studio_native_repair_restore'){if(body.p_episode!=='77777777-7777-4777-8777-777777777777')throw Error('fixture_restore_wrong_target');repaired=false;return json({code:'restored'});}
  if(u.pathname.startsWith('/storage/v1/object/studio-private/')) {
   const path=decodeURIComponent(u.pathname.slice('/storage/v1/object/studio-private/'.length));
   if(init?.method==='POST'){if(files.has(path))return new Response(null,{status:409});files.set(path,Buffer.from(init.body));return json({});}
