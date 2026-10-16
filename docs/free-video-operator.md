@@ -1,6 +1,6 @@
 # Avaliação gratuita de clipes
 
-**Atualização de 16/10/2026:** Auray já tem piloto aprovado e integração de capítulos no Studio; a última inspeção encontrou saldo zero. As descrições de avaliação abaixo são históricas. A busca de uma segunda fonte de vídeo e a consulta Puter, ainda sem geração ou conta validada, estão em [segunda-fonte-video-2026-10-16.md](research/segunda-fonte-video-2026-10-16.md). Cloudflare está conectado para imagens e não substitui o motor de vídeo. Nenhuma nova fonte foi habilitada nesta rodada.
+**Atualização de 16/10/2026:** Auray já tem piloto aprovado e integração de capítulos no Studio; a última inspeção encontrou saldo zero. As descrições de avaliação abaixo são históricas. A busca de uma segunda fonte está em [segunda-fonte-video-2026-10-16.md](research/segunda-fonte-video-2026-10-16.md). O [primeiro teste real Puter](research/puter-malu-audition-2026-10-16.md) gerou cinco segundos com a referência aprovada e aguarda revisão do usuário; não está habilitado para capítulos no painel. Cloudflare está conectado para imagens e não substitui o motor de vídeo.
 
 Ferramenta do operador, fora da produção do Studio. Gadgets e histórias ilustradas seguem seus fluxos atuais. Os testes não são episódios nem publicações.
 

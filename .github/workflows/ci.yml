@@ -75,6 +75,8 @@ jobs:
       - run: bash scripts/setup-ffmpeg.sh
       - name: Worker offline, sem credenciais ou GPU
         run: python -m unittest discover -s scripts -p test_story_video_worker.py
+      - name: Teste Puter offline, sem API ou geração
+        run: python -m unittest discover -s scripts -p test_puter_malu_audition.py
       - name: Saldo e orçamento offline, sem acesso ao Modal
         run: python -m unittest discover -s scripts -p test_story_modal_budget.py
       - name: Inspeção de runtime offline, sem build ou invocação
