@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       return Response.json({ count });
     }
     if (input.action === "disconnect") {
-      if (!["buffer", "telegram"].includes(input.provider))
+      if (!["buffer", "telegram", "cloudflare_images"].includes(input.provider))
         throw new PanelError("Conexão inválida.");
       await db(
         "studio_connections",
