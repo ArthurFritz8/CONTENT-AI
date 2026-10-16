@@ -2,7 +2,15 @@
 
 ## Resultado desta rodada
 
-**CNAPS é candidato, ainda não é uma fonte de produção.** A pesquisa encontrou evidência oficial de capacidade gratuita recorrente e automação, mas não houve autenticação, envio de personagens ou inferência. A capacidade exata da conta e a qualidade permanecem desconhecidas. Não somar essa oferta às carteiras existentes nem anunciar segundos/capítulos disponíveis.
+**CNAPS é candidato, ainda não é uma fonte de produção.** A pesquisa inicial encontrou evidência oficial de capacidade gratuita recorrente e automação. A atualização autenticada abaixo confirma o plano e o catálogo da conta; a qualidade e a capacidade em segundos/capítulos ainda não foram medidas. Não somar essa oferta às carteiras existentes.
+
+### Atualização autenticada de 16/10
+
+A chave fornecida pelo titular foi configurada apenas em `.env.cloud`, ignorado pelo Git. As consultas reais retornaram workspace pessoal ativo, `plan_name: free`, consumo também no plano `free`, **0% utilizado**, `is_unlimited: false` e janela de **cinco horas**. Não há campo explícito sobre trial nessa resposta. A classificação Free foi observada diretamente; não foi deduzida do anúncio de teste Pro.
+
+O catálogo liberou `Txt2Video-MiniMax-H3-Ref2VA`, com plano mínimo Free. As consultas de detalhes e parâmetros confirmaram a seleção de 124 quadros, `768x1344 (9:16)`, 30 passos e seed 42016. O contrato permite imagem de referência e texto; o teste proposto continua com a imagem original aprovada da Malu. A API não retornou a franquia absoluta de GPU nem o instante exato da próxima reposição. Por isso **não há estimativa de capítulos, segundos ou reserva de produção** a partir do percentual.
+
+Não houve criação de fluxo, upload, inferência, alteração de assinatura ou publicação. Relatório privado: `output/cnaps-discovery/inspection.json`. O plano local do primeiro teste fica em `output/cnaps-malu-audition/plano.json`; é preparação, sem executor de geração ou envio agendado. O catálogo estima tempo elevado de processamento no modelo padrão; isso não é medição realizada pelo projeto.
 
 Puter já tem integração de capítulos, não apenas teste: [ADR-086](../ADR/ADR-086-capitulos-puter-com-franquia-recorrente.md). Sua amostra de cinco segundos foi aprovada; o capítulo inteiro ainda aguarda saldo e avaliação artística. A última consulta anterior a esta pesquisa registrou aproximadamente 677,65 créditos, abaixo da reserva estimada de 990 para três tomadas. **Esta rodada não atualizou esse saldo.** O roteiro separado de “A passagem escondida — teste Puter” e suas duas referências já foram preparados; não houve agendamento ou geração de capítulo.
 
@@ -19,8 +27,9 @@ A rota proposta é **MCP por HTTP**, autenticada com `x-api-key`, consultando a 
 ## Preparação implementada
 
 - `scripts/inspect-cnaps.mjs`: consulta operacional com `CNAPS_API_KEY` no ambiente ou em `.env.cloud`, ignorado pelo Git. Não aceita chave na linha de comando.
-- `scripts/lib/cnaps-inspection.mjs`: endpoint fixo, somente inicialização, catálogo de ferramentas e três leituras permitidas: `get_workspace_info`, `get_usage`, `list_models` para vídeo. Sem uploads, criação de fluxos, geração ou alterações de cobrança.
-- Respostas JSON/SSE limitadas, timeout, sem redirecionamentos ou tentativas automáticas. Sessão e erros privados não são impressos. O relatório guarda apenas formatos de resposta, sem valores pessoais ou financeiros. Uma mudança de contrato interrompe a consulta.
+- `scripts/lib/cnaps-inspection.mjs`: endpoint fixo, inicialização, catálogo de ferramentas e leituras `get_workspace_info`, `get_usage`, `list_models` para vídeo. Somente se o catálogo liberar o modelo de referência fixado, consulta também `get_model` e `get_model_parameters`, após validar os contratos dessas ferramentas. Sem uploads, criação de fluxos, geração ou alterações de cobrança.
+- `scripts/lib/cnaps-account-observation.mjs`: mapeia os campos autenticados conhecidos. Planos incompatíveis, conta inativa, modelo pago ou parâmetros alterados não habilitam o perfil. Guarda observações permitidas de plano, percentual, janela e seleção; identidade da conta vira hash. Nunca converte percentual em segundos ou capítulos.
+- Respostas JSON/SSE limitadas, timeout, sem redirecionamentos ou tentativas automáticas. Sessão, identidade pessoal e erros privados não são impressos. Uma mudança de contrato impede confirmar o modelo ou interrompe a consulta.
 - `scripts/test-cnaps-inspection.test.mjs`: testes offline de privacidade, autenticação, paginação, respostas grandes, instruções recebidas, contratos inesperados e encerramento de SSE. Incluído no CI.
 
 Execução pelo operador, depois de configurar a chave:
@@ -29,7 +38,7 @@ Execução pelo operador, depois de configurar a chave:
 node scripts/inspect-cnaps.mjs
 ```
 
-Saída local ignorada: `output/cnaps-discovery/inspection.json`. Essa primeira etapa verifica transporte e formatos; **não interpreta saldo, não certifica o Free e não habilita produção**. Será necessário mapear a resposta autenticada real antes de guardar observações de capacidade. O transporte segue a [especificação MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports).
+Saída local ignorada: `output/cnaps-discovery/inspection.json`. A versão 2 verifica o transporte e registra os campos autenticados conhecidos; **não certifica uma inferência gratuita, não estima saldo em vídeo e não habilita produção**. O transporte segue a [especificação MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports).
 
 ## Como conectar, caso o usuário ainda não tenha conta
 
@@ -42,8 +51,8 @@ Os nomes de menus e a criação de chave são descritos na [documentação ofici
 
 ## Critérios antes de habilitar capítulos
 
-1. Confirmar plano base, eventual trial, limite, janela de reposição e acesso ao modelo na resposta autenticada. Se só aparecer franquia Pro temporária, não projetar produção recorrente com esse número.
-2. Descobrir o identificador e os parâmetros reais do modelo no catálogo, sem inventá-los. Conferir watermark, uso comercial e condições de automação aplicáveis.
+1. Atualizar plano, consumo e acesso ao modelo antes do teste. Os campos conhecidos já foram mapeados; a franquia absoluta e indicadores explícitos de trial não são expostos. Não projetar produção recorrente com uma capacidade desconhecida.
+2. Fixar o identificador e os parâmetros autenticados já descobertos. Conferir watermark, uso comercial e condições de automação aplicáveis.
 3. Implementar uma única tomada de teste com orçamento, intenção persistida e retomada sem reenvio incerto. Usar as referências já aprovadas em armazenamento privado e compartilhamento temporário necessário ao processamento. Nenhum envio ocorreu nesta pesquisa.
 4. Revisar o original: nitidez dos olhos, mãos, gestos, voz em português, boca sincronizada, duração e quadros efetivamente diferentes. Não prometer corrigir defeitos apenas aumentando o FPS.
 5. Somente após aprovação, criar exemplo próprio e integração completa no painel/worker. Manter carteira e perfil separados. Uma novela existente não troca de motor silenciosamente; uma variante precisa de amostra e aceite para preservar a continuidade visual.

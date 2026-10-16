@@ -22,6 +22,10 @@ try {
   await writeFile(join(directory, 'inspection.json'), JSON.stringify(report, null, 2) + '\n', {mode: 0o600});
   process.stdout.write(JSON.stringify({status: 'inspection_complete', production_ready: false,
     generation_submitted: false, estimated_video_seconds: null,
+    plan_reported: report.account_plan_reported,
+    usage_percent: report.usage_observation?.usage_percent ?? null,
+    reset_period_hours: report.usage_observation?.reset_period_hours ?? null,
+    reference_model_contract_observed: report.reference_model_observation !== null,
     report: 'output/cnaps-discovery/inspection.json'}) + '\n');
 } catch (error) {
   process.stderr.write(JSON.stringify({status: 'blocked', production_ready: false,

@@ -1,8 +1,11 @@
 /** Discovery only: no flow creation, uploads, generation, billing, or general tool runner. */
+import {observeCnapsAccount, findCnapsReferenceModel, observeCnapsReferenceParameters}
+  from './cnaps-account-observation.mjs';
 const ENDPOINT = 'https://mcp.cnaps.ai/mcp';
 const PROTOCOL = '2025-06-18';
 const MAX_BYTES = 4 * 1024 * 1024;
 const READS = ['get_workspace_info', 'get_usage', 'list_models'];
+const MODEL_READS = ['get_model', 'get_model_parameters'];
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export class CnapsInspectionError extends Error {
@@ -142,7 +145,7 @@ export async function inspectCnaps(key, {fetchImpl = fetch, now = () => new Date
       fail('unknown_tool_catalog');
     }
     for (const tool of catalog.tools) {
-      if (record(tool) && READS.includes(tool.name)) {
+      if (record(tool) && [...READS, ...MODEL_READS].includes(tool.name)) {
         if (tools.has(tool.name)) fail('duplicate_read_tool');
         tools.set(tool.name, tool);
       }
@@ -166,18 +169,39 @@ export async function inspectCnaps(key, {fetchImpl = fetch, now = () => new Date
       fail('unknown_read_tool_schema');
     }
   }
-  const observations = {};
+  const observations = {}, data = {};
   for (const name of READS) {
     const result = toolData(await request('tools/call', {name,
       arguments: name === 'list_models' ? {output_type: 'video'} : {}}));
     observations[name] = shape(result);
+    data[name] = result;
   }
-  return {version: 1, provider: 'cnaps', mode: 'read_only', checked_at: now().toISOString(),
-    transport_verified: true, read_tools_observed: READS.slice(), response_shapes: observations,
-    account_plan_verified: false, recurring_free_entitlement_verified: false,
+  const account = observeCnapsAccount(data.get_workspace_info, data.get_usage);
+  const modelId = findCnapsReferenceModel(data.list_models);
+  let modelObservation = null;
+  const performedReads = READS.slice();
+  if (modelId) {
+    for (const name of MODEL_READS) {
+      const schema = tools.get(name)?.inputSchema;
+      if (!record(schema) || schema.type !== 'object' || schema.properties?.model_id?.type !== 'string' ||
+          (schema.required !== undefined && (!Array.isArray(schema.required) ||
+            schema.required.some(field => field !== 'model_id')))) fail('unknown_read_tool_schema');
+    }
+    for (const name of MODEL_READS) {
+      data[name] = toolData(await request('tools/call', {name, arguments: {model_id: modelId}}));
+      observations[name] = shape(data[name]);
+      performedReads.push(name);
+    }
+    modelObservation = observeCnapsReferenceParameters(data.get_model, data.get_model_parameters);
+  }
+  return {version: 2, provider: 'cnaps', mode: 'read_only', checked_at: now().toISOString(),
+    transport_verified: true, read_tools_observed: performedReads, response_shapes: observations,
+    ...account, reference_model_observation: modelObservation,
+    recurring_free_entitlement_verified: false,
     free_capacity: null, estimated_video_seconds: null, estimated_chapters: null,
     production_ready: false, generation_submitted: false,
-    blockers: ['account_contract_mapping_required', 'base_free_vs_trial_unverified',
-      'free_model_entitlement_unverified', 'watermark_and_terms_review_required',
+    blockers: [...(account.free_plan_reported ? [] : ['base_free_plan_unverified']),
+      ...(modelObservation ? [] : ['reference_model_contract_unverified']),
+      'absolute_gpu_allowance_not_exposed', 'free_inference_unverified', 'watermark_and_terms_review_required',
       'quality_review_required']};
 }
