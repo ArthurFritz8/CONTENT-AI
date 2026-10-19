@@ -1,0 +1,88 @@
+\set ON_ERROR_STOP on
+begin;
+create function pg_temp.queue_assert(value boolean,label text) returns void language plpgsql as $$
+begin if value is distinct from true then raise exception 'Video queue assertion: %',label;end if;end $$;
+\ir video-queue-fixture.sql
+do $$
+declare actor uuid:=gen_random_uuid();outsider uuid:=gen_random_uuid();workspace uuid;foreign_workspace uuid;wallet uuid:=gen_random_uuid();
+ fixture jsonb;later jsonb;entry uuid;other_entry uuid;request uuid:=gen_random_uuid();enqueue uuid:=gen_random_uuid();reply jsonb;duplicate jsonb;
+ previous_episode uuid;previous_idea uuid;review public.review_requests;
+begin
+ workspace:=public.studio_provision(actor,'Queue audit',false);foreign_workspace:=public.studio_provision(outsider,'Other queue',false);
+ insert into public.studio_video_wallets(id,label,quota_group,unit,free_tier,enabled,remaining_units,checked_at,valid_until)
+ values(wallet,'Queue wallet','queue-test-'||wallet,'credits','recurring',true,100,now(),now()+interval '1 hour');
+ insert into public.studio_video_wallet_access values(wallet,workspace);
+ fixture:=pg_temp.queue_chapter(actor,workspace,wallet);
+ reply:=public.studio_video_enqueue(workspace,actor,enqueue,(fixture->>'episode_id')::uuid,repeat('a',64));entry:=(reply->>'id')::uuid;
+ perform pg_temp.queue_assert(reply->>'code'='queued','prepared chapter enqueued');
+ perform pg_temp.queue_assert(public.studio_video_enqueue(workspace,actor,enqueue,(fixture->>'episode_id')::uuid,repeat('a',64))=reply,'enqueue idempotent');
+ begin perform public.studio_video_enqueue(workspace,actor,enqueue,(fixture->>'episode_id')::uuid,repeat('a',64),99);raise exception 'Changed enqueue replay accepted';exception when insufficient_privilege then null;end;
+ begin perform public.studio_video_enqueue(foreign_workspace,outsider,gen_random_uuid(),(fixture->>'episode_id')::uuid,repeat('a',64));raise exception 'Foreign episode queued';exception when insufficient_privilege then null;end;
+ begin perform public.studio_video_queue_view(workspace,outsider);raise exception 'Foreign actor read queue';exception when insufficient_privilege then null;end;
+ perform pg_temp.queue_assert(jsonb_array_length(public.studio_video_queue_view(foreign_workspace,outsider)->'items')=0,'workspace scoped view');
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan')->>'code'='queue_disabled','disabled by default');
+ perform pg_temp.queue_assert(not exists(select 1 from public.studio_video_jobs where episode_id=(fixture->>'episode_id')::uuid),'disabled gate creates no jobs');
+ update public.system_config set value='{"reservation_enabled":true}' where key='video_queue';
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,1,0,fixture->'plan')->>'code'='queue_version_changed','stale queue rejected');
+ update public.episodes set script_hash=repeat('8',64) where id=(fixture->>'episode_id')::uuid;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan')->>'code'='script_changed','changed script cannot spend original reservation');
+ update public.episodes set script_hash=fixture#>>'{plan,0,script_sha256}' where id=(fixture->>'episode_id')::uuid;
+ begin perform public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,(fixture->'plan')-4);raise exception 'Partial chapter reserved';exception when check_violation then null;end;
+ begin perform public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,jsonb_set(fixture->'plan','{0,wallet_id}',to_jsonb(gen_random_uuid())));raise exception 'Mixed wallet chapter reserved';exception when check_violation then null;end;
+ perform pg_temp.queue_assert((select revision=0 and after_quota_group is null from public.studio_video_queue_cursors where workspace_id=workspace),'invalid plan never advances cursor');
+ update public.studio_video_wallets set free_tier='trial' where id=wallet;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan')->>'code'='capacity_unavailable','introductory credits cannot fund queue');
+ update public.studio_video_wallets set free_tier='recurring',checked_at=now()-interval '6 minutes' where id=wallet;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan')->>'code'='capacity_unavailable','stale balance cannot fund queue');
+ update public.studio_video_wallets set checked_at=now() where id=wallet;
+ update public.studio_video_compatibility set revoked_at=now() where series_id=(fixture->>'series_id')::uuid;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan')->>'code'='series_incompatible','revoked style compatibility blocks reservation');
+ update public.studio_video_compatibility set revoked_at=null where series_id=(fixture->>'series_id')::uuid;
+ update public.studio_video_wallets set remaining_units=40 where id=wallet;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan')->>'code'='insufficient_capacity','whole chapter budget required');
+ perform pg_temp.queue_assert(not exists(select 1 from public.studio_video_jobs where episode_id=(fixture->>'episode_id')::uuid),'insufficient budget creates no partial jobs');
+ update public.studio_video_wallets set remaining_units=100 where id=wallet;
+ reply:=public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan');
+ perform pg_temp.queue_assert(reply->>'code'='reserved' and jsonb_array_length(reply->'job_ids')=5,'all five shots reserved');
+ duplicate:=public.studio_video_queue_reserve(workspace,actor,entry,request,0,0,fixture->'plan');
+ perform pg_temp.queue_assert(duplicate->'job_ids'=reply->'job_ids','reservation repeat keeps identical jobs');
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,entry,gen_random_uuid(),1,1,fixture->'plan')->>'code'='already_reserved','new request cannot duplicate reserved chapter');
+ perform pg_temp.queue_assert((select revision=1 and after_quota_group='queue-test-'||wallet from public.studio_video_queue_cursors where workspace_id=workspace),'cursor commits once with reservation');
+ perform pg_temp.queue_assert((select count(*)=5 from public.studio_video_jobs where episode_id=(fixture->>'episode_id')::uuid),'no duplicate jobs');
+ perform pg_temp.queue_assert(public.studio_video_queue_cancel(workspace,actor,entry,1)->>'code'='existing_video_work','reservation cannot be cancelled as pending');
+ later:=pg_temp.queue_chapter(actor,workspace,wallet);
+ other_entry:=(public.studio_video_enqueue(workspace,actor,gen_random_uuid(),(later->>'episode_id')::uuid,repeat('a',64))->>'id')::uuid;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,0,later->'plan')->>'code'='queue_version_changed','stale cursor cannot reserve another chapter');
+ update public.studio_video_jobs set state='unknown' where id=(reply#>>'{job_ids,0}')::uuid;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,1,later->'plan')->>'code'='wallet_reconciliation_required','uncertain shared wallet blocks new reservations');
+ perform pg_temp.queue_assert(public.studio_video_queue_cancel(workspace,actor,other_entry,1)->>'code'='queue_version_changed','stale cancellation rejected');
+ perform pg_temp.queue_assert(public.studio_video_queue_cancel(workspace,actor,other_entry,0)->>'code'='cancelled','pending cancellation creates no provider calls');
+ perform pg_temp.queue_assert(public.studio_video_queue_cancel(workspace,actor,other_entry,0)->>'code'='cancelled','pending cancellation idempotent');
+ later:=pg_temp.queue_chapter(actor,workspace,wallet,2);
+ other_entry:=(public.studio_video_enqueue(workspace,actor,gen_random_uuid(),(later->>'episode_id')::uuid,repeat('a',64))->>'id')::uuid;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,1,later->'plan')->>'code'='waiting_review','previous chapter approval required');
+ perform pg_temp.queue_assert((select revision=1 from public.studio_video_queue_cursors where workspace_id=workspace),'failed reservations never advance rotation');
+ insert into public.episodes(workspace_id,briefing) values(workspace,jsonb_build_object('story_context',jsonb_build_object('series_id',later->>'series_id','chapter_number',1))) returning id into previous_episode;
+ insert into public.idea_queue(workspace_id,briefing,niche,source,episode_id,story_context)
+ values(workspace,'Previous chapter for queue review audit','Original fiction','manual',previous_episode,jsonb_build_object('series_id',later->>'series_id','chapter_number',1)) returning id into previous_idea;
+ insert into public.studio_story_chapters(series_id,workspace_id,chapter_number,idea_id) values((later->>'series_id')::uuid,workspace,1,previous_idea);
+ update public.episodes set status='research' where id=previous_episode;
+ update public.episodes set status='script',script_json='{"disclosures":{"contains_synthetic_media":true}}' where id=previous_episode;
+ update public.episodes set status='assets' where id=previous_episode;
+ update public.episodes set status='rendered',render_url='https://example.test/queue-review.mp4' where id=previous_episode;
+ update public.episodes set status='review' where id=previous_episode;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,1,later->'plan')->>'code'='waiting_review','review status alone is not approval');
+ review:=public.studio_ensure_review(previous_episode);
+ perform public.studio_review_action(workspace,actor,gen_random_uuid(),review.id,review.fingerprint,'approve');
+ update public.system_config set value=value||'{"queue_review_test":true}' where key='fact_check';
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,1,later->'plan')->>'code'='waiting_review','obsolete approval cannot continue story');
+ review:=public.studio_ensure_review(previous_episode);
+ perform public.studio_review_action(workspace,actor,gen_random_uuid(),review.id,review.fingerprint,'approve');
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,1,later->'plan')->>'code'='wallet_reconciliation_required','current approval reaches financial gate without bypass');
+ update public.studio_video_jobs set state='queued' where id=(reply#>>'{job_ids,0}')::uuid;
+ perform pg_temp.queue_assert(public.studio_video_queue_reserve(workspace,actor,other_entry,gen_random_uuid(),0,1,later->'plan')->>'code'='reserved','approved previous chapter permits complete reservation');
+ perform pg_temp.queue_assert(not has_table_privilege('authenticated','public.studio_video_queue','select'),'browser cannot read raw queue');
+ perform pg_temp.queue_assert(not has_function_privilege('authenticated','public.studio_video_queue_reserve(uuid,uuid,uuid,uuid,bigint,bigint,jsonb)','execute'),'browser cannot reserve');
+ perform pg_temp.queue_assert(not has_function_privilege('anon','public.studio_video_enqueue(uuid,uuid,uuid,uuid,text,int)','execute'),'anonymous enqueue denied');
+end $$;
+rollback;

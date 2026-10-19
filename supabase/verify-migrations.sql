@@ -1,5 +1,23 @@
 \set ON_ERROR_STOP on
 -- Read-only structural checks; fails deployment instead of reporting a false success.
+do $$
+declare tab text;fn text;
+begin
+ foreach tab in array array['studio_video_queue','studio_video_queue_cursors'] loop
+  if not exists(select 1 from pg_class where oid=('public.'||tab)::regclass and relrowsecurity) or
+   has_table_privilege('anon','public.'||tab,'select') or has_table_privilege('authenticated','public.'||tab,'select') then
+   raise exception 'Persistent video queue must remain private: %',tab;
+  end if;
+ end loop;
+ foreach fn in array array['studio_video_enqueue(uuid,uuid,uuid,uuid,text,int)','studio_video_queue_cancel(uuid,uuid,uuid,bigint)',
+  'studio_video_queue_reserve(uuid,uuid,uuid,uuid,bigint,bigint,jsonb)','studio_video_queue_view(uuid,uuid)'] loop
+  if has_function_privilege('anon','public.'||fn,'execute') or has_function_privilege('authenticated','public.'||fn,'execute') or
+   not has_function_privilege('service_role','public.'||fn,'execute') then raise exception 'Video queue RPC exposed: %',fn;end if;
+ end loop;
+ if not exists(select 1 from public.system_config where key='video_queue' and jsonb_typeof(value->'reservation_enabled')='boolean') then
+  raise exception 'Video queue requires an explicit reservation gate';
+ end if;
+end $$;
 do $$ begin
  if not exists(select 1 from pg_class where oid='public.studio_native_media_reviews'::regclass and relrowsecurity) or
   has_table_privilege('authenticated','public.studio_native_media_reviews','select') or
