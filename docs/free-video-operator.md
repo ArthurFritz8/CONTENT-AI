@@ -1,11 +1,13 @@
 # Avaliação gratuita de clipes
 
 **Atualização de 19/10/2026:** foi acrescentada uma avaliação isolada de LTX-2.3
-Sync, com a imagem e o WAV originais da Malu. A única chamada foi aceita, mas a
-retomada do mesmo identificador confirmou `generation_failed`, sem vídeo. O
-checkpoint permanece bloqueado; não repetir o envio nem trocar de Space para
+Sync, com a imagem e o WAV originais da Malu. A única chamada foi aceita, mas
+nenhum vídeo foi recolhido. A leitura posterior identificou recibo ausente,
+anteriormente classificado como `generation_failed`; isso não comprova falha do
+modelo. O checkpoint permanece bloqueado; não repetir o envio nem trocar de Space para
 contornar a falha. O LTX compartilha a quota HF com os demais Spaces ZeroGPU e
-não entrou no painel, na galeria ou na produção. Ver [ADR-089](ADR/ADR-089-avaliacao-ltx-sync-com-quota-compartilhada.md).
+não entrou no painel, na galeria ou na produção. Ver [ADR-089](ADR/ADR-089-avaliacao-ltx-sync-com-quota-compartilhada.md)
+e a correção de diagnóstico na [ADR-090](ADR/ADR-090-recibo-gradio-ausente-nao-confirma-falha.md).
 Auray foi deixada de lado por orientação do titular; as descrições antigas abaixo
 não representam disponibilidade gratuita atual da sua API. CNAPS segue na sua
 recusa original, sem nova tentativa.

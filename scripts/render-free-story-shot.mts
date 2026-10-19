@@ -210,6 +210,8 @@ try {
     await save(statePath, state);
   }
   await report("video_blocked", { job: key, phase, code, can_resume: Boolean(state.event_id) && state.error_code !== "generation_failed",
+    ...(error instanceof FreeVideoError && error.result_diagnostic ? {result_diagnostic:error.result_diagnostic} : {}),
+    ...(code==="receipt_unavailable" ? {reconciliation_required:true,new_submission_allowed:false} : {}),
     ...(phase === "preflight" ? { reason: error instanceof Error ? error.message : "Contrato inválido" } : {}) });
   process.exitCode = 2;
 } finally { await unlink(lockPath); }

@@ -1,7 +1,7 @@
 # ADR-089 - Avaliacao LTX Sync com quota compartilhada
 
-Data: 19/10/2026. Estado: adaptador de avaliacao implementado; primeira chamada
-terminou sem video e nao homologa a fonte.
+Data: 19/10/2026. Estado: adaptador de avaliacao implementado; nenhum video
+recolhido e fonte nao homologada. Diagnostico complementado pela ADR-090.
 
 ## Objetivo
 
@@ -49,7 +49,10 @@ nao randomiza a seed e nao interpola, estica ou completa quadros faltantes.
 
 Conta Free e contrato foram confirmados antes da unica chamada de geracao.
 O envio foi aceito em 19/10/2026. A primeira leitura nao correspondeu ao formato
-esperado; a retomada do MESMO identificador confirmou `generation_failed`.
+esperado; o cliente classificou a retomada do MESMO identificador como
+`generation_failed`. A investigacao posterior encontrou recibo ausente, que o
+Gradio tambem emite como `event:error`. Essa leitura nao comprova uma falha do
+modelo. O resultado original permanece nao esclarecido, conforme ADR-090.
 Nao foi recebido video para assistir, medir ou aprovar. Nao atribuir a causa
 a quota, idioma, licenca ou hardware sem evidencia adicional do processamento.
 

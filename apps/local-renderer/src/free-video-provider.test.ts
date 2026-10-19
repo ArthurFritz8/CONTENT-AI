@@ -2,8 +2,8 @@ import { test } from "node:test";
 import { strictEqual, deepStrictEqual, throws, rejects, ok } from "node:assert";
 import { spawnSync } from "node:child_process";
 import {resolve} from "node:path";
-import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, HF_LTX_SYNC, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, freeVideoQuotaLedger } from "./free-video-provider.ts";
-import { routeVideoShot } from "../../../packages/core/src/stories/video-routing.ts";
+import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, HF_LTX_SYNC, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, FreeVideoError, freeVideoQuotaLedger } from "./free-video-provider.ts";
+import { routeVideoShot,canFallback } from "../../../packages/core/src/stories/video-routing.ts";
 
 test("changed model revision and non-free hardware disable the provider", () => {
   const base = { sha: HF_VIDEO.revision, host: HF_VIDEO.host, runtime: { stage: "RUNNING", hardware: { current: "zero-a10g" } } };
@@ -80,6 +80,34 @@ test("quota, incomplete stream and bad outputs do not masquerade as generated vi
   await rejects(readVideoEvent(stream('event: error\ndata: "GPU quota exceeded"\n\n')), /quota_rejected/);
   await rejects(readVideoEvent(stream('event: heartbeat\ndata: null\n\n')), /unknown/);
   await rejects(readVideoEvent(stream('event: complete\ndata: [{"url":"https://evil.test/file"},42]\n\n')), /contract_changed/);
+});
+test("missing Gradio receipts are not proof that the model failed and never expose private prose",async()=>{
+  for(const receipt of ["404: Not Found","Session not found.","Event does not exist","Request expired."])
+    await rejects(readVideoEvent(stream(`event: error\ndata: ${JSON.stringify(receipt)}\n\n`),HF_LTX_SYNC),error=>error instanceof FreeVideoError && error.code==="receipt_unavailable" && error.result_diagnostic==="receipt_missing");
+  await rejects(readVideoEvent(stream('event: error\ndata: null\n\n'),HF_LTX_SYNC),/generation_failed/);
+  await rejects(readVideoEvent(stream('event: complete\ndata: [null,7008]\n\n'),HF_LTX_SYNC),/generation_failed/);
+  await rejects(readVideoEvent(stream('event: error\ndata: "private: session not found, use https://evil.test/token"\n\n'),HF_LTX_SYNC),error=>error instanceof Error && !error.message.includes("private") && !error.message.includes("evil.test"));
+});
+test("reconciling a missing accepted receipt uses one GET and never permits fallback",async()=>{
+  const eventId="a".repeat(32),calls:string[]=[];
+  const provider=new FreeVideoProvider("fixture",async(url,init)=>{
+    strictEqual(init?.method ?? "GET","GET");strictEqual(init?.redirect,"error");
+    strictEqual(String(url),`${HF_LTX_SYNC.host}/gradio_api/call/generate_video/${eventId}`);
+    calls.push(String(url));return new Response(stream('event: error\ndata: "404: Not Found"\n\n'));
+  },HF_LTX_SYNC);
+  await rejects(provider.wait(eventId,1000),/receipt_unavailable/);
+  strictEqual(calls.length,1);strictEqual(canFallback("accepted"),false);strictEqual(canFallback("unknown"),false);
+});
+test("completed-result diagnostics keep safe categories without retaining provider payloads",async()=>{
+  const cases=[
+    {body:'event: complete\ndata: [null,7008]\n\n',code:"generation_failed",diagnostic:"empty_result"},
+    {body:'event: complete\ndata: {"private":"provider-response"}\n\n',code:"contract_changed",diagnostic:"unexpected_payload"},
+    {body:'event: complete\ndata: not-json\n\n',code:"contract_changed",diagnostic:"unexpected_payload"},
+    {body:'event: complete\ndata: [{"url":"https://evil.test/private"},7008]\n\n',code:"contract_changed",diagnostic:"output_url_rejected"},
+    {body:'event: error\ndata: null\n\n',code:"generation_failed",diagnostic:"provider_error"},
+  ];
+  for(const item of cases)await rejects(readVideoEvent(stream(item.body),HF_LTX_SYNC),error=>error instanceof FreeVideoError &&
+    error.code===item.code && error.result_diagnostic===item.diagnostic && !JSON.stringify(error).includes("private"));
 });
 test("stalled stream and stalled cancellation cannot hang beyond the client deadline", async () => {
   const stalled = new ReadableStream<Uint8Array>({ cancel: () => new Promise<void>(() => {}) });

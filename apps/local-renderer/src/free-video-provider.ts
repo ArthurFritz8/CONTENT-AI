@@ -42,11 +42,12 @@ export function freeVideoQuotaLedger(profile: FreeVideoProfile): string {
   return profile.mode === "s2v" ? "speech-quota.json" : "quota.json";
 }
 export type VideoFetch = typeof fetch;
-type VideoErrorCode = "access_required" | "quota_rejected" | "unavailable" | "contract_changed" | "unknown" | "generation_failed";
+type VideoErrorCode = "access_required" | "quota_rejected" | "unavailable" | "contract_changed" | "unknown" | "generation_failed" | "receipt_unavailable";
 export class FreeVideoError extends Error {
   readonly code: VideoErrorCode;
-  constructor(code: VideoErrorCode) {
-    super(code); this.name = "FreeVideoError"; this.code = code;
+  readonly result_diagnostic?:"receipt_missing"|"empty_result"|"unexpected_payload"|"output_url_rejected"|"provider_error";
+  constructor(code: VideoErrorCode,diagnostic?:FreeVideoError["result_diagnostic"]) {
+    super(code); this.name = "FreeVideoError"; this.code = code;this.result_diagnostic=diagnostic;
   }
 }
 export function inspectSpaceMetadata(value: unknown, profile: FreeVideoProfile = HF_VIDEO): VideoProvider {
@@ -108,15 +109,20 @@ export async function readVideoEvent(body: ReadableStream<Uint8Array>, profile: 
         const data = block.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trimStart()).join("\n");
         if (event === "error") {
           // Never persist/print upstream errors: they may include submitted prompts or server secrets.
+          let failure:unknown;
+          try { failure=JSON.parse(data); } catch {}
+          if(typeof failure==="string" && (/^404:\s*not found$/i.test(failure.trim()) ||
+            /^(?:session|event|request)(?:_id)? (?:not found|does not exist|expired)\.?$/i.test(failure.trim())))
+            throw new FreeVideoError("receipt_unavailable","receipt_missing");
           if (/quota|exceeded|too many/i.test(data)) throw new FreeVideoError("quota_rejected");
           if (/sign.?in|log.?in|authenticate|token/i.test(data)) throw new FreeVideoError("access_required");
-          throw new FreeVideoError("generation_failed");
+          throw new FreeVideoError("generation_failed","provider_error");
         }
         if (event === "complete") {
           let parsed: unknown;
-          try { parsed = JSON.parse(data); } catch { throw new FreeVideoError("contract_changed"); }
+          try { parsed = JSON.parse(data); } catch { throw new FreeVideoError("contract_changed","unexpected_payload"); }
           if(profile.mode === "ltx_sync" && Array.isArray(parsed) && parsed.length===2 && parsed[0]===null && typeof parsed[1]==="number")
-            throw new FreeVideoError("generation_failed");
+            throw new FreeVideoError("generation_failed","empty_result");
           const payload = profile.mode === "ltx_sync" ? z.tuple([z.union([
             z.object({url:z.string()}), z.object({video:z.object({url:z.string()})}),
           ]),z.number()]).safeParse(parsed) : profile.mode === "i2v"
@@ -124,9 +130,10 @@ export async function readVideoEvent(body: ReadableStream<Uint8Array>, profile: 
             : profile.mode === "s2v" || profile.mode === "flashhead"
               ? z.tuple([z.object({ video: z.object({ url: z.string() }) })]).safeParse(parsed)
               : z.tuple([z.object({ video: z.object({ url: z.string() }) }), z.string()]).safeParse(parsed);
-          if (!payload.success) throw new FreeVideoError("contract_changed");
+          if (!payload.success) throw new FreeVideoError("contract_changed","unexpected_payload");
           const file = payload.data[0];
-          return assertOutputUrl("video" in file ? file.video.url : file.url, profile);
+          try {return assertOutputUrl("video" in file ? file.video.url : file.url, profile);}
+          catch {throw new FreeVideoError("contract_changed","output_url_rejected");}
         }
       }
     }
