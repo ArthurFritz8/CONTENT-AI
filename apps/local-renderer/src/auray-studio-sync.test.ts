@@ -1,12 +1,47 @@
 import {test} from "node:test";
 import {strictEqual,deepStrictEqual,rejects} from "node:assert";
 import {randomUUID} from "node:crypto";
-import {aurayAccountFingerprint,aurayMonitorObservation,syncAurayMonitor,aurayStudioRpcResult,type MonitoredAurayJob} from "./auray-studio-sync.ts";
-import {AURAY,missingAurayKey,type AurayJob} from "./auray-video-provider.ts";
+import {aurayAccountFingerprint,registeredAurayWallet,aurayMonitorObservation,syncAurayMonitor,aurayStudioRpcResult,type MonitoredAurayJob} from "./auray-studio-sync.ts";
+import {AURAY,AurayError,missingAurayKey,type AurayJob} from "./auray-video-provider.ts";
 const account=randomUUID(),wallet=randomUUID(),token=randomUUID(),fingerprint=aurayAccountFingerprint(account);
 const report=()=>({...missingAurayKey(),account_id:account,period:new Date().toISOString().slice(0,7),monthly_allowance:50,plan_remaining:0,key_remaining:0,blockers:["insufficient_free_credits"]});
 const job=():MonitoredAurayJob=>({id:randomUUID(),external_id:`video_${"1".repeat(64)}`,kind:"native_dialogue_probe",aspect_ratio:"9:16",ready:false,status:"unknown",settled:false,expected_sha256:"2".repeat(64),output_sha256:null,bytes:null,path:null});
 const remote=(j:MonitoredAurayJob):AurayJob=>({id:j.external_id,job_id:j.external_id,object:"job",product:"video",model:AURAY.model,status:"succeeded",settled:true,credits_charged:5,poll_after_seconds:30,created_at:new Date().toISOString()});
+test("registered wallet selection needs no provider access and refuses ambiguous accounts",async()=>{
+  strictEqual(registeredAurayWallet([]),null);
+  strictEqual(registeredAurayWallet([{wallet_id:wallet}]),wallet);
+  await rejects(async()=>registeredAurayWallet([{wallet_id:wallet},{wallet_id:randomUUID()}]),/monitor_selection_required/);
+  await rejects(async()=>registeredAurayWallet([{wallet_id:"invalid"}]));
+});
+for(const code of ["access_denied","missing_api_key"])test(`${code} releases the registered monitor lease without fetching jobs or inventing a balance`,async()=>{
+  const operations:string[]=[],finished:unknown[]=[];
+  await rejects(syncAurayMonitor(wallet,token,{
+    inspect:async()=>{operations.push("inspect");throw new AurayError(code);},
+    status:async()=>{throw Error("must not query jobs");},collect:async()=>{throw Error("must not download");},
+    rpc:async(name,args)=>{
+      operations.push(name);
+      if(name==="claim_auray_sync")return {code:"claimed",account_sha256:fingerprint,jobs:[job()]};
+      if(name==="finish_auray_sync")finished.push(args);
+      return null;
+    },
+  }),new RegExp(code));
+  deepStrictEqual(operations,["claim_auray_sync","inspect","finish_auray_sync"]);
+  deepStrictEqual(finished,[{p_wallet:wallet,p_token:token,p_success:false,p_error:code}]);
+});
+test("unknown provider errors become a bounded code, not private prose",async()=>{
+  const codes:unknown[]=[];
+  for(const error of [Error("private response"),new AurayError("private-response-must-not-be-saved")]) {
+    await rejects(syncAurayMonitor(wallet,token,{
+      inspect:async()=>{throw error;},status:async()=>{throw Error("not reached");},collect:async()=>{throw Error("not reached");},
+      rpc:async(name,args)=>{
+        if(name==="claim_auray_sync")return {code:"claimed",account_sha256:fingerprint,jobs:[]};
+        if(name==="finish_auray_sync")codes.push(args.p_error);
+        return null;
+      },
+    }));
+  }
+  deepStrictEqual(codes,["sync_failed","sync_failed"]);
+});
 test("SQL void RPCs return 204; malformed and oversized replies never expose raw server prose",async()=>{
   strictEqual(await aurayStudioRpcResult(new Response(null,{status:204})),null);
   deepStrictEqual(await aurayStudioRpcResult(Response.json({code:"claimed"})),{code:"claimed"});

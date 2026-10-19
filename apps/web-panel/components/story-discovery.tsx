@@ -16,7 +16,7 @@ import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories
 type Chapter = { native_shots?:3|6|9; number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean;style_id?:StoryStyleId|null;presentation_revision?:number|null };
 type Series = { native_shots?:3|6|9; native_format_revision?:number; id: string; bible: SeriesBible; chapters: Chapter[];presentation?:PresentationVersion|null;presentation_history?:PresentationVersion[] };
 type VideoWallet = { id: string; label: string; unit: string; remaining_units: number | null; reserved_units: number; available_units: number | null; checked_at: string | null; renews_at: string | null; balance_kind?: string; billing_may_lag?: boolean; source_ready?: boolean; balance_fresh?: boolean; source_blockers?: string[];
-  candidate?:boolean;monthly_allowance?:number|null;period?:string|null;sync_failed?:boolean;sync_running?:boolean;budget_only_shots?:number|null;
+  candidate?:boolean;monthly_allowance?:number|null;period?:string|null;sync_failed?:boolean;sync_running?:boolean;sync_code?:string|null;budget_only_shots?:number|null;
   native_enabled?:boolean;native_budget_chapters?:number|null;
   jobs?:Array<{id:string;label:string;status:string;settled:boolean;charged_credits:number;ready:boolean;observed_at:string|null}>;
   minimum_chapter_estimate?: { shots: number; planned_seconds: number; required_units: number; shortfall_units: number | null; comparison_only: true } };
@@ -53,6 +53,15 @@ const sourceBlockers: Record<string,string> = {
   recurring_free_unverified:"A franquia mensal gratuita precisa ser conferida.",wallet_unverified:"O serviço não confirmou todos os valores da carteira."
 };
 const candidateJobStatus:Record<string,string>={unknown:"Verificando envio anterior",queued:"Na fila",running:"Gerando",succeeded:"Geração concluída",failed:"Geração falhou",cancelled:"Cancelado"};
+const syncMessages:Record<string,string>={
+  access_denied:"A Auray recusou o acesso da chave configurada. O administrador precisa conferir as permissões e a validade da conexão. Isso não confirma falta de créditos; o saldo atual não foi consultado.",
+  missing_api_key:"A chave Auray não está configurada no worker. O administrador precisa conferir a conexão sem enviar segredos pelo chat.",
+  rate_limited:"A Auray limitou as consultas. Aguarde antes de atualizar novamente; nenhum vídeo foi gerado.",
+  quota_exhausted:"A Auray recusou a consulta por limite de créditos. O saldo atual não foi confirmado.",
+  account_mismatch:"A chave não corresponde à conta cadastrada nesta carteira. Nenhum saldo ou vídeo de outra conta foi importado.",
+  contract_changed:"A resposta da Auray mudou e precisa ser conferida antes de continuar.",
+  jobs_pending_reconciliation:"Alguns trabalhos existentes ainda precisam de conferência. As mídias já recolhidas foram preservadas; não serão geradas substituições automaticamente.",
+};
 const nativeMessages:Record<string,string>={complete_chapter_budget_required:"O saldo confirmado não comporta a reserva desta tentativa. Aguarde a renovação ou atualize o saldo antes de retomar.",wallet_reserved:"Esta carteira já está reservada para outro capítulo. Ele precisa terminar ou ser conciliado primeiro.",native_financial_gate_closed:"O saldo ou a conexão precisa de nova verificação antes de enviar outra tomada.",native_job_failed_no_retry:"Uma tomada falhou. Nenhuma substituição será cobrada automaticamente. Encerre e concilie esta tentativa antes de gerar outra.",native_worker_unavailable:"A execução foi interrompida. Retomar confere os mesmos trabalhos e preserva as tomadas já salvas.",rate_limited:"A fonte pediu uma pausa. O acompanhamento respeita o prazo antes de consultar novamente.",native_media_contract_changed:"A fonte devolveu um arquivo fora do padrão de resolução ou quadros. O sistema preservou o envio e não reduziu a qualidade para montar."};
 
 export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refresh: number }) {
@@ -158,7 +167,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
             {["conservative_monthly_estimate","verified_free_credits"].includes(w.balance_kind || "") && <button className="button" disabled={!!balanceBusy || w.sync_running} onClick={()=>void refreshBalance(w.id)}>{balanceBusy===w.id ? "Solicitando consulta…" : w.sync_running ? "Consultando…" : w.candidate ? "Atualizar saldo e testes existentes" : "Atualizar saldo"}</button>}
             {w.candidate && <>
               <p className="muted">Franquia mensal: {w.monthly_allowance==null ? "não confirmada" : `${w.monthly_allowance} créditos gratuitos`}{w.period ? ` · período ${w.period}` : ""}. {w.native_enabled ? "Diálogo nativo disponível com aceite de vozes variáveis e revisão." : "Esta fonte ainda está em avaliação para capítulos."}</p>
-              {w.sync_failed && <p role="status">A última consulta não terminou. O saldo anterior foi preservado como histórico. Tente atualizar novamente; os mesmos trabalhos serão consultados.</p>}
+              {w.sync_failed && <p role="status">{syncMessages[w.sync_code ?? ""] || "A última consulta não terminou. Confira a conexão ou tente novamente mais tarde."} O saldo anterior foi preservado como histórico.</p>}
               {w.native_enabled && <p>Referência de capacidade: capítulo Auray de 15s, com três tomadas e custo de 15 créditos gratuitos. Para 30 ou 45s, confira a capacidade na própria novela. {w.native_budget_chapters==null?"Atualize o saldo para consultar o orçamento.":`O último saldo, após reservas, comporta até ${w.native_budget_chapters} capítulo(s), sem margem para novas tentativas.`} Esta capacidade não é somada ao Modal. Cada capítulo exige revisão.</p>}
               {w.budget_only_shots!=null && !w.native_enabled && <p>Comparação de orçamento: até {w.budget_only_shots} tomada(s) de 5 segundos ({w.budget_only_shots*5} segundos brutos), a 5 créditos cada. Isso não inclui novas tentativas nem garante capítulos completos. Esse valor não é somado ao Modal.</p>}
               {!!w.jobs?.length && <details><summary>Testes e trabalhos existentes ({w.jobs.length})</summary><p className="muted">A retomada consulta o mesmo envio e recolhe o vídeo concluído. Não cria outra geração. Prévias preservam o áudio e os quadros originais; não certificam continuidade.</p>

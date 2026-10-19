@@ -109,6 +109,8 @@ end $$;
 do $$
 begin
  if has_function_privilege('anon','public.claim_auray_sync(uuid,uuid)','execute') or
+  has_function_privilege('authenticated','public.finish_auray_sync(uuid,uuid,boolean,text)','execute') or
+  has_function_privilege('service_role','public.studio_video_overview_before_sync_diagnostics(uuid,uuid)','execute') or
     has_function_privilege('authenticated','public.observe_auray_monitor(uuid,uuid,jsonb)','execute') or
     has_function_privilege('authenticated','public.register_auray_monitor(uuid,text,jsonb)','execute') or
     has_function_privilege('service_role','public.studio_video_overview_before_auray(uuid,uuid)','execute') then

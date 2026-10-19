@@ -41,6 +41,14 @@ begin
  perform pg_temp.auray_assert(r#>>'{wallets,0,sync_failed}'='true' and r#>>'{wallets,0,budget_only_shots}' is null,'failed refresh hides numeric comparison');
  perform pg_temp.auray_assert(r#>>'{wallets,0,remaining_units}'='30','failed refresh preserves historical amount');
  perform public.claim_auray_sync(wallet,other_token);
+ begin perform public.finish_auray_sync(wallet,token,false,'access_denied');raise exception 'Old worker changed diagnostic';exception when insufficient_privilege then null;end;
+ begin perform public.finish_auray_sync(wallet,other_token,false,'private provider response');raise exception 'Private error stored';exception when check_violation then null;end;
+ perform public.finish_auray_sync(wallet,other_token,false,'access_denied');
+ r:=public.studio_video_overview(workspace,actor);
+ perform pg_temp.auray_assert(r#>>'{wallets,0,sync_code}'='access_denied' and r#>>'{wallets,0,sync_finished_at}' is not null,'access refusal is bounded and visible');
+ perform pg_temp.auray_assert(r#>>'{wallets,0,remaining_units}'='30' and r#>>'{wallets,0,budget_only_shots}' is null,'access refusal never replaces historical balance with zero or capacity');
+ perform pg_temp.auray_assert(jsonb_array_length(public.studio_video_overview(foreign_workspace,outsider)->'wallets')=0,'diagnostic remains workspace scoped');
+ perform public.claim_auray_sync(wallet,other_token);
  r:=public.claim_auray_sync(wallet,gen_random_uuid());
  perform pg_temp.auray_assert(r->>'code'='waiting','ready file does not remove the financial lease');
  begin perform public.finish_auray_sync(wallet,token,true);raise exception 'Old worker cleared new lease';exception when insufficient_privilege then null;end;
@@ -55,9 +63,11 @@ begin
  perform pg_temp.auray_assert(jsonb_array_length(r->'jobs')=50,'large pending queue stays bounded');
  perform public.finish_auray_sync(wallet,other_token,true);
  r:=public.studio_video_overview(workspace,actor);
+ perform pg_temp.auray_assert(r#>>'{wallets,0,sync_code}' is null,'successful legacy runner clears the previous access error');
  perform pg_temp.auray_assert(r#>>'{wallets,0,remaining_units}'='0' and r#>>'{wallets,0,budget_only_shots}'='0','exhausted free balance is zero, not unknown');
  perform pg_temp.auray_assert(not exists(select 1 from public.studio_video_jobs where wallet_id=wallet),'monitor never creates production job');
  perform pg_temp.auray_assert(not has_function_privilege('authenticated','public.register_auray_monitor(uuid,text,jsonb)','execute'),'browser cannot register accounts');
  perform pg_temp.auray_assert(not has_function_privilege('authenticated','public.observe_auray_monitor(uuid,uuid,jsonb)','execute'),'browser cannot manufacture balance');
+ perform pg_temp.auray_assert(not has_function_privilege('authenticated','public.finish_auray_sync(uuid,uuid,boolean,text)','execute'),'browser cannot manufacture diagnostics');
 end $$;
 rollback;

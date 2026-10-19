@@ -11,6 +11,11 @@ export const monitoredJobSchema = z.object({
 });
 export type MonitoredAurayJob = z.infer<typeof monitoredJobSchema>;
 export const aurayAccountFingerprint = (id:string) => aurayHash({provider:"auray",account:z.string().uuid().parse(id)});
+export function registeredAurayWallet(raw:unknown):string|null {
+  const wallets=z.array(z.object({wallet_id:z.string().uuid()})).max(2).parse(raw);
+  if(wallets.length>1)throw new AurayError("monitor_selection_required");
+  return wallets[0]?.wallet_id ?? null;
+}
 export async function readAurayStudioBytes(response:Response,limit:number) {
   const reader=response.body?.getReader();if(!reader)throw new AurayError("storage_unavailable");
   const chunks:Uint8Array[]=[];let total=0;
@@ -39,6 +44,8 @@ export interface AurayMonitorDependencies {
   collect(job:MonitoredAurayJob):Promise<{output_sha256:string;bytes:number}>;
   rpc(name:string,args:Record<string,unknown>):Promise<unknown>;
 }
+const syncFailureCodes=new Set(["access_denied","missing_api_key","rate_limited","quota_exhausted","transport_failed","service_unavailable",
+  "contract_changed","account_mismatch","jobs_pending_reconciliation","studio_rpc_failed","studio_rpc_invalid_response"]);
 export async function syncAurayMonitor(wallet:string, token:string, deps:AurayMonitorDependencies) {
   z.string().uuid().parse(wallet);z.string().uuid().parse(token);
   const base={p_wallet:wallet,p_token:token};
@@ -48,7 +55,7 @@ export async function syncAurayMonitor(wallet:string, token:string, deps:AurayMo
     z.object({code:z.literal("claimed"),account_sha256:sha,jobs:z.array(monitoredJobSchema).max(50)}),
   ]).parse(raw);
   if(claim.code==="waiting")return {code:"waiting",production_ready:false};
-  let success=false, collected=0, checked=0, unresolved=0;
+  let success=false, collected=0, checked=0, unresolved=0, failureCode:string|null=null;
   try {
     const report=await deps.inspect();
     await deps.rpc("observe_auray_monitor",{...base,p_observation:aurayMonitorObservation(report,claim.account_sha256)});
@@ -70,7 +77,10 @@ export async function syncAurayMonitor(wallet:string, token:string, deps:AurayMo
     }
     if(unresolved)throw new AurayError("jobs_pending_reconciliation");
     success=true;return {code:"synced",checked_jobs:checked,collected_jobs:collected,production_ready:false};
+  } catch(error) {
+    failureCode=error instanceof AurayError && syncFailureCodes.has(error.code) ? error.code : "sync_failed";
+    throw error;
   } finally {
-    await deps.rpc("finish_auray_sync",{...base,p_success:success});
+    await deps.rpc("finish_auray_sync",{...base,p_success:success,p_error:failureCode});
   }
 }

@@ -1,6 +1,26 @@
 import {test,expect} from '@playwright/test';
 import sharp from 'sharp';
 
+test('Auray access failure is distinct from exhausted credit and preserves the historical balance',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',r=>r.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',r=>r.fulfill({json:{items:[]}}));
+ await page.route('**/api/stories',async route=>{
+  const response=await route.fetch(),data=await response.json();
+  Object.assign(data.videoCapacity.wallets[0],{candidate:true,sync_failed:true,sync_code:'access_denied',balance_fresh:false,
+   balance_kind:'verified_free_credits',remaining_units:30,available_units:null,budget_only_shots:null,native_budget_chapters:null});
+  await route.fulfill({response,json:data});
+ });
+ await page.goto('/studio/queue');await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ await page.getByText('Fontes e saldo para animação',{exact:true}).click();
+ await expect(page.getByText('A Auray recusou o acesso da chave configurada.',{exact:false})).toBeVisible();
+ await expect(page.getByText('Isso não confirma falta de créditos; o saldo atual não foi consultado.',{exact:false})).toBeVisible();
+ await expect(page.getByText('Último valor consultado: 30 créditos',{exact:false})).toBeVisible();
+ await expect(page.getByText('O saldo anterior foi preservado como histórico.',{exact:false})).toBeVisible();
+ await page.setViewportSize({width:390,height:844});
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
+
 test('Puter balance stays separate, insufficient full-chapter budget is clear and refresh never generates',async({page,context})=>{
  await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
  await page.route('**/api/control?*',r=>r.fulfill({json:{items:[],total:0,page:1}}));await page.route('**/api/discovery',r=>r.fulfill({json:{items:[]}}));
