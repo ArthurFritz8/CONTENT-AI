@@ -51,9 +51,10 @@ export interface VideoProvider {
 }
 
 /** Pure preflight; a dispatcher must reserve atomically before submitting. */
-export function routeVideoShot(raw: unknown, providers: VideoProvider[], now = Date.now()) {
+export function routeVideoShot(raw: unknown, providers: VideoProvider[], now = Date.now(), afterQuotaGroup:string|null=null) {
   const shot = videoShotSchema.parse(raw);
   if (!Number.isFinite(now)) throw new Error("Relógio inválido");
+  if(afterQuotaGroup!==null)z.string().trim().min(1).max(200).parse(afterQuotaGroup);
   const reasons: Array<{ provider: string; reason: string }> = [];
   const eligible: VideoProvider[] = [];
   const seen = new Set<string>();
@@ -80,7 +81,12 @@ export function routeVideoShot(raw: unknown, providers: VideoProvider[], now = D
     if (reason) reasons.push({ provider: p.id, reason });
     else { seen.add(p.quota_group); eligible.push(p); }
   }
-  return { selected: eligible[0]?.id ?? null, alternatives: eligible.slice(1).map(p => p.id), reasons };
+  const groups=[...new Set(providers.map(provider=>provider.quota_group))];
+  const pivot=afterQuotaGroup===null ? -1 : groups.indexOf(afterQuotaGroup);
+  const order=[...groups.slice(pivot+1),...groups.slice(0,pivot+1)];
+  const byGroup=new Map(eligible.map(provider=>[provider.quota_group,provider]));
+  const rotated=pivot<0 ? eligible : order.flatMap(group=>byGroup.has(group)?[byGroup.get(group)!]:[]);
+  return { selected: rotated[0]?.id ?? null, alternatives: rotated.slice(1).map(provider => provider.id), reasons };
 }
 
 /** Unknown/accepted jobs must be reconciled, not submitted to another provider. */

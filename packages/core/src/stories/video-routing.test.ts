@@ -17,6 +17,26 @@ test("does not count two endpoints sharing an account as independent fallback qu
   const result = routeVideoShot(shot, [provider("a", "shared"), provider("b", "shared"), provider("c")], now);
   deepStrictEqual(result.alternatives, ["c"]);
 });
+test("rotation advances between independent wallets, not between aliases of the same account",()=>{
+  const sources=[provider("hf-a","hf"),provider("puter","puter"),provider("hf-b","hf"),provider("other","other")];
+  strictEqual(routeVideoShot(shot,sources,now).selected,"hf-a");
+  strictEqual(routeVideoShot(shot,sources,now,"hf").selected,"puter");
+  strictEqual(routeVideoShot(shot,sources,now,"puter").selected,"other");
+  strictEqual(routeVideoShot(shot,sources,now,"other").selected,"hf-a");
+  deepStrictEqual(routeVideoShot(shot,sources,now,"hf").alternatives,["other","hf-a"]);
+});
+test("rotation keeps the position of an exhausted wallet and skips ineligible sources",()=>{
+  const sources=[provider("a"),{...provider("b"),free_remaining:0},{...provider("c"),free_tier:"unknown" as const},provider("d")];
+  strictEqual(routeVideoShot(shot,sources,now,"b").selected,"d");
+  strictEqual(routeVideoShot(shot,sources,now,"missing").selected,"a");
+  throws(()=>routeVideoShot(shot,sources,now,""));
+});
+test("legacy routing without a cursor preserves eligible provider order when an earlier alias is unavailable",()=>{
+  const sources=[{...provider("alias-a","shared"),available:false},provider("other"),provider("alias-b","shared")];
+  strictEqual(routeVideoShot(shot,sources,now).selected,"other");
+  strictEqual(routeVideoShot(shot,sources,now,"removed-wallet").selected,"other");
+  strictEqual(routeVideoShot(shot,sources,now,"other").selected,"alias-b");
+});
 test("unknown credits, paid use, stale balance, reservations and cooldown all fail closed", () => {
   for (const change of [{ free_remaining: null }, { cash_cost: .001 }, { checked_at: now - 300001 },
     { checked_at: now + 1 }, { reserved: 3 }, { cooldown_until: now + 1 }, { required: NaN }, { adapter_ready: false }])

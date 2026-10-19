@@ -15,3 +15,4 @@ export * from "./publish/tiktok-plan.ts";
 export * from "./publish/buffer-tiktok-plan.ts";
 export * from "./publish/affiliate-metadata.ts";
 export * from "./publish/growth-strategy.ts";
+export {planProductionQueue,type ProductionQueueEntry,type ProductionQueueDecision,type ProductionQueueStatus} from "./stories/production.ts";
