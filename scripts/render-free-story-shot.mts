@@ -5,10 +5,12 @@ import { spawnSync } from "node:child_process";
 import { canonicalStringify, sha256Hex } from "../packages/core/src/validators/hash-utils.ts";
 import { createHash } from "node:crypto";
 import { routeVideoShot, videoShotSchema } from "../packages/core/src/stories/video-routing.ts";
-import { FreeVideoError, FreeVideoProvider, HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, freeVideoQuotaLedger } from "../apps/local-renderer/src/free-video-provider.ts";
+import { FreeVideoError, FreeVideoProvider, HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, HF_LTX_SYNC, freeVideoQuotaLedger } from "../apps/local-renderer/src/free-video-provider.ts";
 
 const root = resolve(import.meta.dirname, ".."), out = join(root, "output", "free-video-jobs");
 const mode = process.argv[2];
+const providerArg = process.argv.find(v => v.startsWith("--provider="))?.split("=")[1];
+if(providerArg && ![HF_LIPSYNC,HF_FLASHHEAD,HF_SPEECH,HF_LTX_SYNC].some(profile=>profile.id===providerArg))throw new Error("Provedor explícito não reconhecido");
 const waitArg = process.argv.find(v => v.startsWith("--wait-seconds="));
 const waitMs = waitArg ? Number(waitArg.split("=")[1]) * 1000 : 900_000;
 if (!Number.isInteger(waitMs) || waitMs < 1000 || waitMs > 900_000) throw new Error("Espera deve ser de 1 a 900 segundos");
@@ -33,12 +35,12 @@ async function read<T>(path: string, missing: T): Promise<T> {
   catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return missing; throw e; }
 }
 if (mode === "--inspect") {
-  for (const profile of [HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD]) {
+  for (const profile of [HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, HF_LTX_SYNC].filter(p=>!providerArg || p.id===providerArg)) {
     try {
       const capacity = await new FreeVideoProvider(token, fetch, profile).inspect();
       await save(join(out, `${profile.id}-capacity.json`), capacity);
       await report("provider_checked", { ...capacity, authenticated: Boolean(token), remaining_generations: null,
-        editorial_status: profile.mode === "flashhead" ? "rejected_by_operator" :
+        editorial_status: profile.mode === "ltx_sync" ? "unvalidated" : profile.mode === "flashhead" ? "rejected_by_operator" :
           profile.mode === "lipsync" ? "unvalidated" : profile.mode === "s2v" ? "free_access_unverified" : "preview_only",
         new_dialogue_submissions_enabled: false,
         note: "Cota externa não exposta; não estimar vídeos. Endpoint acessível não equivale a qualidade aprovada." });
@@ -48,10 +50,9 @@ if (mode === "--inspect") {
 }
 const path = process.argv[3]; if (!path) throw new Error("Plano da tomada obrigatório");
 const shot = videoShotSchema.parse(JSON.parse(await readFile(resolve(path), "utf8")));
-const providerArg = process.argv.find(v => v.startsWith("--provider="))?.split("=")[1];
-if (providerArg && ![HF_LIPSYNC.id, HF_FLASHHEAD.id, HF_SPEECH.id].includes(providerArg))
-  throw new Error("Provedor explícito não reconhecido");
-if (shot.kind === "dialogue" && mode === "--run")
+if(providerArg===HF_LTX_SYNC.id && mode==="--run" && !process.argv.includes("--allow-ltx-audition"))
+  throw new Error("LTX exige --allow-ltx-audition para uma avaliação explícita com a referência e a voz originais");
+if (shot.kind === "dialogue" && mode === "--run" && providerArg!==HF_LTX_SYNC.id)
   throw new Error("Novo diálogo bloqueado: FlashHead foi reprovado por olhos e fluidez; MuseTalk não passou; S2V patrocinado não tem gratuidade recorrente comprovada. Apenas --resume de chamadas existentes.");
 if (providerArg && shot.kind !== "dialogue") throw new Error("Este provedor só recebe diálogo; não gera atuação corporal");
 // A previously accepted S2V call keeps its original fingerprint and can still be reconciled.
@@ -61,7 +62,7 @@ const legacyKey = mode === "--resume" && !providerArg && shot.kind === "dialogue
       provider: { id: HF_SPEECH.id, space: HF_SPEECH.space, host: HF_SPEECH.host,
         revision: HF_SPEECH.revision, endpoint: HF_SPEECH.endpoint }, steps: 6, guidance: 1 })) : null;
 const legacyState = legacyKey ? await read<{ status?: string } | null>(join(out, legacyKey, "state.json"), null) : null;
-const profile = providerArg === HF_LIPSYNC.id ? HF_LIPSYNC : providerArg === HF_SPEECH.id || legacyState ? HF_SPEECH :
+const profile = providerArg === HF_LTX_SYNC.id ? HF_LTX_SYNC : providerArg === HF_LIPSYNC.id ? HF_LIPSYNC : providerArg === HF_SPEECH.id || legacyState ? HF_SPEECH :
   providerArg === HF_FLASHHEAD.id || shot.kind === "dialogue" ? HF_FLASHHEAD : HF_VIDEO;
 const provider = new FreeVideoProvider(token, fetch, profile);
 const image = await readFile(resolve(root, shot.reference_path));
@@ -84,6 +85,7 @@ const fingerprintProfile = { id: profile.id, space: profile.space, host: profile
 // The first audition used this legacy label; preserve its cache without inferring native motion FPS.
 const { min_output_fps, ...fingerprintShot } = shot;
 const parameters = profile.mode === "lipsync" ? { bbox_shift: 0, extra_margin: 10, parsing_mode: "jaw", left_cheek_width: 90, right_cheek_width: 90 } :
+  profile.mode === "ltx_sync" ? { width:profile.width,height:profile.height,conditioning_strength:0.85,enhance_prompt:false,use_video_audio:false,randomize_seed:false } :
   profile.mode === "flashhead" ? { model_type: "lite", use_face_crop: false, source_audio_remux: true } :
   { steps: 6, guidance: 1 };
 const key = await sha256Hex(canonicalStringify({ shot: { ...fingerprintShot, min_native_fps: min_output_fps }, provider: fingerprintProfile, ...parameters }));
@@ -128,7 +130,7 @@ try {
       const day = new Date().toISOString().slice(0, 10), attempts = ledger.day === day ? ledger.attempts : 0;
       if (attempts >= 2) throw new Error("Limite local de duas tentativas/dia atingido; não é a cota anunciada pelo provedor");
       await save(join(folder, "request.json"), { key, shot, provider: profile, ...(profile.mode === "i2v" ? { steps: 6 } :
-        { motion_prompt_supported: false, seed_supported: profile.mode === "flashhead" }),
+        { motion_prompt_supported: profile.mode === "ltx_sync", seed_supported: profile.mode === "flashhead" || profile.mode === "ltx_sync" }),
         ...(["lipsync", "flashhead"].includes(profile.mode) ? { parameters, body_motion_generated: false } : {}) });
       phase = "upload";
       const uploaded = await provider.upload(image, audio);
@@ -186,7 +188,7 @@ try {
       audioAlignment = JSON.parse(aligned.stdout);
     }
     await save(join(folder, "qa.json"), { decode_verified: true, width: stream.width, height: stream.height,
-      encoded_fps: fps, expected_native_fps_from_source: profile.mode === "i2v" ? 16 : profile.mode === "flashhead" ? 25 : null,
+      encoded_fps: fps, expected_native_fps_from_source: profile.mode === "ltx_sync" ? 24 : profile.mode === "i2v" ? 16 : profile.mode === "flashhead" ? 25 : null,
       seconds: Number(info.format.duration), sha256: state.output_sha256,
       audio_alignment: audioAlignment,
       human_review_pending: true, lip_sync_verified: false, production_enabled: false, cash_charge_usd: 0,

@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import { strictEqual, deepStrictEqual, throws, rejects, ok } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, freeVideoQuotaLedger } from "./free-video-provider.ts";
+import {resolve} from "node:path";
+import { HF_VIDEO, HF_SPEECH, HF_LIPSYNC, HF_FLASHHEAD, HF_LTX_SYNC, assertEndpoint, assertOutputUrl, inspectSpaceMetadata, readVideoEvent, FreeVideoProvider, freeVideoQuotaLedger } from "./free-video-provider.ts";
 import { routeVideoShot } from "../../../packages/core/src/stories/video-routing.ts";
 
 test("changed model revision and non-free hardware disable the provider", () => {
@@ -9,6 +10,55 @@ test("changed model revision and non-free hardware disable the provider", () => 
   strictEqual(inspectSpaceMetadata(base).available, true);
   strictEqual(inspectSpaceMetadata({ ...base, sha: "changed" }).available, false);
   strictEqual(inspectSpaceMetadata({ ...base, runtime: { stage: "RUNNING", hardware: { current: "h200" } } }).available, false);
+});
+test("LTX preview uses the existing account quota, never a second Space allowance",()=>{
+  const base={sha:HF_LTX_SYNC.revision,host:HF_LTX_SYNC.host,runtime:{stage:"RUNNING",hardware:{current:"zero-a10g"}}};
+  const capacity=inspectSpaceMetadata(base,HF_LTX_SYNC);
+  strictEqual(capacity.available,true);strictEqual(capacity.output_fps,24);strictEqual(capacity.short_edge,576);
+  deepStrictEqual(capacity.quality,["preview"]);deepStrictEqual(capacity.capabilities,["dialogue"]);
+  strictEqual(capacity.quota_group,inspectSpaceMetadata(null,HF_VIDEO).quota_group);
+  strictEqual(freeVideoQuotaLedger(HF_LTX_SYNC),freeVideoQuotaLedger(HF_VIDEO));
+  strictEqual(inspectSpaceMetadata({...base,sha:"changed"},HF_LTX_SYNC).available,false);
+});
+test("LTX endpoint requires the reviewed parameter order and explicit public API",async()=>{
+  const parameters=["input_image","input_video","prompt","duration","conditioning_strength","enhance_prompt","use_video_audio","seed","randomize_seed","height","width","input_audio"].map(parameter_name=>({parameter_name}));
+  assertEndpoint({named_endpoints:{"/generate_video":{parameters,api_visibility:"public"}}},HF_LTX_SYNC);
+  throws(()=>assertEndpoint({named_endpoints:{"/generate_video":{parameters}}},HF_LTX_SYNC),/contract_changed/);
+  throws(()=>assertEndpoint({named_endpoints:{"/generate_video":{parameters:[...parameters].reverse(),api_visibility:"public"}}},HF_LTX_SYNC),/contract_changed/);
+  for(const output of [{url:`${HF_LTX_SYNC.host}/gradio_api/file=/tmp/gradio/result.mp4`},{video:{url:`${HF_LTX_SYNC.host}/gradio_api/file=/tmp/gradio/result.mp4`}}])
+    strictEqual(await readVideoEvent(stream(`event: complete\ndata: ${JSON.stringify([output,42])}\n\n`),HF_LTX_SYNC),`${HF_LTX_SYNC.host}/gradio_api/file=/tmp/gradio/result.mp4`);
+  await rejects(readVideoEvent(stream('event: complete\ndata: [{"url":"https://evil.test/video"},42]\n\n'),HF_LTX_SYNC),/contract_changed/);
+  await rejects(readVideoEvent(stream('event: complete\ndata: [null,7008]\n\n'),HF_LTX_SYNC),/generation_failed/);
+});
+test("LTX requires an authenticated Free user before inspecting a Space",async()=>{
+  let calls=0;
+  const http:typeof fetch=async(url,init)=>{
+    calls++;strictEqual(url,"https://huggingface.co/api/whoami-v2");strictEqual(init?.redirect,"error");
+    return Response.json({type:"user",isPro:true,name:"private-account"});
+  };
+  await rejects(new FreeVideoProvider(undefined,http,HF_LTX_SYNC).inspect(),/access_required/);strictEqual(calls,0);
+  await rejects(new FreeVideoProvider("fixture",http,HF_LTX_SYNC).inspect(),/access_required/);strictEqual(calls,1);
+});
+test("LTX sends only original image/audio with fixed seed and no motion video, prompt rewriting or voice replacement",async()=>{
+  const provider=new FreeVideoProvider("fixture",async(url,init)=>{
+    if(url==="https://huggingface.co/api/whoami-v2")return Response.json({type:"user",isPro:false});
+    if(String(url).startsWith("https://huggingface.co/api/spaces/"))return Response.json({sha:HF_LTX_SYNC.revision,host:HF_LTX_SYNC.host,runtime:{stage:"RUNNING",hardware:{current:"zero-a10g"}}});
+    if(String(url).endsWith("/gradio_api/info"))return Response.json({named_endpoints:{"/generate_video":{api_visibility:"public",parameters:["input_image","input_video","prompt","duration","conditioning_strength","enhance_prompt","use_video_audio","seed","randomize_seed","height","width","input_audio"].map(parameter_name=>({parameter_name}))}}});
+    strictEqual(url,`${HF_LTX_SYNC.host}/gradio_api/call/generate_video`);strictEqual(init?.redirect,"error");
+    const file=(path:string)=>({path,meta:{_type:"gradio.FileData"}});
+    deepStrictEqual(JSON.parse(String(init?.body)).data,[file("/tmp/gradio/image.png"),null,"Keep the same character, face and clothes, speaking the supplied original audio.",3.25,0.85,false,false,7008,false,1024,576,file("/tmp/gradio/voice.wav")]);
+    return Response.json({event_id:"a".repeat(32)});
+  },HF_LTX_SYNC);
+  const shot={version:"1.0.0",id:"ltx-preview",kind:"dialogue",reference_path:"own.png",reference_sha256:"a".repeat(64),audio_sha256:"b".repeat(64),
+    prompt:"Keep the same character, face and clothes, speaking the supplied original audio.",seconds:3.25,seed:7008,quality:"preview",min_short_edge:480,min_output_fps:24} as const;
+  strictEqual(await provider.submit(shot,["/tmp/gradio/image.png","/tmp/gradio/voice.wav"]),"a".repeat(32));
+  await rejects(provider.submit({...shot,quality:"approved_master"},["/tmp/gradio/image.png","/tmp/gradio/voice.wav"]),/contract_changed/);
+});
+test("LTX CLI cannot submit a new dialogue without the explicit audition opt-in",()=>{
+  const fixture="globalThis.fetch=async()=>{process.exitCode=8;throw Error('fixture_generation_forbidden');};";
+  const child=spawnSync(process.execPath,["--import",`data:text/javascript,${encodeURIComponent(fixture)}`,"--experimental-strip-types",resolve(import.meta.dirname,"../../../scripts/render-free-story-shot.mts"),
+    "--run",resolve(import.meta.dirname,"../../../docs/stories/ltx-sync-dialogue-audition.json"),"--provider=hf-ltx23-sync"],{encoding:"utf8",timeout:15000,env:{...process.env,NODE_OPTIONS:""}});
+  strictEqual(child.status,1);ok(child.stderr.includes("LTX exige --allow-ltx-audition"));ok(!child.stderr.includes("fixture_generation_forbidden"));
 });
 test("download cannot forward credentials to arbitrary URLs, redirects or query tokens", () => {
   for (const url of ["https://evil.test/a.mp4", "http://127.0.0.1/a.mp4", `${HF_VIDEO.host}/api/secret`, `${HF_VIDEO.host}/gradio_api/file=a?token=x`])

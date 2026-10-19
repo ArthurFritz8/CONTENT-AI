@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "id": "malu-ltx23-sync-preview",
+  "kind": "dialogue",
+  "reference_path": "output/suitcase-story-preview/references/malu-entryway-v1.png",
+  "reference_sha256": "d7ef0d3da2a31bd93f35988cab8b6d3fecf746cdf579277aea1e92b1e049776c",
+  "audio_path": "output/suitcase-story-preview/02/voice.wav",
+  "audio_sha256": "8dbf56e5e72b4ee9db8b1a823d7e81ada20f25e86b9f2d8adc18bf7ada91c632",
+  "prompt": "The same adult humanized fruit woman from the reference image speaks the supplied original audio naturally in the same apartment. Preserve her face, eyes, hair, clothing and body shape. Keep her mouth clearly visible, with restrained head and shoulder motion and relaxed hands. Fixed medium close-up, no camera movement, no other speaker, no added dialogue or music. This is an AI-generated fictional character quality evaluation.",
+  "seconds": 3.25,
+  "seed": 7008,
+  "quality": "preview",
+  "min_short_edge": 480,
+  "min_output_fps": 24
+}

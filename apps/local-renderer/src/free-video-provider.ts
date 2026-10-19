@@ -31,7 +31,13 @@ export const HF_FLASHHEAD = {
   revision: "ab40513381b0d68a4dfc2dc23b5ee667edd068ec", endpoint: "run_inference_streaming",
   hardware: "zero-a10g", kinds: ["dialogue"], mode: "flashhead",
 } as const;
-export type FreeVideoProfile = typeof HF_VIDEO | typeof HF_SPEECH | typeof HF_LIPSYNC | typeof HF_FLASHHEAD;
+export const HF_LTX_SYNC = {
+  id: "hf-ltx23-sync", space: "linoyts/LTX-2-3-sync",
+  host: "https://linoyts-ltx-2-3-sync.hf.space",
+  revision: "43260a4dedca79a01fd27adc48314f1c36f51770", endpoint: "generate_video",
+  hardware: "zero-a10g", kinds: ["dialogue"], mode: "ltx_sync", width: 576, height: 1024,
+} as const;
+export type FreeVideoProfile = typeof HF_VIDEO | typeof HF_SPEECH | typeof HF_LIPSYNC | typeof HF_FLASHHEAD | typeof HF_LTX_SYNC;
 export function freeVideoQuotaLedger(profile: FreeVideoProfile): string {
   return profile.mode === "s2v" ? "speech-quota.json" : "quota.json";
 }
@@ -48,8 +54,8 @@ export function inspectSpaceMetadata(value: unknown, profile: FreeVideoProfile =
     runtime: z.object({ stage: z.literal("RUNNING"), hardware: z.object({ current: z.literal(profile.hardware) }) }),
   }).safeParse(value);
   return { id: profile.id, quota_group: profile.mode === "s2v" ? "wan-sponsored-demo" : "huggingface-account", capabilities: [...profile.kinds],
-    quality: ["preview"], short_edge: profile.mode === "flashhead" ? 512 : 480,
-    output_fps: profile.mode === "lipsync" || profile.mode === "flashhead" ? 25 : 16, max_seconds: 5,
+    quality: ["preview"], short_edge: profile.mode === "ltx_sync" ? profile.width : profile.mode === "flashhead" ? 512 : 480,
+    output_fps: profile.mode === "ltx_sync" ? 24 : profile.mode === "lipsync" || profile.mode === "flashhead" ? 25 : 16, max_seconds: 5,
     available: parsed.success, adapter_ready: true, checked_at: Date.now(), cooldown_until: 0,
     // Sponsored public S2V has no verified recurring allowance; a live endpoint is not proof.
     free_tier: profile.mode === "s2v" ? "unknown" : "recurring",
@@ -58,8 +64,9 @@ export function inspectSpaceMetadata(value: unknown, profile: FreeVideoProfile =
 const params = ["input_image", "prompt", "steps", "negative_prompt", "duration_seconds", "guidance_scale", "guidance_scale_2", "seed", "randomize_seed"];
 export function assertEndpoint(info: unknown, profile: FreeVideoProfile = HF_VIDEO): void {
   const endpoint = (info as { named_endpoints?: Record<string, { parameters?: Array<{ parameter_name?: string }>; api_visibility?: string }> })?.named_endpoints?.[`/${profile.endpoint}`];
-  const visibilityValid = endpoint?.api_visibility === "public" || (profile.mode !== "i2v" && endpoint?.api_visibility == null);
+  const visibilityValid = endpoint?.api_visibility === "public" || (profile.mode !== "i2v" && profile.mode !== "ltx_sync" && endpoint?.api_visibility == null);
   const expected = profile.mode === "i2v" ? params : profile.mode === "s2v" ? ["ref_img", "audio", "resolution"] :
+    profile.mode === "ltx_sync" ? ["input_image", "input_video", "prompt", "duration", "conditioning_strength", "enhance_prompt", "use_video_audio", "seed", "randomize_seed", "height", "width", "input_audio"] :
     profile.mode === "flashhead" ? ["ckpt_dir", "wav2vec_dir", "model_type", "cond_image", "audio_path", "seed", "use_face_crop"] :
     ["audio_path", "video_path", "bbox_shift", "extra_margin", "parsing_mode", "left_cheek_width", "right_cheek_width"];
   if (!visibilityValid || endpoint?.parameters?.map(p => p.parameter_name).join() !== expected.join())
@@ -108,7 +115,11 @@ export async function readVideoEvent(body: ReadableStream<Uint8Array>, profile: 
         if (event === "complete") {
           let parsed: unknown;
           try { parsed = JSON.parse(data); } catch { throw new FreeVideoError("contract_changed"); }
-          const payload = profile.mode === "i2v"
+          if(profile.mode === "ltx_sync" && Array.isArray(parsed) && parsed.length===2 && parsed[0]===null && typeof parsed[1]==="number")
+            throw new FreeVideoError("generation_failed");
+          const payload = profile.mode === "ltx_sync" ? z.tuple([z.union([
+            z.object({url:z.string()}), z.object({video:z.object({url:z.string()})}),
+          ]),z.number()]).safeParse(parsed) : profile.mode === "i2v"
             ? z.tuple([z.object({ url: z.string() }), z.number()]).safeParse(parsed)
             : profile.mode === "s2v" || profile.mode === "flashhead"
               ? z.tuple([z.object({ video: z.object({ url: z.string() }) })]).safeParse(parsed)
@@ -136,6 +147,13 @@ export class FreeVideoProvider {
     this.headers = token ? { Authorization: `Bearer ${token}` } : {};
   }
   async inspect(): Promise<VideoProvider> {
+    if(this.profile.mode === "ltx_sync") {
+      if(!this.headers.Authorization)throw new FreeVideoError("access_required");
+      const identity=await this.http("https://huggingface.co/api/whoami-v2",{headers:this.headers,redirect:"error",signal:AbortSignal.timeout(15_000)});
+      assertStatus(identity);
+      if(!z.object({type:z.literal("user"),isPro:z.literal(false)}).safeParse(await identity.json()).success)
+        throw new FreeVideoError("access_required");
+    }
     const res = await this.http(`https://huggingface.co/api/spaces/${this.profile.space}`, { redirect: "error", signal: AbortSignal.timeout(15_000) });
     assertStatus(res);
     const metadata = inspectSpaceMetadata(await res.json(), this.profile);
@@ -152,15 +170,19 @@ export class FreeVideoProvider {
     return z.array(z.string().startsWith("/tmp/gradio/").max(1024)).length(audio ? 2 : 1).parse(await res.json());
   }
   async submit(shot: VideoShot, uploaded: string[]): Promise<string> {
+    if(this.profile.mode === "ltx_sync" && (shot.quality!=="preview" || shot.seconds>5 || shot.min_short_edge>this.profile.width || shot.min_output_fps>24))
+      throw new FreeVideoError("contract_changed");
     const file = (path: string) => ({ path, meta: { _type: "gradio.FileData" } });
     const data = this.profile.mode === "i2v" ? [file(uploaded[0]!), shot.prompt, 6,
       "deformed hands, extra fingers, missing fingers, distorted face, changing clothes, morphing objects, text, subtitles, watermark, speaking, lip movement",
       shot.seconds, 1, 1, shot.seed, false] : this.profile.mode === "s2v" ? [file(uploaded[0]!), file(uploaded[1]!), "480P"] :
+      this.profile.mode === "ltx_sync" ? [file(uploaded[0]!),null,shot.prompt,shot.seconds,0.85,false,false,shot.seed,false,this.profile.height,this.profile.width,file(uploaded[1]!)] :
       this.profile.mode === "flashhead" ? ["models/SoulX-FlashHead-1_3B", "models/wav2vec2-base-960h", "lite",
         file(uploaded[0]!), file(uploaded[1]!), shot.seed, false] :
       [file(uploaded[1]!), file(uploaded[0]!), 0, 10, "jaw", 90, 90];
     if (uploaded.length !== (this.profile.mode !== "i2v" ? 2 : 1) ||
       (this.profile.mode !== "i2v") !== (shot.kind === "dialogue")) throw new FreeVideoError("contract_changed");
+    if(this.profile.mode === "ltx_sync" && !(await this.inspect()).available)throw new FreeVideoError("contract_changed");
     const res = await this.http(`${this.profile.host}/gradio_api/call/${this.profile.endpoint}`, {
       method: "POST", headers: { ...this.headers, "Content-Type": "application/json" }, redirect: "error", signal: AbortSignal.timeout(30_000),
       body: JSON.stringify({ data }),
