@@ -113,14 +113,15 @@ jobs:
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/automatic-references.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/puter-account.sql -f supabase/tests/puter-panel.sql -f supabase/tests/puter-chapter.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/video-queue.sql
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/video-queue-concurrency-setup.sql
+          sudo -u postgres createdb -T content_ai_audit content_ai_video_queue_audit
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_video_queue_audit -f supabase/tests/video-queue-concurrency-setup.sql
           queue_pids=()
           for i in $(seq 1 12); do
-            sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -v slot="$i" -f supabase/tests/video-queue-concurrency-call.sql > /tmp/content-ai-video-queue-$i.log &
+            sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_video_queue_audit -v slot="$i" -f supabase/tests/video-queue-concurrency-call.sql > /tmp/content-ai-video-queue-$i.log &
             queue_pids+=("$!")
           done
           for pid in "${queue_pids[@]}"; do wait "$pid"; done
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/video-queue-concurrency-verify.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_video_queue_audit -f supabase/tests/video-queue-concurrency-verify.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/concurrency-setup.sql
           pids=()
           for i in $(seq 1 12); do

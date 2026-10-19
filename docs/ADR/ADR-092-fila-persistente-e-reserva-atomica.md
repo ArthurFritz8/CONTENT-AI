@@ -57,7 +57,9 @@ atual/obsoleta. A fixture compartilha um capitulo completo de cinco tomadas.
 Doze clientes concorrem em dois cenarios: dois workspaces disputam saldo para
 um capitulo; um workspace disputa um cursor com saldo para todos. Cada cenario
 deve confirmar exatamente um capitulo, cinco jobs, uma requisicao e um avanco
-do cursor. A CI executa os cenarios em PostgreSQL descartavel, sem GPU ou APIs.
+do cursor. A CI executa os cenarios numa copia isolada do PostgreSQL descartavel,
+sem GPU ou APIs. As fixtures concorrentes nao alteram a contagem de episodios dos
+testes legados de limite diario, que continuam no banco original.
 Verificacoes estruturais impedem exposicao de tabelas/RPCs.
 
 ## Limites e Proxima Integracao
