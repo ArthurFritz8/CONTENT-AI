@@ -15,6 +15,7 @@ create function pg_temp.native_assert(v boolean,label text) returns void languag
 do $$
 declare actor uuid:=gen_random_uuid();outsider uuid:=gen_random_uuid();w uuid;sid uuid;req uuid:=gen_random_uuid();r jsonb;bib jsonb;pref jsonb;profile jsonb;run jsonb;changed jsonb;tasks jsonb:='[]';
  iid uuid;eid uuid;token uuid:=gen_random_uuid();other_token uuid:=gen_random_uuid();sample uuid:=gen_random_uuid();account uuid;fingerprint text:=repeat('f',64);i int;script jsonb;qa jsonb;scene jsonb;scenes jsonb:='[]';cuts jsonb:='[]';clip jsonb;script_text text;qa_text text;output jsonb;voice text;observation jsonb;
+ queue_request uuid:=gen_random_uuid();queue_id uuid;snapshot jsonb;other_workspace uuid;other_episode uuid;
 begin
  w:=public.studio_provision(actor,'Native executor test',false);
  bib:='{"kind":"fruits","genre":"mystery","title":"A chave da feira","premise":"Duas frutas encontram uma chave misteriosa na feira.","cast":[{"id":"lia","name":"Lia","appearance":"apple","color":"#ef1234","personality":"Curiosa e amiga de todos.","voice":"female"},{"id":"rui","name":"Rui","appearance":"orange","color":"#fab123","personality":"Impulsivo e muito curioso.","voice":"male"}],"chapters":[{"title":"A chave misteriosa","arc":"Encontram a chave dourada e descobrem quem poderia ter perdido aquele objeto na feira."},{"title":"A porta escondida","arc":"Abrem a porta escondida atrás do portão e descobrem o segredo da feira."}]}';
@@ -45,6 +46,30 @@ begin
   'provider','puter','reserved_at',now(),'account_sha256',repeat('c',64),'initial_remaining_credits',1000,'reserved_credits',990,'tasks',tasks,'revision',0,'output',null,'budget_reconciled',false);
  insert into public.system_config(key,value) values('story_production','{"puter_chapter_enabled":true}') on conflict(key) do update set value=excluded.value;
  perform public.save_puter_draft(eid,repeat('a',64),fingerprint,run->'draft');
+ snapshot:=public.studio_puter_queue_snapshot(w,actor);
+ perform pg_temp.native_assert(snapshot#>>'{entries,0,prepared}'='true' and snapshot#>>'{entries,0,profile_ready}'='true','native queue recognizes reviewed prepared profile');
+ begin perform public.studio_puter_queue_snapshot(w,outsider);raise exception 'Foreign queue actor accepted';exception when insufficient_privilege then null;end;
+ r:=public.studio_video_enqueue(w,actor,queue_request,eid,repeat('a',64));queue_id:=(r->>'id')::uuid;
+ perform pg_temp.native_assert(r->>'code'='queued','native queue registration without admission');
+ perform pg_temp.native_assert(public.studio_video_enqueue(w,actor,queue_request,eid,repeat('a',64))=r,'native enqueue idempotent');
+ begin
+  insert into public.episodes(workspace_id) values(w) returning id into other_episode;
+  perform public.studio_video_enqueue(w,actor,queue_request,other_episode,repeat('a',64));raise exception 'Native request reused in generic queue';
+ exception when insufficient_privilege then null;end;
+ begin perform public.studio_video_enqueue(w,actor,queue_request,eid,repeat('a',64),99);raise exception 'Changed native enqueue replay';exception when insufficient_privilege then null;end;
+ perform pg_temp.native_assert(not exists(select 1 from public.studio_puter_runs where episode_id=eid) and
+  not exists(select 1 from public.studio_video_jobs where episode_id=eid),'queue creates no native hold or generic jobs');
+ perform pg_temp.native_assert((select revision=0 and after_quota_group is null from public.studio_video_queue_cursors where workspace_id=w),'native enqueue does not advance cursor');
+ begin
+  perform pg_temp.native_assert(public.studio_video_queue_cancel(w,actor,queue_id,1)->>'code'='queue_version_changed','native cancel CAS');
+  perform pg_temp.native_assert(public.studio_video_queue_cancel(w,actor,queue_id,0)->>'code'='cancelled','native pending cancellation');
+  perform pg_temp.native_assert(public.studio_video_queue_cancel(w,actor,queue_id,0)->>'code'='cancelled','native cancel replay');
+  perform pg_temp.native_assert(public.studio_puter_queue_snapshot(w,actor)->'entries'='[]'::jsonb,'cancelled entry cannot reappear as prepared');
+  raise sqlstate 'ZX001';
+ exception when sqlstate 'ZX001' then null;end;
+ update public.studio_puter_preparations set fingerprint=repeat('9',64) where episode_id=eid;
+ perform pg_temp.native_assert(public.studio_puter_queue_snapshot(w,actor)#>>'{entries,0,blocked_code}'='script_changed','native draft edits invalidate waiting entry');
+ update public.studio_puter_preparations set fingerprint=run->>'fingerprint' where episode_id=eid;
  begin perform public.studio_puter_action(w,outsider,eid,'resume');raise exception 'Foreign action accepted';exception when insufficient_privilege then null;end;
  perform pg_temp.native_assert(public.claim_puter_chapter(eid,account,token)->>'code'='claimed','claims protected account');
  perform pg_temp.native_assert(public.claim_puter_chapter(eid,account,other_token)->>'code'='account_busy','duplicate runner waits');
@@ -53,11 +78,18 @@ begin
  perform public.observe_puter_chapter(eid,token,observation);
  begin perform public.reserve_puter_chapter(eid,token,account,jsonb_set(run,'{profile,output_fps}','24'));raise exception 'Wrong FPS accepted';exception when check_violation then null;end;
  perform pg_temp.native_assert(public.reserve_puter_chapter(eid,token,account,run)->>'code'='reserved','full chapter reserved');
+ perform pg_temp.native_assert(public.studio_video_queue_cancel(w,actor,queue_id,0)->>'code'='existing_video_work','queue cancellation cannot release native hold');
+ perform pg_temp.native_assert(public.studio_puter_queue_snapshot(w,actor)#>>'{entries,0,blocked_code}'='reserved','existing native run is not planned again');
+ other_workspace:=public.studio_provision(outsider,'Shared Puter queue',false);
+ insert into public.studio_puter_access(account_id,workspace_id) values(account,other_workspace);
+ snapshot:=public.studio_puter_queue_snapshot(other_workspace,outsider);
+ perform pg_temp.native_assert(snapshot->'entries'='[]'::jsonb and snapshot#>>'{accounts,0,reserved}'='true','physical native hold applies privately across workspaces');
  perform pg_temp.native_assert(public.reserve_puter_chapter(eid,token,account,run)->>'code'='existing','idempotent admission');
  perform pg_temp.native_assert(public.studio_puter_view(w,actor)#>>'{accounts,0,estimated_chapters}'='0','hold prevents double capacity');
  begin perform public.save_puter_chapter(eid,other_token,run);raise exception 'Foreign lease saved';exception when insufficient_privilege then null;end;
  changed:=jsonb_set(jsonb_set(run,'{revision}','1'),'{tasks,0,phase}','"submission_started"');
  perform public.save_puter_chapter(eid,token,changed);perform public.save_puter_chapter(eid,token,changed);run:=changed;
+ perform pg_temp.native_assert(public.studio_puter_queue_snapshot(w,actor)#>>'{entries,0,blocked_code}'='reconciliation_required','started native request never becomes dispatchable preview');
  perform pg_temp.native_assert(public.studio_puter_view(w,actor)#>>'{accounts,0,balance_fresh}'='false','submission invalidates old capacity');
  changed:=jsonb_set(jsonb_set(run,'{revision}','2'),'{tasks,0,phase}','"planned"');
  begin perform public.save_puter_chapter(eid,token,changed);raise exception 'Uncertain request reset';exception when check_violation then null;end;

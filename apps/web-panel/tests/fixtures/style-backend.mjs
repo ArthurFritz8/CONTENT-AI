@@ -9,7 +9,9 @@ const versions=[{revision:1,effective_from:1,preferences:defaults}];
 const patterns=[],media=[],files=new Map();
 let nativeChapter=null,cancelRequested=false;
 let videoQueueState='prepared';
+let puterQueueState='prepared';
 const videoQueueEpisode='12121212-1212-4212-8212-121212121212',videoQueueId='13131313-1313-4313-8313-131313131313';
+const puterQueueEpisode='14141414-1414-4414-8414-141414141414',puterQueueId='15151515-1515-4515-8515-151515151515';
 const wav=Buffer.alloc(32044);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(32000,40);
 for(const [index,character_id] of ['lia','rui'].entries()) {
  const id=`44444444-4444-4444-8444-44444444444${index}`,sha256=createHash('sha256').update(wav).digest('hex'),path=`${workspace}/story-profile/${series}/${id}/${sha256}.wav`;
@@ -39,6 +41,13 @@ globalThis.fetch=async(input,init)=>{
  }
  if(u.origin!=='https://fixture.supabase.co')throw Error('fixture_egress_denied');
  const body=init?.body && !u.pathname.startsWith('/storage/')?JSON.parse(String(init.body)):{};
+ if(u.pathname==='/rest/v1/rpc/studio_puter_queue_snapshot') {
+   if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_puter_queue_foreign_scope');
+   const accounts=puterView().accounts;
+   return json({checked_at:Date.now(),accounts,entries:puterQueueState==='cancelled'?[]:[{id:puterQueueEpisode,series_id:'16161616-1616-4616-8616-161616161616',title:'Novela Puter em espera',
+    chapter_number:1,priority:100,created_at:Date.now()-9000,queue_id:puterQueueState==='prepared'?null:puterQueueId,revision:0,state:puterQueueState,
+    profile_sha256:'c'.repeat(64),previous_approved:true,blocked_code:null,shots:3,prepared:true,profile_ready:true}]});
+ }
  if(u.pathname==='/rest/v1/rpc/studio_video_queue_snapshot') {
     if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_queue_foreign_scope');
     return json({entries:videoQueueState==='cancelled'?[]:[{id:videoQueueEpisode,series_id:series,title:'Animacao em espera',chapter_number:1,priority:100,created_at:Date.now()-10000,
@@ -49,10 +58,17 @@ globalThis.fetch=async(input,init)=>{
      queue:{cursor_revision:0,after_quota_group:null,reservation_enabled:false}});
  }
  if(u.pathname==='/rest/v1/rpc/studio_video_enqueue') {
+   if(body.p_actor===actor&&body.p_workspace===workspace&&body.p_episode===puterQueueEpisode&&body.p_profile==='c'.repeat(64)) {
+    puterQueueState='pending';return json({code:'queued',id:puterQueueId,state:'pending',revision:0});
+   }
     if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_episode!==videoQueueEpisode||body.p_profile!=='c'.repeat(64))throw Error('fixture_queue_foreign_scope');
     videoQueueState='pending';return json({code:'queued',id:videoQueueId,state:'pending',revision:0});
  }
  if(u.pathname==='/rest/v1/rpc/studio_video_queue_cancel') {
+   if(body.p_actor===actor&&body.p_workspace===workspace&&body.p_queue===puterQueueId) {
+    if(body.p_revision!==0)return json({code:'queue_version_changed'});
+    puterQueueState='cancelled';return json({code:'cancelled'});
+   }
     if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_queue!==videoQueueId)throw Error('fixture_queue_foreign_scope');
     if(body.p_revision!==0)return json({code:'queue_version_changed'});
     videoQueueState='cancelled';return json({code:'cancelled'});

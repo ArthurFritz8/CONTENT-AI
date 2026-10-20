@@ -7,7 +7,10 @@ type QueueView=ReturnType<typeof videoQueuePreview>;
 const statuses:Record<string,string>={prepared:"Pronto para entrar na fila",planned:"Capítulo completo cabe na previsão",waiting_capacity:"Aguardando fonte ou saldo confirmado",
  waiting_review:"Aguardando aprovação do capítulo anterior",waiting_previous_chapter:"Aguardando capítulo anterior",reconciliation_required:"Aguardando conciliação",
  reserved:"Saldo reservado",script_changed:"Roteiro ou perfil alterado",existing_video_work:"Já existe trabalho para este capítulo",
- awaiting_preparation:"Aguardando preparação das cenas",planning_unavailable:"Planejamento pendente"};
+ awaiting_preparation:"Aguardando preparação das cenas",planning_unavailable:"Planejamento pendente",
+ waiting_balance:"Aguardando consulta de saldo Puter",insufficient_capacity:"Saldo Puter insuficiente para o capítulo inteiro",
+ wallet_reconciliation_required:"Conta Puter ocupada ou em conciliação",connection_required:"Conexão Puter necessária",source_not_ready:"Gratuidade da conta Puter não confirmada",
+ cancellation_pending:"Cancelamento em conciliação",cancelled:"Tentativa encerrada",completed:"Capítulo aprovado"};
 const reasons:Record<string,string>={unavailable:"Fonte indisponível ou com verificação pendente",stale_capacity:"Consulta de saldo vencida",cooldown:"Fonte em pausa",
  non_recurring_offer:"Créditos promocionais não elegíveis",unverified_free_access:"Gratuidade recorrente não confirmada",cash_not_allowed:"Custo em dinheiro não permitido",
  series_incompatible:"Padrão da novela ainda não aprovado nesta fonte",incompatible_task:"Tipo de cena incompatível",quality_contract:"Qualidade incompatível",
@@ -45,10 +48,11 @@ export function StoryVideoQueue({refresh,onSaved}:{refresh:number;onSaved:()=>vo
    {data.truncated&&<p role="status">Primeiros 100 capítulos. Previsão de capacidade suspensa até conferir a fila completa.</p>}
    {!data.items.length?<p>Nenhum capítulo preparado aguardando nesta fila.</p>:<ol className="video-queue-list">{data.items.map(item=><li key={item.episode_id}>
     <div><Link href={`/studio/episodes/${item.episode_id}`}>{item.title} · capítulo {item.chapter_number}</Link><p>{statuses[item.status]||"Conferência pendente"}{item.source_label?` · ${item.source_label}`:""}</p>
+      {item.budget&&<p className="muted">Orçamento Puter separado: {item.budget.required_credits.toLocaleString("pt-BR")} créditos estimados para 15s · {item.budget.available_credits===null?"Saldo disponível não confirmado":`${item.budget.available_credits.toLocaleString("pt-BR")} créditos disponíveis nesta previsão`}. Estimativa conservadora, não é cotação do provedor.</p>}
      {item.status==="waiting_capacity"&&item.reasons.length>0&&<ul>{item.reasons.map(reason=><li key={reason}>{reasons[reason]||"Verificação da fonte pendente"}</li>)}</ul>}
     </div>
     <div className="studio-actions">{item.can_enqueue&&<button className="button" disabled={busy} onClick={()=>void command(item,"enqueue")}><ListPlus size={16}/>Adicionar à fila</button>}
-     {item.state==="pending"&&<button className="button" title={`Cancelar entrada de ${item.title}`} aria-label={`Cancelar entrada de ${item.title}`} disabled={busy} onClick={()=>void command(item,"cancel")}><Trash2 size={16}/></button>}</div>
+    {item.can_cancel&&<button className="button" title={`Cancelar entrada de ${item.title}`} aria-label={`Cancelar entrada de ${item.title}`} disabled={busy} onClick={()=>void command(item,"cancel")}><Trash2 size={16}/></button>}</div>
    </li>)}</ol>}
   </>}
  </section>;

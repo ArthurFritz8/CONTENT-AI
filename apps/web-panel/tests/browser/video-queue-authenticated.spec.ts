@@ -7,8 +7,9 @@ test('prepared chapter persists in queue without reserve or dispatch and can be 
  await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
  await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
  await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
+ const generic=queue.locator('.video-queue-list > li').filter({has:page.getByRole('link',{name:'Animacao em espera · capítulo 1'})});
  await expect(queue.getByText('Reservas desativadas',{exact:true})).toBeVisible();
- await queue.getByRole('button',{name:'Adicionar à fila'}).click();
+ await generic.getByRole('button',{name:'Adicionar à fila'}).click();
  await expect(queue.getByText('Aguardando fonte ou saldo confirmado',{exact:true})).toBeVisible();
  await page.reload();await expect(queue.getByText('Aguardando fonte ou saldo confirmado',{exact:true})).toBeVisible();
  const response=await page.request.get('/api/stories/queue');expect(response.status()).toBe(200);const result=await response.json();
@@ -23,7 +24,29 @@ test('prepared chapter persists in queue without reserve or dispatch and can be 
  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await queue.screenshot({path:'test-results/video-queue-mobile.png',animations:'disabled'});
  await queue.getByRole('button',{name:'Cancelar entrada de Animacao em espera'}).click();
- await expect(queue.getByText('Nenhum capítulo preparado aguardando nesta fila.',{exact:true})).toBeVisible();
+ await expect(queue.getByRole('link',{name:'Animacao em espera · capítulo 1'})).toHaveCount(0);
+});
+test('Puter chapter stays in its native queue with insufficient full-chapter budget and no generation',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
+ const native=queue.locator('.video-queue-list > li').filter({has:page.getByRole('link',{name:'Novela Puter em espera · capítulo 1'})});
+ await expect(native.getByText('Saldo Puter insuficiente para o capítulo inteiro',{exact:false})).toBeVisible();
+ await expect(native.getByText('990 créditos estimados para 15s',{exact:false})).toBeVisible();
+ await expect(native.getByText('677,7 créditos disponíveis nesta previsão',{exact:false})).toBeVisible();
+ await native.getByRole('button',{name:'Adicionar à fila'}).click();await page.reload();
+ await expect(native.getByRole('button',{name:'Adicionar à fila'})).toHaveCount(0);
+ await expect(native.getByText('Saldo Puter insuficiente para o capítulo inteiro',{exact:false})).toBeVisible();
+ const response=await page.request.get('/api/stories/queue'),result=await response.json();
+ expect(result.estimated_complete_chapters).toBe(0);expect(result.dispatch_enabled).toBe(false);
+ expect(JSON.stringify(result)).not.toMatch(/profile_sha256|fingerprint|credential|account_sha256|remote_filename/);
+ const accounts=await (await page.request.get('/api/stories/puter')).json();expect(accounts.accounts[0].reserved).toBe(false);
+ await native.screenshot({path:'test-results/puter-queue-desktop.png',animations:'disabled'});
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await native.screenshot({path:'test-results/puter-queue-mobile.png',animations:'disabled'});
+ await native.getByRole('button',{name:'Cancelar entrada de Novela Puter em espera'}).click();
+ await expect(native).toHaveCount(0);
 });
 test('queue read failure is explicit rather than a false empty queue',async({page,context})=>{
  await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);

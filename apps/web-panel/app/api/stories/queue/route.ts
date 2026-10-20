@@ -4,10 +4,15 @@ import {studioRpc} from "../../../../lib/workspace";
 import {queueCommandSchema,queueEnqueueTarget,videoQueuePreview} from "../../../../lib/video-queue";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"no-store"};
+async function snapshotFor(user:{workspaceId:string;id:string}) {
+ const args={p_workspace:user.workspaceId,p_actor:user.id};
+ const [snapshot,puter]=await Promise.all([studioRpc("studio_video_queue_snapshot",args),studioRpc("studio_puter_queue_snapshot",args)]);
+ return {...snapshot,puter};
+}
 export async function GET() {
  try {
   const user=await requireUser();
-  const snapshot=await studioRpc("studio_video_queue_snapshot",{p_workspace:user.workspaceId,p_actor:user.id});
+  const snapshot=await snapshotFor(user);
   return Response.json(videoQueuePreview(snapshot),{headers});
  }catch(error){return errorResponse(error);}
 }
@@ -19,7 +24,7 @@ export async function POST(request:Request) {
   const input=parsed.data;
   if(input.action==="cancel")return Response.json(await studioRpc("studio_video_queue_cancel",{
    p_workspace:user.workspaceId,p_actor:user.id,p_queue:input.queueId,p_revision:input.revision}),{headers});
-  const snapshot=await studioRpc("studio_video_queue_snapshot",{p_workspace:user.workspaceId,p_actor:user.id});
+  const snapshot=await snapshotFor(user);
   const target=queueEnqueueTarget(snapshot,input.episodeId);
   if(!target)throw new PanelError("O capítulo precisa estar preparado e disponível neste workspace.",409);
   return Response.json(await studioRpc("studio_video_enqueue",{p_workspace:user.workspaceId,p_actor:user.id,p_request:input.requestId,

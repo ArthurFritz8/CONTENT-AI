@@ -48,3 +48,45 @@ test("queue commands reject browser-supplied actor, profile, plans and reserve a
   {action:"enqueue",episodeId:episode,requestId:queue,profile:"a".repeat(64)},{action:"cancel",queueId:queue,revision:-1}])
   assert.equal(queueCommandSchema.safeParse(value).success,false);
 });
+function nativeFixture(state="pending") {
+ const raw=fixture();raw.entries=[];
+ raw.puter={checked_at:now,accounts:[{id:queue,checked_at:new Date(now).toISOString(),remaining_credits:1000,balance_fresh:true,financially_eligible:true,reserved:false,busy:false}],
+  entries:[{id:episode,series_id:series,title:"Native Puter",chapter_number:1,priority:100,created_at:now-1000,queue_id:state==="prepared"?null:queue,
+   revision:0,state,profile_sha256:"c".repeat(64),previous_approved:true,blocked_code:null,shots:3,prepared:true,profile_ready:true}]};
+ return raw;
+}
+test("native Puter uses its own 990-credit empirical budget and never falls back to Modal",()=>{
+ const raw=nativeFixture(),before=JSON.stringify(raw),result=videoQueuePreview(raw,now);
+ assert.equal(result.items[0].status,"planned");assert.equal(result.estimated_complete_chapters,1);assert.equal(result.estimated_new_animated_seconds,15);
+ assert.equal(result.items[0].budget.required_credits,990);assert.equal(result.items[0].budget.provider_quote,false);assert.equal(result.items[0].source_label,"Puter");
+ assert.equal(JSON.stringify(raw),before);assert.doesNotMatch(JSON.stringify(result),/profile_sha256|account_sha256|credential|tasks|fingerprint/);
+ raw.puter.accounts[0].remaining_credits=677.7;assert.equal(videoQueuePreview(raw,now).items[0].status,"insufficient_capacity");
+ assert.equal(videoQueuePreview(raw,now).estimated_complete_chapters,0);
+});
+test("native accounts are not pooled and uncertain or stale accounts cannot fund queued chapters",()=>{
+ const raw=nativeFixture();raw.puter.accounts[0].remaining_credits=600;
+ raw.puter.accounts.push({...raw.puter.accounts[0],id:series});assert.equal(videoQueuePreview(raw,now).items[0].status,"insufficient_capacity");
+ raw.puter.accounts[0].remaining_credits=1000;raw.puter.accounts[0].reserved=true;raw.puter.accounts[1].busy=true;
+ assert.equal(videoQueuePreview(raw,now).items[0].status,"wallet_reconciliation_required");
+ raw.puter.accounts.forEach(account=>account.checked_at=new Date(now-120001).toISOString());
+ assert.equal(videoQueuePreview(raw,now).items[0].status,"waiting_balance");
+});
+test("native connection, free-access eligibility and old balance have distinct outcomes",()=>{
+ const raw=nativeFixture();raw.puter.accounts[0].financially_eligible=false;
+ assert.equal(videoQueuePreview(raw,now).items[0].status,"source_not_ready");
+ raw.puter.accounts=[];assert.equal(videoQueuePreview(raw,now).items[0].status,"connection_required");
+});
+test("native queue requires reviewed profile and human continuation, and never requeues accepted work",()=>{
+ const raw=nativeFixture("prepared");assert.ok(queueEnqueueTarget(raw,episode));assert.equal(videoQueuePreview(raw,now).estimated_complete_chapters,0);
+ raw.puter.entries[0].profile_ready=false;assert.equal(queueEnqueueTarget(raw,episode),null);assert.equal(videoQueuePreview(raw,now).items[0].status,"awaiting_preparation");
+ raw.puter.entries[0].profile_ready=true;raw.puter.entries[0].chapter_number=2;raw.puter.entries[0].previous_approved=false;
+ assert.equal(videoQueuePreview(raw,now).items[0].status,"waiting_review");
+ raw.puter.entries[0].blocked_code="reconciliation_required";assert.equal(queueEnqueueTarget(raw,episode),null);
+ assert.equal(videoQueuePreview(raw,now).items[0].can_cancel,false);
+});
+test("native simulation consumes a physical account only once without reserving or advancing any cursor",()=>{
+ const raw=nativeFixture();raw.puter.entries.push({...raw.puter.entries[0],id:series,series_id:episode,queue_id:episode});
+ const result=videoQueuePreview(raw,now);assert.equal(result.estimated_complete_chapters,1);
+ assert.deepEqual(result.items.map(item=>item.status).sort(),["insufficient_capacity","planned"]);
+ assert.equal(result.dispatch_enabled,false);assert.equal(result.reservation_enabled,false);assert.equal(result.cursor_revision,0);
+});
