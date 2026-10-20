@@ -65,3 +65,31 @@ afrouxada. O prompt recebeu exemplos exatos com IDs do elenco real e a regra
 de listener/reaction nulos em cenas com um unico personagem. Testes mantem
 a recusa de reacao a si mesmo e de personagem ausente. O episodio reprovado
 e seus eventos permanecem auditaveis; nao e uma tentativa de video incerta.
+
+## Resultado da Validacao Real
+
+Historia nova: "O Misterio da Chave Dourada na Feira", com Lia e Bento, um
+capitulo e seis cenas. Fonte local e formato motion_comic ficaram congelados.
+O roteiro inicialmente falhou antes dos assets. Apos a correcao validada pela
+CI, a etapa research foi retomada no mesmo episodio por atualizacao condicionada
+a failed/script_quality_failed, sem script, assets, jobs, runs ou lease ativo.
+O evento de falha foi preservado e nenhum limite diario foi aumentado.
+
+O workflow de assets concluiu com edge-tts 7.3.1: 24 imagens originais locais,
+seis audios e 12 arquivos de legenda. O render foi disparado pelo fluxo normal;
+a chamada adicional de trigger foi recusada com ALREADY_DISPATCHED e nao foi
+repetida. A montagem e a QA audiovisual concluiram nas duas orientacoes.
+
+- Episodio: `d2176b71-b2ce-4541-a79f-41986f0732ea`.
+- Assets run: `39489915513`, sucesso.
+- Render run: `39490226081`, sucesso.
+- Vertical: 1080x1920, H.264/AAC, cerca de 30 FPS, 135,454 segundos.
+- Horizontal: 1920x1080, mesma duracao, H.264/AAC e decodificacao verificada.
+- Estado final observado: review, approval_date nula, review_request pending.
+- Zero registros de publicacao, outbox social e runs Puter para o episodio.
+- Arquivos recolhidos em `output/hq-full-chapter-validation/`, fora do Git.
+
+A narracao ficou com 324 palavras e aproximadamente 134 segundos de audio,
+acima do alvo editorial estimado de 66 segundos. A QA passou, mas registrou
+aviso de ritmo/duracao. Esse aviso permanece: nao acelerar vozes, cortar falas
+ou considerar a qualidade artistica aprovada sem revisao do usuario.
