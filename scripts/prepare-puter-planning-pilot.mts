@@ -16,7 +16,7 @@ async function main() {
    body:payload?JSON.stringify(payload):undefined,redirect:"error",signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw Error("studio_request_failed");return response.json();
  }
- const rows=await request(`studio_series?id=eq.${plan.series_id}&archived_at=is.null&select=workspace_id,bible`);
+ const rows=await request(`studio_series?id=eq.${plan.series_id}&archived_at=is.null&select=workspace_id,bible,editorial_revision,editorial_memory,editorial_guidance`);
  if(rows.length!==1)throw Error("series_unavailable");
  const series=rows[0],members=await request(`studio_members?workspace_id=eq.${series.workspace_id}&role=eq.owner&select=user_id&order=created_at&limit=1`);
  if(members.length!==1)throw Error("workspace_owner_unavailable");
@@ -31,16 +31,32 @@ async function main() {
   const bytes=Buffer.from(await response.arrayBuffer());
   if(bytes.length>12582912||createHash("sha256").update(bytes).digest("hex")!==reference.sha256)throw Error("reference_hash_mismatch");
  }
- const context={series_id:plan.series_id,bible:series.bible,chapter_number:1,previous_summaries:[]};
+ const chapters=await request(`studio_story_chapters?series_id=eq.${plan.series_id}&chapter_number=eq.1&select=idea_id`);
+ let context:unknown={series_id:plan.series_id,bible:series.bible,chapter_number:1,previous_summaries:[],...(series.editorial_revision>0?{
+  editorial:{revision:series.editorial_revision,memory:series.editorial_memory,guidance:series.editorial_guidance}}:{})};
+ let existingEpisode:string|undefined;
+ if(chapters.length) {
+  const ideas=await request(`idea_queue?id=eq.${chapters[0].idea_id}&workspace_id=eq.${series.workspace_id}&select=episode_id`);
+  if(ideas[0]?.episode_id){existingEpisode=ideas[0].episode_id;context=(await request(`episodes?id=eq.${existingEpisode}&workspace_id=eq.${series.workspace_id}&select=briefing`))[0].briefing.story_context;}
+ }
  const draft=prepareNativeDraft(plan.draft,context,profile),profileHash=await sha256Hex(canonicalStringify(profile));
  const fingerprint=await nativeFingerprint(draft,context,profile);
  const summary={title:draft.title,planning_only:true,execution_allowed:false,seconds:15,dialogue:draft.scenes.map(scene=>({speaker:scene.visual.speaker_id,text:scene.narration_text}))};
- if(!process.argv.includes("--apply")){console.log(JSON.stringify({code:"preview",...summary}));return;}
- const result=await request("rpc/studio_puter_pilot_prepare",{...args,p_request:plan.request_id,p_series:plan.series_id,p_revision:plan.presentation_revision,p_style:plan.style_id,
+ const revise=process.argv.includes("--revise");
+ if(!process.argv.includes("--apply")&&!revise){console.log(JSON.stringify({code:"preview",...summary}));return;}
+ let result;
+ if(revise) {
+  const snapshot=await request("rpc/studio_puter_queue_snapshot",args),entry=snapshot.entries.find((item:{id:string})=>item.id===existingEpisode);
+  if(!existingEpisode||!entry?.planning_only||entry.state!=="pending")throw Error("planning_pilot_revision_unavailable");
+  result=await request("rpc/studio_puter_pilot_revise",{...args,p_episode:existingEpisode,p_revision:entry.revision,p_profile:profileHash,p_fingerprint:fingerprint,p_draft:draft});
+ }else result=await request("rpc/studio_puter_pilot_prepare",{...args,p_request:plan.request_id,p_series:plan.series_id,p_revision:plan.presentation_revision,p_style:plan.style_id,
   p_profile:profileHash,p_fingerprint:fingerprint,p_draft:draft});
- if(!["prepared","existing"].includes(result.code)||result.planning_only!==true)throw Error("pilot_preparation_refused");
+ if(!["prepared","existing","revised"].includes(result.code)||result.planning_only!==true)throw Error("pilot_preparation_refused");
  const snapshot=await request("rpc/studio_puter_queue_snapshot",args),entry=snapshot.entries.find((item:{id:string})=>item.id===result.episode_id);
  if(!entry?.planning_only||entry.state!=="pending")throw Error("pilot_planning_state_mismatch");
+ const saved=(await request(`studio_puter_preparations?episode_id=eq.${result.episode_id}&select=draft,fingerprint`))[0];
+ const savedContext=(await request(`episodes?id=eq.${result.episode_id}&select=briefing`))[0].briefing.story_context;
+ if(await nativeFingerprint(saved.draft,savedContext,profile)!==saved.fingerprint)throw Error("pilot_fingerprint_mismatch");
  if((await request(`studio_puter_runs?episode_id=eq.${result.episode_id}&select=episode_id`)).length||
   (await request(`studio_video_jobs?episode_id=eq.${result.episode_id}&select=id`)).length)throw Error("unexpected_pilot_work");
  if((await request("rpc/puter_worker_input",{p_episode:result.episode_id})).code!=="native_setup_required")throw Error("pilot_execution_not_blocked");

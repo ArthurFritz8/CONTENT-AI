@@ -8,7 +8,7 @@
     "summary": "Malu encontra as passagens e teme que Laranjito deixe o apartamento. Ele revela que a outra passagem pertence a ela; Malu pede que explique o segredo.",
     "scenes": [
       {
-        "narration_text": "Voc\u00ea ia embora sem mim?",
+        "narration_text": "Voc\u00ea ia embora sem me contar?",
         "visual": {"speaker_id":"malu","on_stage":["malu"],"setting":"home","mood":"sad","prop":"letter"},
         "prompt": "Warm sunset apartment with plants and a blue door. Medium close-up at eye level. The single visible speaker turns slightly toward the off-screen partner, shoulders tense, with restrained hurt. Keep hands below frame and the face clearly visible.",
         "seed": 0
@@ -20,7 +20,7 @@
         "seed": 0
       },
       {
-        "narration_text": "Por que escondeu isso de mim?",
+        "narration_text": "Ent\u00e3o por que escondeu isso?",
         "visual": {"speaker_id":"malu","on_stage":["malu"],"setting":"home","mood":"surprised","prop":"none"},
         "prompt": "Same warm sunset apartment with plants and a blue door. Slightly tighter eye-level close-up of the single visible speaker. Her shoulders soften before a small questioning head tilt toward the off-screen partner. Keep hands below frame and the face clearly visible.",
         "seed": 0

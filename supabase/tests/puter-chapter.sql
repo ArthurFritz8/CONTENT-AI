@@ -76,6 +76,10 @@ begin
   perform pg_temp.native_assert(not exists(select 1 from public.studio_puter_runs where episode_id=pilot_episode) and not exists(select 1 from public.studio_video_jobs where episode_id=pilot_episode),'new pilot consumes no native or generic budget');
   snapshot:=public.studio_puter_queue_snapshot(pilot_workspace,pilot_actor);
   perform pg_temp.native_assert(snapshot#>>'{entries,0,planning_only}'='true' and jsonb_array_length(snapshot#>'{entries,0,dialogue}')=3,'pilot dialogue available for review');
+  perform pg_temp.native_assert(public.studio_puter_pilot_revise(pilot_workspace,pilot_actor,pilot_episode,1,repeat('a',64),repeat('9',64),pilot_draft||'{"title":"Revised hidden key"}')->>'code'='queue_version_changed','planning revision requires current queue');
+  perform pg_temp.native_assert(public.studio_puter_pilot_revise(pilot_workspace,pilot_actor,pilot_episode,0,repeat('a',64),repeat('9',64),pilot_draft||'{"title":"Revised hidden key"}')->>'code'='revised','planning draft revision keeps execution blocked');
+  perform pg_temp.native_assert(public.studio_puter_pilot_revise(pilot_workspace,pilot_actor,pilot_episode,0,repeat('a',64),repeat('9',64),pilot_draft||'{"title":"Revised hidden key"}')->>'code'='existing','planning revision replay is idempotent');
+  perform pg_temp.native_assert(public.puter_worker_input(pilot_episode)->>'code'='native_setup_required','revised pilot cannot execute');
  end;
  snapshot:=public.studio_puter_queue_snapshot(w,actor);
  perform pg_temp.native_assert(snapshot#>>'{entries,0,prepared}'='true' and snapshot#>>'{entries,0,profile_ready}'='true','native queue recognizes reviewed prepared profile');

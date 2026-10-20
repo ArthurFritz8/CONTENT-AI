@@ -11,7 +11,7 @@ begin
  end loop;
  foreach fn in array array['studio_video_enqueue(uuid,uuid,uuid,uuid,text,int)','studio_video_queue_cancel(uuid,uuid,uuid,bigint)',
   'studio_video_queue_reserve(uuid,uuid,uuid,uuid,bigint,bigint,jsonb)','studio_video_queue_view(uuid,uuid)','studio_video_queue_snapshot(uuid,uuid)','studio_puter_queue_snapshot(uuid,uuid)',
-  'studio_puter_pilot_prepare(uuid,uuid,uuid,uuid,int,text,text,text,jsonb)'] loop
+  'studio_puter_pilot_prepare(uuid,uuid,uuid,uuid,int,text,text,text,jsonb)','studio_puter_pilot_revise(uuid,uuid,uuid,bigint,text,text,jsonb)'] loop
   if has_function_privilege('anon','public.'||fn,'execute') or has_function_privilege('authenticated','public.'||fn,'execute') or
    not has_function_privilege('service_role','public.'||fn,'execute') then raise exception 'Video queue RPC exposed: %',fn;end if;
  end loop;

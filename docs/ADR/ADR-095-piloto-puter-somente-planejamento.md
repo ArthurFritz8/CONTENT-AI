@@ -56,6 +56,20 @@ Verificacoes estruturais vetam exposicao dos wrappers anteriores e da RPC.
 
 O capitulo continua ocupando uma preparacao e os limites editoriais normais.
 Cancelar sua entrada remove a espera, nao autoriza execucao nem desmarca a trava.
-Nao houve geracao de audio, imagem, video, consulta ao Puter ou publicacao. Auray,
+Preparar nao gera audio, imagem, video nem publicacao. Consulta separada de saldo
+usa a inspecao existente, sem enviar imagens ou solicitar videos. Auray,
 LTX e CNAPS permanecem intocados. Preparar nao autoriza consumir creditos; piloto
 completo, homologacao artistica e qualquer liberacao de execucao sao outra etapa.
+
+## Correcao do Contexto Editorial
+
+A primeira conferencia real identificou fingerprint divergente: a previa omitia
+memoria e orientacoes editoriais que o banco incorpora ao contexto do capitulo.
+O comando agora usa o contexto congelado do episodio existente ou inclui a versao
+editorial ao preparar o primeiro. Tambem preserva as falas exatas ja orientadas.
+Recalcula e confere o fingerprint salvo antes de declarar a preparacao concluida.
+
+`studio_puter_pilot_revise` permite corrigir somente um piloto planning_only do
+mesmo ator, ainda em research, sem run/job e com CAS da fila. Atualiza roteiro e
+fingerprints da preparacao/fila atomicamente, mantendo todas as travas. Replay
+identico nao duplica nem incrementa revisao. Nao e uma retomada de geracao.
