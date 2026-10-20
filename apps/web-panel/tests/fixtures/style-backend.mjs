@@ -26,6 +26,8 @@ const samples=JSON.parse(readFileSync(new URL('../../../../docs/stories/style-ga
 // Opaque private-byte fixture: verifies scope/hash transport, not artistic quality.
 const nativeBytes=Buffer.from('isolated-native-example-bytes'),nativeHash=createHash('sha256').update(nativeBytes).digest('hex'),nativeExample=samples.find(s=>s.source==='auray');
 const samplePath=`${workspace}/story-samples/${nativeExample.id}/${nativeHash}.mp4`;files.set(samplePath,nativeBytes);
+const approvedPreviewBytes=process.env.STORY_STYLE_REAL_PREVIEW==='1'?readFileSync(new URL('../../../../output/puter-laranjito-short-preview-20261020/original.mp4',import.meta.url)):nativeBytes;
+const approvedPreviewHash=createHash('sha256').update(approvedPreviewBytes).digest('hex');
 const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
 const puterId='abababab-abab-4bab-8bab-abababababab';
 const puterView=()=>({enabled:true,accounts:[{id:puterId,remaining_credits:677.7,monthly_allowance:1000,checked_at:new Date().toISOString(),balance_fresh:true,financially_eligible:true,estimated_chapters:0,estimated_seconds:10,reserved:false,busy:false,sync_failed:false,blockers:[]}]});
@@ -117,7 +119,9 @@ globalThis.fetch=async(input,init)=>{
  if(u.pathname==='/rest/v1/rpc/studio_native_media_review')return json({version:'native-media-review-v1',episode_id:'88888888-8888-4888-8888-888888888888',video_sha256:'a'.repeat(64),created_at:'2026-10-15T12:00:00Z',speech_engine:'faster-whisper-base-cpu',model_revision:'ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66',human_review_required:true,lip_sync_verified:false,identity_verified:false,source_video_unchanged:true,takes:[0,1,2].map(index=>({index,speaker:index===1?'rui':'lia',sha256:String(index+1).repeat(64),expected_text:'Onde está a passagem?',recognized_text:'Ah, onde está a passagem?',speech_status:index<2?'possible_extra_speech':'no_mismatch_detected',appearance_status:index===2?'possible_color_shift':'no_color_shift_detected',sampled_frames:6,color_shift_score:index===2?.57:.10}))});
  if(u.pathname==='/functions/v1/studio-story' && body.action==='capacity')return json({estimated_script_capacity:3});
  if(u.pathname==='/functions/v1/studio-story' && body.action==='native') {if(body.operation==='cancel')cancelRequested=true;return json({code:'waiting_for_runner'});}
- if(u.pathname==='/rest/v1/rpc/studio_story_style_gallery')return json(samples);
+ if(u.pathname==='/rest/v1/rpc/studio_story_style_gallery')return json(samples.map(sample=>sample.id===samples.find(item=>item.source==='puter')?.id?{...sample,id:'20202020-2020-4020-8020-202020202020',
+  title:'Laranjito - prévia aprovada',approved_at:'2026-10-20T18:00:00Z',approval_scope:'sample_only'}:sample));
+ if(u.pathname==='/rest/v1/rpc/studio_generation_counts')return json({active:0,generated_today:0,planning:1,planning_today:1});
  if(u.pathname==='/rest/v1/rpc/studio_video_overview')return json({puter:puterView(),wallets:[{id:'99999999-9999-4999-8999-999999999999',label:'Auray fixture',unit:'credits',remaining_units:50,reserved_units:5,available_units:45,balance_fresh:true,native_enabled:true,budget_only_shots:9,native_budget_chapters:3,source_blockers:[]}],series_profiles:[],patterns:patterns.map(({profile,...p})=>p),preparation_enabled:false,native_enabled:true,native_chapters:nativeChapter?[{episode_id:nativeChapter.episode_id,total_shots:3,completed_shots:0,planned_seconds:15,output_fps:24,stage:cancelRequested?'cancellation_pending':'awaiting_capacity',cancel_requested:cancelRequested,closed:false,last_code:null}]:[]});
  if(u.pathname==='/rest/v1/rpc/studio_animated_progress')return json({chapters:[]});
  if(u.pathname==='/rest/v1/rpc/studio_story_overview')return json({series:[{id:series,bible,native_shots:formatShots,native_format_revision:formatRevision,chapters:nativeChapter?[nativeChapter]:[],presentation:versions.at(-1),presentation_history:versions}],daily_cap:3,daily_remaining:3,generated_today:0,active:nativeChapter?1:0,proposals_remaining:3});
@@ -129,7 +133,13 @@ globalThis.fetch=async(input,init)=>{
   const v={revision:versions.length+1,effective_from:1,preferences:body.p_preferences};versions.push(v);return json({code:'saved',...v});
  }
  if(u.pathname==='/rest/v1/rpc/studio_story_pattern_view')return json({bible,source:versions.at(-1).preferences.source,voice_policy:versions.at(-1).preferences.voice_policy,native_enabled:true,native_examples:body.p_style===nativeExample.style_id?[nativeExample]:[],media:media.filter(m=>m.ready),profile:patterns.find(p=>p.revision===body.p_revision&&p.style_id===body.p_style)?.profile||null,can_configure:!patterns.some(p=>p.revision===body.p_revision&&p.style_id===body.p_style),voice_enabled:true,voice_state:'ready'});
- if(u.pathname==='/rest/v1/rpc/studio_story_style_media')return json({path:samplePath,bytes:nativeBytes.length,sha256:nativeHash});
+ if(u.pathname==='/rest/v1/rpc/studio_story_style_media') {
+  if(body.p_id==='20202020-2020-4020-8020-202020202020') {
+   if(body.p_workspace!==workspace||body.p_actor!==actor)throw Error('fixture_sample_foreign_scope');
+   const path=`${workspace}/story-samples/${body.p_id}/${approvedPreviewHash}.mp4`;files.set(path,approvedPreviewBytes);return json({path,bytes:approvedPreviewBytes.length,sha256:approvedPreviewHash});
+  }
+  return json({path:samplePath,bytes:nativeBytes.length,sha256:nativeHash});
+ }
  if(u.pathname==='/rest/v1/rpc/studio_native_pattern_finalize'){
   if(body.p_profile.native_voice_acknowledged!==true || body.p_profile.voice_policy!=='provider_generated_review' || body.p_profile.voice_directions.length!==2 || body.p_profile.example.sha256!==nativeHash)throw Error('fixture_invalid_native_consent');
   patterns.push({series_id:series,revision:body.p_revision,style_id:body.p_style,profile_sha256:body.p_hash,profile:body.p_profile});return json({code:'saved'});

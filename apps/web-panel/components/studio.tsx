@@ -5,6 +5,7 @@ import { Connections } from "./connections";
 import { Fia } from "./fia";
 import { StoryDiscovery } from "./story-discovery";
 import { StoryVideoQueue } from "./story-video-queue";
+import { StoryApprovedPreviews } from "./story-approved-previews";
 import { ReviewActions } from "./review-actions";
 import { NativeMediaReview } from "./native-media-review";
 import { NativeSceneRepair } from "./native-scene-repair";
@@ -802,6 +803,7 @@ export default function Studio({
                   <>
                     <StoryDiscovery refresh={refresh} onSaved={() => setRefresh((v) => v + 1)} />
                     <StoryVideoQueue refresh={refresh} onSaved={() => setRefresh((v) => v + 1)} />
+                    <StoryApprovedPreviews refresh={refresh} />
                     <section className="panel">
                       <Toolbar
                         searchRef={searchRef}

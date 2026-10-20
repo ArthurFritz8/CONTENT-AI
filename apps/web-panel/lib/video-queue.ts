@@ -49,7 +49,7 @@ export function videoQueuePreview(raw:unknown,clock?:number) {
    waitingCodes.has(entry.blocked_code??"")?entry.blocked_code!:decision?.status??"planning_unavailable";
   return {episode_id:entry.id,queue_id:entry.queue_id,series_id:entry.series_id,title:entry.title,chapter_number:entry.chapter_number,
    revision:entry.revision,state:entry.state,status,can_enqueue:entry.state==="prepared"&&valid,
-  can_cancel:entry.state==="pending",budget:null as null|ReturnType<typeof puterBudget>,dialogue:[] as z.infer<typeof dialogueSchema>,
+  can_cancel:entry.state==="pending",budget:null as null|ReturnType<typeof puterBudget>,dialogue:[] as z.infer<typeof dialogueSchema>,blockers:[] as string[],
   source_label:snapshot.providers.find(provider=>provider.id===decision?.provider_id)?.label??null,
    reasons:[...new Set(decision?.reasons.map(reason=>reason.reason)??[])]};
  });
@@ -78,10 +78,13 @@ function previewPuterQueue(snapshot:z.infer<typeof puterSnapshotSchema>|undefine
   truncated?"planning_unavailable":funded?entry.state==="pending"?"planned":"prepared":snapshot!.accounts.length===0?"connection_required":
   recent.length===0?"waiting_balance":fresh.length===0?"source_not_ready":free.length===0?"wallet_reconciliation_required":"insufficient_capacity");
   if(status==="planned"&&funded){balances.set(funded.id,puterBudget(3,balances.get(funded.id)??null,NATIVE_PUTER.creditsPerShot*3).available_credits);chapters++;}
+  const blockers=[...(entry.planning_only?["planning_only"]:[]),...(!valid?["awaiting_preparation"]:[]),...(!entry.previous_approved?["waiting_review"]:[]),
+   ...(entry.blocked_code?[entry.blocked_code]:[]),...(snapshot!.accounts.length===0?["connection_required"]:recent.length===0?["waiting_balance"]:
+    fresh.length===0?["source_not_ready"]:free.length===0?["wallet_reconciliation_required"]:!funded?["insufficient_capacity"]:[])];
   return {episode_id:entry.id,queue_id:entry.queue_id,series_id:entry.series_id,title:entry.title,chapter_number:entry.chapter_number,
    revision:entry.revision,state:entry.state,status,can_enqueue:entry.state==="prepared"&&valid&&!entry.blocked_code,
   can_cancel:entry.state==="pending"&&!["reserved","reconciliation_required","cancellation_pending","waiting_review","cancelled","completed","existing_video_work"].includes(entry.blocked_code??""),
-  source_label:"Puter",reasons:[] as string[],budget:entry.shots===3?puterBudget(3,available):null,dialogue:entry.planning_only?entry.dialogue:[]};
+  source_label:"Puter",reasons:[] as string[],budget:entry.shots===3?puterBudget(3,available):null,dialogue:entry.planning_only?entry.dialogue:[],blockers:[...new Set(blockers)]};
  });
  return {items,chapters};
 }

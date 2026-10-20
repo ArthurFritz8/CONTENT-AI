@@ -1965,6 +1965,10 @@ blockquote {
 .video-queue-list > li { padding:14px 0; border-top:1px solid var(--line); }
 .video-queue-list > li > div { min-width:0; overflow-wrap:anywhere; }
 .video-queue-list p { margin:6px 0; }
+.approved-preview-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:20px; }
+.approved-preview-grid article { min-width:0; overflow-wrap:anywhere; }
+.approved-preview-grid video { display:block; width:min(100%,280px); aspect-ratio:9/16; object-fit:contain; background:#111; }
+.approved-preview-grid h3 { font-size:18px; margin:12px 0 6px; }
 .video-queue-list .button { display:inline-flex; align-items:center; gap:6px; min-height:40px; }
 .studio-actions > div:first-child { flex:1; }
 .studio-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }

@@ -32,12 +32,12 @@ test('Puter chapter stays in its native queue with insufficient full-chapter bud
  await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
  await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
  const native=queue.locator('.video-queue-list > li').filter({has:page.getByRole('link',{name:'Novela Puter em espera · capítulo 1'})});
- await expect(native.getByText('Saldo Puter insuficiente para o capítulo inteiro',{exact:false})).toBeVisible();
+ await expect(native.getByText('Saldo Puter insuficiente para o capítulo inteiro',{exact:false}).first()).toBeVisible();
  await expect(native.getByText('990 créditos estimados para 15s',{exact:false})).toBeVisible();
  await expect(native.getByText('677,7 créditos disponíveis nesta previsão',{exact:false})).toBeVisible();
  await native.getByRole('button',{name:'Adicionar à fila'}).click();await page.reload();
  await expect(native.getByRole('button',{name:'Adicionar à fila'})).toHaveCount(0);
- await expect(native.getByText('Saldo Puter insuficiente para o capítulo inteiro',{exact:false})).toBeVisible();
+ await expect(native.getByText('Saldo Puter insuficiente para o capítulo inteiro',{exact:false}).first()).toBeVisible();
  const response=await page.request.get('/api/stories/queue'),result=await response.json();
  expect(result.estimated_complete_chapters).toBe(0);expect(result.dispatch_enabled).toBe(false);
  expect(JSON.stringify(result)).not.toMatch(/profile_sha256|fingerprint|credential|account_sha256|remote_filename/);
@@ -63,10 +63,47 @@ test('planning-only pilot exposes dialogue for review and no execution command',
  await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
  await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
  const pilot=queue.locator('.video-queue-list > li').filter({has:page.getByRole('link',{name:'Piloto somente planejamento · capítulo 1'})});
- await expect(pilot.getByText('Somente planejamento · execução bloqueada',{exact:false})).toBeVisible();
+ await expect(pilot.getByText('Somente planejamento · execução bloqueada',{exact:false}).first()).toBeVisible();
  await expect(pilot.getByRole('list',{name:'Falas planejadas de Piloto somente planejamento'}).getByRole('listitem')).toHaveCount(3);
  await expect(pilot.getByRole('button',{name:/gerar|executar|reservar|ativar/i})).toHaveCount(0);
  await expect(pilot.getByText('Você ia embora sem mim?',{exact:false})).toBeVisible();
  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await pilot.screenshot({path:'test-results/puter-planning-pilot-mobile.png',animations:'disabled'});
+});
+test('approved preview is available privately with approval scope and responsive player',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');const previews=page.getByRole('region',{name:'Prévias aprovadas'});
+ await expect(previews.getByRole('heading',{name:'Laranjito - prévia aprovada'})).toBeVisible();
+ await expect(previews.getByText('Aprovação limitada a esta prévia.',{exact:false})).toBeVisible();
+ const player=previews.getByLabel('Laranjito - prévia aprovada');await expect(player).toHaveAttribute('preload','none');
+ const response=await page.request.get('/api/stories/styles/media?id=20202020-2020-4020-8020-202020202020');
+ expect(response.status()).toBe(200);expect(response.headers()['cache-control']).toBe('private, no-store');
+ if(process.env.STORY_STYLE_REAL_PREVIEW==='1') {
+  await player.evaluate((element:HTMLVideoElement)=>{element.muted=true;return element.play();});
+  await expect.poll(()=>player.evaluate((element:HTMLVideoElement)=>element.videoWidth)).toBe(720);
+  await expect.poll(()=>player.evaluate((element:HTMLVideoElement)=>element.currentTime)).toBeGreaterThan(0);
+  await player.evaluate((element:HTMLVideoElement)=>element.pause());
+ }
+ await previews.screenshot({path:'test-results/approved-previews-desktop.png',animations:'disabled'});
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await previews.screenshot({path:'test-results/approved-previews-mobile.png',animations:'disabled'});
+});
+test('planning-only story has no resume control and does not consume generation counters',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.route('**/api/stories',async route=>{
+  const response=await route.fetch(),data=await response.json();
+  Object.assign(data,{active:0,generated_today:0,daily_remaining:3,planning:1});
+  data.series[0].chapters=[{number:1,idea_id:'61616161-6161-4161-8161-616161616161',revision:0,idea_status:'consumed',episode_id:'17171717-1717-4717-8717-171717171717',status:'research',approved:false}];
+  data.videoCapacity.native_chapters=[{episode_id:'17171717-1717-4717-8717-171717171717',stage:'planning_only',completed_shots:0,total_shots:3,planned_seconds:15,output_fps:30,closed:false,cancel_requested:false}];
+  await route.fulfill({response,json:data});
+ });
+ await page.goto('/studio/queue');await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ await expect(page.getByText('0/3 do limite diário de geração utilizado · 1 em planejamento, sem geração.',{exact:false})).toBeVisible();
+ const story=page.locator('article.panel').filter({has:page.getByRole('heading',{name:'A chave da feira — teste isolado'})});
+ await expect(story.getByText('Somente planejamento · execução bloqueada',{exact:true})).toBeVisible();
+ await expect(story.getByRole('button',{name:'Retomar acompanhamento'})).toHaveCount(0);
 });

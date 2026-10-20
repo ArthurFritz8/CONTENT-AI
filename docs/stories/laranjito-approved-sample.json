@@ -1,0 +1,27 @@
+[
+  {
+    "path": "output/puter-laranjito-short-preview-20261020/original.mp4",
+    "sample": {
+      "id": "f2ae72f5-0ac8-477b-9733-902b8c7f3cb6",
+      "style_id": "cinematic_3d",
+      "source": "puter",
+      "title": "Laranjito - pr\u00e9via Puter de cinco segundos",
+      "model": "togetherai:wan-ai/wan2.7-i2v",
+      "sha256": "9ad45f7974a56ee2b182c1a5e92cc2ab842fe36bd48b0d77b508a9a029093457",
+      "bytes": 6007767,
+      "seconds": 5,
+      "width": 720,
+      "height": 1280,
+      "output_fps": 30,
+      "native_fps": 30,
+      "has_audio": true,
+      "motion": "generated",
+      "review_scope": "reviewed_sample",
+      "limitations": [
+        "Aprova\u00e7\u00e3o manual limitada a esta tomada de cinco segundos.",
+        "Voz nativa vari\u00e1vel; n\u00e3o garante identidade vocal entre cap\u00edtulos.",
+        "Pr\u00e9via isolada, sem homologa\u00e7\u00e3o de cap\u00edtulo completo ou certifica\u00e7\u00e3o autom\u00e1tica de lip-sync."
+      ]
+    }
+  }
+]

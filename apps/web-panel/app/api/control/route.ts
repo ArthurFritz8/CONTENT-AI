@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     if (resource === "overview") {
       const [
         pending,
-        active,
+        generationCounts,
         review,
         failed,
         published,
@@ -64,9 +64,7 @@ export async function GET(request: Request) {
         settings,
       ] = await Promise.all([
         count(db, "idea_queue", { status: "eq.pending" }),
-        count(db, "episodes", {
-          status: "in.(idea,research,script,assets,rendered)",
-        }),
+        studioRpc("studio_generation_counts", { p_workspace: user.workspaceId }),
         count(db, "episodes", { status: "eq.review" }),
         count(db, "episodes", { status: "eq.failed" }),
         count(db, "publishes", { status: "eq.published" }),
@@ -87,7 +85,7 @@ export async function GET(request: Request) {
       ]);
       result = {
         user,
-        counts: { pending, active, review, failed, published },
+        counts: { pending, active: generationCounts.active, planning: generationCounts.planning, review, failed, published },
         recent: recent.data.map(title),
         events: events.data.map((e: any) => ({
           ...e,

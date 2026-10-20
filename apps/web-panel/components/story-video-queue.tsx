@@ -50,6 +50,7 @@ export function StoryVideoQueue({refresh,onSaved}:{refresh:number;onSaved:()=>vo
     <div><Link href={`/studio/episodes/${item.episode_id}`}>{item.title} · capítulo {item.chapter_number}</Link><p>{statuses[item.status]||"Conferência pendente"}{item.source_label?` · ${item.source_label}`:""}</p>
       {item.budget&&<p className="muted">Orçamento Puter separado: {item.budget.required_credits.toLocaleString("pt-BR")} créditos estimados para 15s · {item.budget.available_credits===null?"Saldo disponível não confirmado":`${item.budget.available_credits.toLocaleString("pt-BR")} créditos disponíveis nesta previsão`}. Estimativa conservadora, não é cotação do provedor.</p>}
       {item.dialogue.length>0&&<ol aria-label={`Falas planejadas de ${item.title}`}>{item.dialogue.map((line,index)=><li key={index}><strong>{line.speaker_id}:</strong> {line.text}</li>)}</ol>}
+      {item.blockers.length>0&&<div><strong>Pendências deste capítulo</strong><ul aria-label={`Pendências de ${item.title}`}>{item.blockers.map(code=><li key={code}>{statuses[code]||"Verificação pendente"}</li>)}</ul></div>}
      {item.status==="waiting_capacity"&&item.reasons.length>0&&<ul>{item.reasons.map(reason=><li key={reason}>{reasons[reason]||"Verificação da fonte pendente"}</li>)}</ul>}
     </div>
     <div className="studio-actions">{item.can_enqueue&&<button className="button" disabled={busy} onClick={()=>void command(item,"enqueue")}><ListPlus size={16}/>Adicionar à fila</button>}

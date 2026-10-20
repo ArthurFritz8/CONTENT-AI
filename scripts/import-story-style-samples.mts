@@ -12,7 +12,8 @@ async function main() {
   if(!process.argv[3])throw Error("manifest_required");
   const entries=z.array(z.object({path:z.string().min(1),sample:storyStyleSampleSchema}).strict()).min(1).max(10).parse(JSON.parse(await readFile(resolve(process.argv[3]),"utf8")));
   const values:Record<string,string>={};
-  for(const line of (await readFile(join(root,".env.cloud"),"utf8")).replace(/^\uFEFF/,"").split(/\r?\n/)) {
+  const environment=await readFile(join(root,".env.cloud"),"utf8").catch(error=>{if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;return "";});
+  for(const line of environment.replace(/^\uFEFF/,"").split(/\r?\n/)) {
     const m=line.match(/^(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/);if(m)values[m[1]!]=m[2]!.trim().replace(/^(['"])(.*)\1$/,"$2");
   }
   const cfg={...values,...process.env},url=new URL(cfg.SUPABASE_URL || ""),service=cfg.CONTENT_AI_SERVICE_ROLE_KEY || cfg.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,9 +41,16 @@ async function main() {
     const row=z.object({id:z.literal(entry.sample.id),path:z.literal(`${workspace}/story-samples/${entry.sample.id}/${entry.sample.sha256}.mp4`),ready:z.boolean()}).parse(await rpc("register_story_style_sample",{p_workspace:workspace,p_sample:entry.sample}));
     if(!row.ready) {
       const path=`/storage/v1/object/studio-private/${row.path}`;
-      const uploaded=await request(path,{method:"POST",headers:{"Content-Type":"video/mp4","x-upsert":"false"},body:new Uint8Array(bytes)}).catch(()=>null);
-      if(!uploaded?.ok) {const existing=await request(path);if(!existing.ok || hash(await readAurayStudioBytes(existing,50*1024*1024))!==entry.sample.sha256)throw Error("sample_upload_unresolved");}
+      await request(path,{method:"POST",headers:{"Content-Type":"video/mp4","x-upsert":"false"},body:new Uint8Array(bytes)}).catch(()=>null);
+      const existing=await request(path);
+      if(!existing.ok || hash(await readAurayStudioBytes(existing,50*1024*1024))!==entry.sample.sha256)throw Error("sample_upload_unresolved");
       await rpc("ready_story_style_sample",{p_workspace:workspace,p_id:entry.sample.id,p_sha:entry.sample.sha256});
+    }
+    if(process.argv.includes("--approve")) {
+      const response=await request(`/rest/v1/studio_members?workspace_id=eq.${workspace}&role=eq.owner&select=user_id&order=created_at&limit=1`);
+      if(!response.ok)throw Error("approval_actor_unavailable");
+      const owners=z.array(z.object({user_id:z.string().uuid()})).length(1).parse(await response.json());
+      await rpc("studio_story_sample_approve",{p_workspace:workspace,p_actor:owners[0]!.user_id,p_sample:entry.sample.id,p_sha256:entry.sample.sha256});
     }
   }
   console.log(JSON.stringify({code:"imported",samples:verified.length,new_generations:0}));

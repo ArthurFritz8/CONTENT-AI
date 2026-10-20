@@ -68,6 +68,10 @@ begin
   pilot_result:=public.studio_puter_pilot_prepare(pilot_workspace,pilot_actor,pilot_request,pilot_series,1,'cinematic_3d',repeat('a',64),repeat('f',64),pilot_draft);
   pilot_episode:=(pilot_result->>'episode_id')::uuid;
   perform pg_temp.native_assert(pilot_result->>'code'='prepared' and pilot_result->>'planning_only'='true','safe pilot prepared and enqueued');
+  snapshot:=public.studio_story_overview(pilot_workspace,pilot_actor);
+  perform pg_temp.native_assert(snapshot->>'active'='0' and snapshot->>'generated_today'='0' and snapshot->>'planning'='1','planning does not consume video counters');
+  perform pg_temp.native_assert(public.studio_video_overview(pilot_workspace,pilot_actor)#>>'{native_chapters,0,stage}'='planning_only','story progress does not mislabel planning as generation');
+  perform pg_temp.native_assert((snapshot->>'daily_remaining')::int=(snapshot->>'daily_cap')::int,'planning does not consume daily video allowance');
   perform pg_temp.native_assert(public.studio_puter_pilot_prepare(pilot_workspace,pilot_actor,pilot_request,pilot_series,1,'cinematic_3d',repeat('a',64),repeat('f',64),pilot_draft)->>'code'='existing','pilot creation is idempotent');
   perform pg_temp.native_assert((select count(*)=1 from public.episodes where workspace_id=pilot_workspace),'pilot replay never duplicates chapter');
   perform pg_temp.native_assert(public.puter_worker_input(pilot_episode)->>'code'='native_setup_required','new pilot cannot reach worker');
@@ -80,6 +84,11 @@ begin
   perform pg_temp.native_assert(public.studio_puter_pilot_revise(pilot_workspace,pilot_actor,pilot_episode,0,repeat('a',64),repeat('9',64),pilot_draft||'{"title":"Revised hidden key"}')->>'code'='revised','planning draft revision keeps execution blocked');
   perform pg_temp.native_assert(public.studio_puter_pilot_revise(pilot_workspace,pilot_actor,pilot_episode,0,repeat('a',64),repeat('9',64),pilot_draft||'{"title":"Revised hidden key"}')->>'code'='existing','planning revision replay is idempotent');
   perform pg_temp.native_assert(public.puter_worker_input(pilot_episode)->>'code'='native_setup_required','revised pilot cannot execute');
+  pilot_result:=public.studio_command(pilot_workspace,pilot_actor,gen_random_uuid(),'add','{"briefing":"An unrelated manual video for the isolated counter audit."}');
+  pilot_result:=public.studio_command(pilot_workspace,pilot_actor,gen_random_uuid(),'generate_video',jsonb_build_object('id',pilot_result->>'idea_id','revision',0));
+  perform pg_temp.native_assert(pilot_result->>'code'='started','planning-only pilot does not block real manual admission');
+  snapshot:=public.studio_story_overview(pilot_workspace,pilot_actor);
+  perform pg_temp.native_assert(snapshot->>'active'='1' and snapshot->>'generated_today'='1' and snapshot->>'planning'='1','real generation still consumes counters alongside planning');
  end;
  snapshot:=public.studio_puter_queue_snapshot(w,actor);
  perform pg_temp.native_assert(snapshot#>>'{entries,0,prepared}'='true' and snapshot#>>'{entries,0,profile_ready}'='true','native queue recognizes reviewed prepared profile');

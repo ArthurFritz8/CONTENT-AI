@@ -61,7 +61,7 @@ jobs:
       - run: bash -n deploy.sh scripts/setup-piper.sh
       - name: Typecheck + testes (@content-ai/core)
         run: |
-          npx tsc --noEmit --strict --target ES2022 --module nodenext --moduleResolution nodenext --allowImportingTsExtensions --skipLibCheck scripts/run-puter-story-chapter.mts scripts/prepare-puter-planning-pilot.mts
+          npx tsc --noEmit --strict --target ES2022 --module nodenext --moduleResolution nodenext --allowImportingTsExtensions --skipLibCheck scripts/run-puter-story-chapter.mts scripts/prepare-puter-planning-pilot.mts scripts/import-story-style-samples.mts
           npm run typecheck
           npm test
           node scripts/test-render.mjs
@@ -112,7 +112,7 @@ jobs:
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/native-duration.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/automatic-references.sql
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/puter-account.sql -f supabase/tests/puter-panel.sql -f supabase/tests/puter-chapter.sql
-          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/video-queue.sql -f supabase/tests/video-queue-panel.sql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_audit -f supabase/tests/video-queue.sql -f supabase/tests/video-queue-panel.sql -f supabase/tests/panel-planning.sql
           sudo -u postgres createdb -T content_ai_audit content_ai_video_queue_audit
           sudo -u postgres psql -v ON_ERROR_STOP=1 -d content_ai_video_queue_audit -f supabase/tests/video-queue-concurrency-setup.sql
           queue_pids=()

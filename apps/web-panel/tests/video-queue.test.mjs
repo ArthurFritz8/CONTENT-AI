@@ -95,4 +95,8 @@ test("planning-only pilot shows its dialogue but cannot inflate dispatchable cap
  raw.puter.entries[0].dialogue=[{speaker_id:"malu",text:"Você ia embora sem mim?"},{speaker_id:"laranjito",text:"A outra passagem é sua."},{speaker_id:"malu",text:"Por que escondeu isso de mim?"}];
  const result=videoQueuePreview(raw,now);assert.equal(result.items[0].status,"planning_only");assert.equal(result.estimated_complete_chapters,0);
  assert.equal(result.estimated_new_animated_seconds,0);assert.equal(result.items[0].dialogue.length,3);assert.equal(result.dispatch_enabled,false);
+ raw.puter.accounts[0].remaining_credits=357.05;
+ assert.deepEqual(videoQueuePreview(raw,now).items[0].blockers,["planning_only","insufficient_capacity"]);
+ raw.puter.accounts[0].balance_fresh=false;
+ assert.deepEqual(videoQueuePreview(raw,now).items[0].blockers,["planning_only","waiting_balance"]);
 });
