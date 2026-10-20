@@ -107,3 +107,29 @@ test('planning-only story has no resume control and does not consume generation 
  await expect(story.getByText('Somente planejamento · execução bloqueada',{exact:true})).toBeVisible();
  await expect(story.getByRole('button',{name:'Retomar acompanhamento'})).toHaveCount(0);
 });
+test('HQ local requires explicit local source and voice consent without replacing native styles',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ let proposed=false;
+ await page.route('**/api/stories',async route=>{
+  if(route.request().method()==='POST') {
+   const body=route.request().postDataJSON();expect(body.action).toBe('propose');expect(body.input.presentation.source).toBe('local');
+    expect(body.input.presentation.primary_style).toBe('motion_comic');expect(body.input.presentation.voice_policy).toBe('preserve');expect(body.input.local_voice_acknowledged).toBe(true);
+   proposed=true;await route.fulfill({json:{code:'created'}});
+  }else await route.continue();
+ });
+ await page.goto('/studio/queue');await page.getByRole('button',{name:'Novela de frutas',exact:false}).click();
+ const selector=page.getByRole('group',{name:'Escolha como sua novela vai parecer'}).first();
+ const comic=selector.locator('article').filter({has:page.getByRole('heading',{name:'HQ com voz'})});
+ await comic.getByRole('button',{name:'Planejar neste estilo'}).click();await selector.getByLabel('Fonte de geração').selectOption('local');
+ await expect(selector.getByText('Não gera vídeo 3D ou movimento de boca.',{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:'Criar novela automaticamente',exact:false}).first().click();
+ const submit=page.getByRole('button',{name:'Criar novela automaticamente',exact:true});
+ const buttonCount=await submit.count();expect(buttonCount).toBeGreaterThan(0);
+ await submit.last().click();await expect(page.getByRole('alert').filter({hasText:'Confirme as vozes ilustradas'})).toBeVisible();expect(proposed).toBe(false);
+ await page.getByLabel('Escolhi HQ local e aceito as vozes ilustradas Francisca e Antonio',{exact:false}).check();
+ await submit.last().click();await expect.poll(()=>proposed).toBe(true);
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await comic.screenshot({path:'test-results/local-comic-choice-mobile.png',animations:'disabled'});
+});

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { storyDirectionSchema } from "./direction.ts";
-import { storyPresentationSchema } from "./styles.ts";
+import { storyPresentationSchema,supportsLocalComic } from "./styles.ts";
 
 export const nativeShotCountSchema = z.union([z.literal(3),z.literal(6),z.literal(9)]);
 export function nativeShotCount(context:{native_format?:{shots:3|6|9}}) {return context.native_format?.shots ?? 3;}
@@ -14,9 +14,12 @@ export const storyRequestSchema = z.object({
   chapters: z.number().int().min(1).max(6),
   presentation:storyPresentationSchema.optional(),
   native_shots:nativeShotCountSchema.optional(),
+  local_voice_acknowledged:z.literal(true).optional(),
 }).superRefine((v, ctx) => {
   if (v.creation_mode === "manual" && v.premise.length < 30)
     ctx.addIssue({ code: "custom", path: ["premise"], message: "Descreva sua ideia em pelo menos 30 caracteres" });
+  if(v.presentation&&supportsLocalComic(v.presentation)&&v.local_voice_acknowledged!==true)
+    ctx.addIssue({code:"custom",path:["local_voice_acknowledged"],message:"Confirme as vozes ilustradas para a proposta HQ local"});
 });
 export const characterSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9_]{0,23}$/),
@@ -59,6 +62,7 @@ export const proposalBibleSchema = seriesBibleSchema.refine(v =>
   v.cast.every(c => !!c.role && !!c.goal && !!c.appearance_description),
   "A proposta exige universo, conflito, desfecho, relações, objetivos e aparência do elenco");
 export const storyContextSchema = z.object({
+  local_comic:z.literal(true).optional(),
   series_id: z.string().uuid(), bible: seriesBibleSchema,
   chapter_number: z.number().int().min(1).max(60),
   previous_summaries: z.array(z.string().min(30).max(1200)).max(59),

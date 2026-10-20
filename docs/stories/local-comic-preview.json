@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "format": "motion_comic",
+  "source": "local",
+  "voice_mode": "reuse_approved_audio",
+  "source_path": "output/puter-laranjito-short-preview-20261020/original.mp4",
+  "source_sha256": "9ad45f7974a56ee2b182c1a5e92cc2ab842fe36bd48b0d77b508a9a029093457",
+  "title": "Laranjito - HQ local com audio aprovado",
+  "speech": "A outra passagem \u00e9 sua.",
+  "seconds": 5
+}

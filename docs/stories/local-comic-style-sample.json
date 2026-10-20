@@ -1,0 +1,27 @@
+[
+  {
+    "path": "output/local-comic-laranjito-preview/original.mp4",
+    "sample": {
+      "id": "8d9c48d6-6f19-47ca-8278-56fb3d150b51",
+      "style_id": "motion_comic",
+      "source": "local",
+      "title": "HQ local - quadros com audio reutilizado",
+      "model": "FFmpeg local + quadros originais",
+      "sha256": "547f9e49e226f1b6351fe75d876352795a4f7da78e5e7e0c656fa82c98b6a52d",
+      "bytes": 1196149,
+      "seconds": 5,
+      "width": 720,
+      "height": 1280,
+      "output_fps": 30,
+      "native_fps": null,
+      "has_audio": true,
+      "motion": "illustrated",
+      "review_scope": "technical_only",
+      "limitations": [
+        "Composi\u00e7\u00e3o HQ com imagem est\u00e1tica, cortes e c\u00e2mera; sem atua\u00e7\u00e3o corporal ou lip-sync.",
+        "Esta demonstra\u00e7\u00e3o reutiliza o \u00e1udio da pr\u00e9via Puter aprovada; n\u00e3o sintetiza outra voz.",
+        "Novas propostas HQ usam vozes ilustradas do Studio, mediante escolha expl\u00edcita. Revis\u00e3o art\u00edstica deste novo formato pendente."
+      ]
+    }
+  }
+]

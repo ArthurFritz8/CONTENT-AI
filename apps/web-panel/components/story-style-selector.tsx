@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
-import {storyStyles,storySources,storySampleSources,presentationNeedsAdapter,supportsNativePattern,type StoryPresentation,type StoryStyleId,type StoryStyleSample} from "../../../packages/core/src/stories/styles";
+import {storyStyles,storySources,storySampleSources,presentationNeedsAdapter,supportsNativePattern,supportsLocalComic,type StoryPresentation,type StoryStyleId,type StoryStyleSample} from "../../../packages/core/src/stories/styles";
 type Sample=Omit<StoryStyleSample,"sha256"|"bytes"> & {created_at:string};
 export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryPresentation;onChange:(value:StoryPresentation)=>void;disabled?:boolean}) {
   const [samples,setSamples]=useState<Sample[]>([]),[status,setStatus]=useState("loading"),[retry,setRetry]=useState(0);
@@ -14,7 +14,7 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
     onChange({...value,primary_style:id,allowed_styles:value.continuity_mode==="fixed" ? [id] : [...new Set([...value.allowed_styles,id])]});
   }
   function chooseSample(s:Sample) {
-    onChange({...value,primary_style:s.style_id,allowed_styles:value.continuity_mode==="fixed" ? [s.style_id] : [...new Set([...value.allowed_styles,s.style_id])],source:s.source,...(["auray","puter"].includes(s.source)?{voice_policy:"approved_variants" as const}:{})});
+    onChange({...value,primary_style:s.style_id,allowed_styles:value.continuity_mode==="fixed" ? [s.style_id] : [...new Set([...value.allowed_styles,s.style_id])],source:s.source,...(["auray","puter"].includes(s.source)?{voice_policy:"approved_variants" as const}:s.source==="local"&&s.style_id==="motion_comic"?{voice_policy:"preserve" as const}:{})});
   }
   return <fieldset className="story-styles" disabled={disabled}>
     <legend>Escolha como sua novela vai parecer</legend>
@@ -46,8 +46,9 @@ export function StoryStyleSelector({value,onChange,disabled=false}:{value:StoryP
     </div>
     {value.continuity_mode==="per_chapter" && <div><p>Estilos que você aceita nos próximos capítulos:</p>{storyStyles.map(style=><label className="studio-check" key={style.id}><input type="checkbox" checked={value.allowed_styles.includes(style.id)} disabled={disabled || style.id===value.primary_style} onChange={e=>onChange({...value,allowed_styles:e.target.checked ? [...value.allowed_styles,style.id] : value.allowed_styles.filter(id=>id!==style.id)})}/>{style.label}{style.id===value.primary_style ? " (principal)" : ""}</label>)}</div>}
     <label>Vozes<select value={value.voice_policy} onChange={e=>onChange({...value,voice_policy:e.target.value as StoryPresentation["voice_policy"]})}>
-      <option value="preserve">Preservar as vozes aprovadas</option><option value="approved_variants">Permitir versões de voz após ouvir e aprovar</option>
+      <option value="preserve">{supportsLocalComic(value)?"Vozes ilustradas do Studio: Francisca e Antonio":"Preservar as vozes aprovadas"}</option><option value="approved_variants">Permitir versões de voz após ouvir e aprovar</option>
     </select></label>
+    {supportsLocalComic(value)&&<p role="status">HQ local usa quadros e câmera, com vozes ilustradas Francisca e Antonio. Não clona nem preserva automaticamente as vozes nativas de uma novela Puter. Não gera vídeo 3D ou movimento de boca.</p>}
     <p className="muted">No automático, a fonte só pode mudar se for compatível com a novela. Uma fonte fixada aguarda saldo e integração; não é substituída escondida. Permitir versões de voz não aprova automaticamente uma voz nova.</p>
     {supportsNativePattern(value,value.primary_style) ? <p role="status">Depois de criar a proposta, confira as imagens e o exemplo de voz na configuração da fonte escolhida. {value.source==="puter"?"A reserva estimada é de 990 créditos para 15 segundos; a franquia mensal é compartilhada com outros usos da conta.":"Cada capítulo de cerca de 15 segundos exige 15 créditos gratuitos."} Todo capítulo exige revisão. Nenhuma geração começa ao escolher este estilo.</p> : presentationNeedsAdapter(value) && <p role="status">Você pode criar a proposta neste estilo. A geração de capítulos ainda depende de integração e validação deste padrão; o sistema não substituirá sua escolha pelo ilustrado clássico.</p>}
   </fieldset>;

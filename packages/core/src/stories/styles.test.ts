@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import {strictEqual,throws,deepStrictEqual} from "node:assert";
-import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,storyStyleSampleSchema,storySampleSources,storySources} from "./styles.ts";
+import {defaultStoryPresentation,storyPresentationSchema,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,supportsLocalComic,storyStyleSampleSchema,storySampleSources,storySources} from "./styles.ts";
 import {storyRequestSchema} from "./schema.ts";
 
 test("Puter is a selectable native source but requires explicit voice variants",()=>{
@@ -41,4 +41,14 @@ test("fixed styles, permitted chapter variants and voice permissions are indepen
   const pool=storyPresentationSchema.parse({...base,continuity_mode:"per_chapter",allowed_styles:["illustrated","anime"]});
   strictEqual(presentationNeedsAdapter(pool,"anime"),true);strictEqual(presentationNeedsAdapter(pool,"illustrated"),false);
   throws(()=>presentationNeedsAdapter(pool,"realistic"));strictEqual(pool.voice_policy,"preserve");
+});
+test("local motion comic is explicit and never replaces animated or pinned providers",()=>{
+ const comic=storyPresentationSchema.parse({...defaultStoryPresentation(),primary_style:"motion_comic",allowed_styles:["motion_comic"],source:"local"});
+ strictEqual(supportsLocalComic(comic),true);strictEqual(presentationNeedsAdapter(comic),false);
+ for(const source of ["automatic","modal","puter","auray"] as const){strictEqual(supportsLocalComic({...comic,source}),false);strictEqual(presentationNeedsAdapter({...comic,source}),true);}
+ strictEqual(supportsLocalComic({...comic,voice_policy:"approved_variants"}),false);
+ strictEqual(supportsLocalComic({...comic,primary_style:"cartoon_2d",allowed_styles:["cartoon_2d"]}),false);
+ const request={kind:"fruits",genre:"mystery",creation_mode:"automatic",chapters:1,presentation:comic};
+ throws(()=>storyRequestSchema.parse(request));
+ strictEqual(storyRequestSchema.parse({...request,local_voice_acknowledged:true}).local_voice_acknowledged,true);
 });

@@ -10,7 +10,7 @@ import {StoryEditorial} from "./story-editorial";
 import {StoryReferenceSource} from "./story-reference-source";
 import {StoryStyleSelector} from "./story-style-selector";
 import {StoryPresentationSettings,type PresentationVersion} from "./story-presentation-settings";
-import {defaultStoryPresentation,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
+import {defaultStoryPresentation,presentationNeedsAdapter,supportsPreparedPattern,supportsNativePattern,supportsLocalComic,storyStyles,type StoryStyleId} from "../../../packages/core/src/stories/styles";
 import { storyArtwork } from "../../../packages/core/src/stories/art";
 import { storyKinds, type SeriesBible } from "../../../packages/core/src/stories/schema";
 type Chapter = { native_shots?:3|6|9; number: number; idea_id: string; revision: number; idea_status: string; episode_id: string | null; status: string | null; approved: boolean;style_id?:StoryStyleId|null;presentation_revision?:number|null };
@@ -70,6 +70,8 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   const [nativeShots,setNativeShots]=useState<3|6|9>(3);
   const [creationMode,setCreationMode] = useState<"manual" | "automatic">("manual");
   const [presentation,setPresentation]=useState(defaultStoryPresentation);
+  const [comicVoiceConsent,setComicVoiceConsent]=useState(false);
+  useEffect(()=>setComicVoiceConsent(false),[presentation.primary_style,presentation.source,presentation.voice_policy]);
   useEffect(()=>{if(presentation.source==="puter")setNativeShots(3);},[presentation.source]);
   const [chapterStyles,setChapterStyles]=useState<Record<string,StoryStyleId>>({});
   const [data,setData] = useState<Overview | null>(null), [error,setError] = useState(""), [notice,setNotice] = useState(""), [busy,setBusy] = useState(false);
@@ -101,7 +103,8 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
   async function propose() {
     setBusy(true);setError("");setNotice("");
     try {
-      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation,...(["auray","puter"].includes(presentation.source)?{native_shots:nativeShots}:{}) }, key = JSON.stringify(input);
+      if(supportsLocalComic(presentation)&&!comicVoiceConsent)throw Error("Confirme as vozes ilustradas para esta nova proposta HQ.");
+      const input = { kind, genre, chapters, premise, creation_mode: creationMode,presentation,...(["auray","puter"].includes(presentation.source)?{native_shots:nativeShots}:{}),...(supportsLocalComic(presentation)?{local_voice_acknowledged:comicVoiceConsent}:{}) }, key = JSON.stringify(input);
       await jsonPost("/api/stories",{ action:"propose",input,requestId:requestId(key) });
       request.current=null;setVersion(v=>v+1);setNotice("Proposta criada. Confira os personagens e capítulos abaixo antes de gerar.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível criar a proposta."); }
@@ -123,6 +126,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
     try {
       const d = await jsonPost("/api/stories",{action:s.chapters.at(-1)?.status==="failed" ? "retry" : "next",seriesId:s.id,...(s.presentation ? {styleId:chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation.preferences.primary_style} : {})});
       const messages: Record<string,string> = { native_setup_required:"A conexão Auray aguarda ativação. O padrão salvo foi preservado.",native_voice_consent_required:"Confira o exemplo e aceite as vozes nativas antes de gerar.",existing_native_work:"Este capítulo já tem trabalho nativo. Use Retomar acompanhamento; não será criada outra tentativa.",style_preparation_required:"A proposta foi preservada. Os capítulos deste estilo ou fonte ainda estão em preparação; sua escolha não será substituída por ilustrações.",style_preferences_required:"Salve as preferências visuais antes de escolher um estilo para o capítulo.",existing_chapter_style:"Este capítulo já foi preparado com outra escolha. Retome o trabalho existente.",profile_incomplete:"Conclua a configuração das imagens e vozes antes de gerar o primeiro capítulo.", existing_video_work:"Este capítulo já tem cenas reservadas. Abra a geração para conferir e retomar o trabalho existente.", animation_setup_required:"A criação automática das tomadas desta novela está em preparação. Seu padrão animado foi preservado.", review_required:"Revise e aprove o capítulo anterior antes de continuar.", completed:"Esta história chegou ao fim. Crie uma nova proposta para outra série.", chapter_cancelled:"O capítulo foi cancelado. Crie uma nova proposta para recomeçar.", queue_full:"Sua fila está cheia.", daily_limit:"Limite de novas pautas de hoje atingido." };
+      if(d.code==="local_comic_new_series_required")throw Error("Crie uma nova proposta HQ para não trocar o padrão audiovisual já aprovado desta novela.");
       if (d.code !== "queued") throw Error(messages[d.code] || "Não foi possível preparar o capítulo.");
       const r = await fetch("/api/stories"), updated: Overview = await r.json();
       if (!r.ok) throw Error("O capítulo está na fila. Atualize a página para gerar.");
@@ -185,6 +189,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           <p className="muted">Segundos e capítulos dependem do plano de cenas e da compatibilidade com o padrão da novela.</p>
         </details>
         <StoryStyleSelector value={presentation} onChange={setPresentation} disabled={busy}/>
+        {supportsLocalComic(presentation)&&<label className="studio-check"><input type="checkbox" checked={comicVoiceConsent} disabled={busy} onChange={event=>setComicVoiceConsent(event.target.checked)}/>Escolhi HQ local e aceito as vozes ilustradas Francisca e Antonio para esta nova proposta, sem substituir uma novela animada existente.</label>}
         <div className="content-type-options" aria-label="Como criar sua novela">
           <button className={`content-type-card ${creationMode==="manual" ? "selected" : ""}`} aria-pressed={creationMode==="manual"} disabled={busy} onClick={()=>setCreationMode("manual")}><strong>Criar com minha ideia</strong><span>Descreva a história que você quer desenvolver.</span></button>
           <button className={`content-type-card ${creationMode==="automatic" ? "selected" : ""}`} aria-pressed={creationMode==="automatic"} disabled={busy} onClick={()=>setCreationMode("automatic")}><strong>Criar novela automaticamente</strong><span>O sistema cria sinopse, personagens, relações e arco da história.</span></button>
@@ -212,7 +217,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
           const native=puter||s.presentation?.preferences.source==="auray";
           const shots=(pending||retry?last?.native_shots:s.native_shots)??3;
           const nativeCost=shots*(puter?330:5);
-          const stylePending=!retry && !!s.presentation && (chosenStyle==="illustrated"?presentationNeedsAdapter(s.presentation.preferences,chosenStyle):!(supportsPreparedPattern(s.presentation.preferences,chosenStyle!)||supportsNativePattern(s.presentation.preferences,chosenStyle!)) || !pattern);
+          const stylePending=!retry && !!s.presentation && !supportsLocalComic(s.presentation.preferences,chosenStyle!) && (chosenStyle==="illustrated"?presentationNeedsAdapter(s.presentation.preferences,chosenStyle):!(supportsPreparedPattern(s.presentation.preferences,chosenStyle!)||supportsNativePattern(s.presentation.preferences,chosenStyle!)) || !pattern);
           const preparationPending=!!(production || pattern) && !(native?(puter?data?.videoCapacity?.puter?.enabled:data?.videoCapacity?.native_enabled):data?.videoCapacity?.preparation_enabled);
           const puterBudgetBlocked=puter&&!waiting&&!pending&&!(shots===3&&data?.videoCapacity?.puter?.accounts.some(a=>a.balance_fresh&&a.financially_eligible&&!a.reserved&&(a.estimated_chapters??0)>0));
           const illustrativePreview=!production && (!s.presentation || s.presentation.preferences.primary_style==="illustrated");
@@ -237,6 +242,7 @@ export function StoryDiscovery({ onSaved, refresh }: { onSaved: () => void; refr
             {s.presentation?.preferences.allowed_styles.filter(id=>supportsNativePattern(s.presentation!.preferences,id)).map(id=><StoryNativeSetup key={`native:${s.presentation!.revision}:${id}`} seriesId={s.id} revision={s.presentation!.revision} styleId={id} source={puter?"puter":"auray"} onSaved={()=>setVersion(v=>v+1)}/>)}
             {native&&s.presentation?.preferences.voice_policy==="preserve"&&<p role="status">{puter?"Puter":"Auray"} gera vozes próprias. Para usar esta fonte, abra Estilo e fontes e escolha permitir versões de voz; depois confira o exemplo e confirme o padrão da fonte.</p>}
             <StoryPresentationSettings seriesId={s.id} current={s.presentation ?? null} history={s.presentation_history ?? []} chapterActive={!!last && !last.approved} onSaved={()=>setVersion(v=>v+1)}/>
+            {s.presentation&&supportsLocalComic(s.presentation.preferences,chosenStyle!)&&<p role="status">HQ local: quadros ilustrados, cortes, câmera e legendas. Usa as vozes ilustradas do Studio, Francisca e Antonio, sem clonagem ou voz nativa Puter. Não possui movimento de boca nem atuação corporal contínua.</p>}
             {s.presentation?.preferences.continuity_mode==="per_chapter" && !last?.status?.includes("failed") && <label>Estilo para o próximo capítulo<select value={chapterStyles[s.id] && s.presentation.preferences.allowed_styles.includes(chapterStyles[s.id]!) ? chapterStyles[s.id] : s.presentation.preferences.primary_style} onChange={e=>setChapterStyles(v=>({...v,[s.id]:e.target.value as StoryStyleId}))}>{s.presentation.preferences.allowed_styles.map(id=><option key={id} value={id}>{storyStyles.find(v=>v.id===id)?.label}</option>)}</select></label>}
             {native&&<StoryDuration key={`${s.id}:${s.native_format_revision??0}`} seriesId={s.id} source={puter?"puter":"auray"} shots={s.native_shots??3} revision={s.native_format_revision??0} frozenShots={pending||waiting||retry?last?.native_shots??3:undefined} wallets={data?.videoCapacity?.wallets??[]} onSaved={()=>setVersion(v=>v+1)}/>}
             <StoryEditorial seriesId={s.id} onSaved={()=>setVersion(v=>v+1)}/>

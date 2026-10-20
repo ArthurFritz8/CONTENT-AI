@@ -12,13 +12,14 @@ begin
  foreach fn in array array['studio_video_enqueue(uuid,uuid,uuid,uuid,text,int)','studio_video_queue_cancel(uuid,uuid,uuid,bigint)',
   'studio_video_queue_reserve(uuid,uuid,uuid,uuid,bigint,bigint,jsonb)','studio_video_queue_view(uuid,uuid)','studio_video_queue_snapshot(uuid,uuid)','studio_puter_queue_snapshot(uuid,uuid)',
   'studio_puter_pilot_prepare(uuid,uuid,uuid,uuid,int,text,text,text,jsonb)','studio_puter_pilot_revise(uuid,uuid,uuid,bigint,text,text,jsonb)',
-  'studio_episode_planning_only(uuid)','studio_generation_counts(uuid)','studio_story_sample_approve(uuid,uuid,uuid,text)'] loop
+  'studio_episode_planning_only(uuid)','studio_generation_counts(uuid)','studio_story_sample_approve(uuid,uuid,uuid,text)','studio_story_local_comic_episode(uuid)'] loop
   if has_function_privilege('anon','public.'||fn,'execute') or has_function_privilege('authenticated','public.'||fn,'execute') or
    not has_function_privilege('service_role','public.'||fn,'execute') then raise exception 'Video queue RPC exposed: %',fn;end if;
  end loop;
  foreach fn in array array['puter_worker_input_before_planning(uuid)','claim_puter_chapter_before_planning(uuid,uuid,uuid)',
   'guard_puter_chapter_before_planning(uuid,uuid,boolean)','studio_puter_queue_snapshot_before_planning(uuid,uuid)',
-  'studio_story_overview_before_planning_counts(uuid,uuid)','studio_video_overview_before_planning_labels(uuid,uuid)'] loop
+  'studio_story_overview_before_planning_counts(uuid,uuid)','studio_video_overview_before_planning_labels(uuid,uuid)',
+  'studio_story_next_presented_before_comic(uuid,uuid,uuid,text)','story_episode_profile_hash_before_comic(uuid)'] loop
   if has_function_privilege('service_role','public.'||fn,'execute') or has_function_privilege('anon','public.'||fn,'execute') or
    has_function_privilege('authenticated','public.'||fn,'execute') then raise exception 'Planning-only pilot bypass exposed: %',fn;end if;
  end loop;

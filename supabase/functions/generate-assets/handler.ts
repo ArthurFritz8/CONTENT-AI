@@ -36,7 +36,7 @@ import {
   recordScriptQuality,
 } from "../_shared/script-quality.ts";
 import { researchDataSchema } from "../../../packages/core/src/schemas/research.ts";
-import { storyArtwork } from "../../../packages/core/src/stories/art.ts";
+import { storyArtwork,comicPanelArtwork } from "../../../packages/core/src/stories/art.ts";
 import { storyVoice } from "../../../packages/core/src/stories/schema.ts";
 import { fictionPlanMatches } from "../../../packages/core/src/stories/script.ts";
 import { canonicalStringify } from "../../../packages/core/src/validators/hash-utils.ts";
@@ -330,12 +330,13 @@ async function stageImages(args: {
         for (const shot of [0, 1]) {
           if (assets.some(a => a.type === "image" && a.metadata?.scene_order === scene.order &&
             a.metadata?.orientation === orientation && a.metadata?.shot_index === shot)) continue;
-          const svg = storyArtwork(context, scene.story_visual!, orientation, shot === 1);
+          const artwork = storyArtwork(context, scene.story_visual!, orientation, shot === 1);
+          const svg = script.fiction.local_comic?comicPanelArtwork(artwork,scene.narration_text,scene.order+1,orientation):artwork;
           const url = await uploadToStorage(db, bucket,
             `episodes/${episode.id}/images/story_${padSceneOrder(scene.order)}_${orientation}_${shot}.svg`,
             new TextEncoder().encode(svg), "image/svg+xml");
           rows.push({ episode_id: episode.id, type: "image", url, license: "own", source: "system", author: null,
-            metadata: { scene_order: scene.order, orientation, shot_index: shot, source_plan: "own_story_illustration",
+            metadata: { scene_order: scene.order, orientation, shot_index: shot, source_plan: script.fiction.local_comic?"own_motion_comic":"own_story_illustration",
               series_id: context.series_id, character_ids: scene.story_visual!.on_stage, role: scene.role } });
         }
       }
@@ -1063,6 +1064,10 @@ export async function handleAssets(req: Request): Promise<Response> {
 
     const script = scriptJsonSchema.parse(episode.script_json);
     if (script.fiction?.animation) throw new AppError("Capítulo animado aguarda suas tomadas reservadas; não é permitido gerar ilustrações como substituição", 409, "ANIMATED_CLIPS_REQUIRED");
+    if(script.fiction?.local_comic) {
+      const {data:bound,error}=await db.rpc("studio_story_local_comic_episode",{p_episode:episode.id});
+      if(error||bound!==true)throw new AppError("HQ não corresponde à escolha congelada do capítulo",409,"STORY_STYLE_MISMATCH");
+    }
     const quality = await loadScriptQualityChecker(db);
     const isStory = Boolean(script.fiction);
     if (isStory && (!fictionPlanMatches(episode.briefing?.story_context, episode.research_evidence) ||

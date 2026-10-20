@@ -17,6 +17,10 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   episode: { id: string; briefing: { story_context: unknown }; research_evidence: unknown }): Promise<Response> {
   const context = storyContextSchema.parse(episode.briefing.story_context);
   if (!fictionPlanMatches(context, episode.research_evidence)) throw new AppError("Plano narrativo alterado", 422, "RESEARCH_EVIDENCE_INVALID");
+  if(context.local_comic) {
+    const {data:bound,error}=await db.rpc("studio_story_local_comic_episode",{p_episode:episode.id});
+    if(error||bound!==true)throw new AppError("Formato HQ não corresponde à escolha congelada",409,"STORY_STYLE_MISMATCH");
+  }
   const { data: production, error: profileError } = await db.rpc("studio_story_episode_profile",{p_episode:episode.id});
   if (profileError) throw new AppError("Não foi possível conferir o padrão audiovisual", 503, "PRODUCTION_PROFILE_UNAVAILABLE");
   if (production) {
@@ -48,7 +52,7 @@ export async function generateStoryScript(db: ReturnType<typeof createServiceCli
   for (const attempt of [1, 2]) {
     const result = await writeStory(db, logger, `${chapterPrompt(context)}${errors ? `\nCorrija: ${errors}` : ""}`, episode.id);
     let script;
-    try { script = buildStoryScript(extractJson(result.text), context, episode.id, true); }
+    try { script = buildStoryScript(extractJson(result.text), context, episode.id, true,context.local_comic?"motion_comic":"illustrated"); }
     catch (e) { errors = e instanceof Error ? e.message.slice(0, 1200) : "JSON inválido"; continue; }
     const hash = await computeScriptHash(script), report = quality.check(script, [], false);
     await recordScriptQuality(db, episode.id, report, { stage: "generate-script", script_hash: hash, policy_hash: quality.policy_hash, attempt });

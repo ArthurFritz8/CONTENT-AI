@@ -28,11 +28,15 @@ export type StoryPresentation = z.infer<typeof storyPresentationSchema>;
 export function defaultStoryPresentation():StoryPresentation {
   return {version:"1.0.0",primary_style:"illustrated",continuity_mode:"fixed",allowed_styles:["illustrated"],source:"automatic",voice_policy:"preserve"};
 }
+export function supportsLocalComic(p:StoryPresentation,chosen:StoryStyleId=p.primary_style) {
+  const value=storyPresentationSchema.parse(p);
+  return chosen==="motion_comic" && value.allowed_styles.includes(chosen) && value.source==="local" && value.voice_policy==="preserve";
+}
 /** A preference is not evidence that an engine implements that style or voice contract. */
 export function presentationNeedsAdapter(p:StoryPresentation,chosen:StoryStyleId=p.primary_style) {
   const value=storyPresentationSchema.parse(p);
   if(!value.allowed_styles.includes(chosen))throw Error("Estilo fora das escolhas da novela");
-  return chosen!=="illustrated" || !["automatic","local"].includes(value.source) || value.voice_policy!=="preserve";
+  return !supportsLocalComic(value,chosen) && (chosen!=="illustrated" || !["automatic","local"].includes(value.source) || value.voice_policy!=="preserve");
 }
 /** Preparing a pattern does not qualify an execution or reserve a video budget. */
 export function supportsPreparedPattern(p:StoryPresentation,chosen:StoryStyleId) {

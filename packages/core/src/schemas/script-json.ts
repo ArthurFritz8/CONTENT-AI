@@ -68,7 +68,9 @@ export const scriptJsonSchema = z
     // Rótulo do estilo editorial escolhido pelo roteirista (ADR-033) — varia por vídeo, usado em analytics.
     editorial_style: z.string().min(1).max(80),
     platform_ctas: platformCtasSchema.optional(),
-    fiction: z.object({ context: storyContextSchema, summary: z.string().min(30).max(1200), animation: animatedOutputSchema.optional(), native_animation: nativeOutputSchema.optional() }).optional(),
+    fiction: z.object({ context: storyContextSchema, summary: z.string().min(30).max(1200),
+      local_comic:z.object({version:z.literal("1.0.0"),source:z.literal("local"),voice_source:z.literal("illustrated_edge"),body_animation:z.literal(false)}).strict().optional(),
+      animation: animatedOutputSchema.optional(), native_animation: nativeOutputSchema.optional() }).optional(),
     metadata: z.object({
       youtube: z.object({
         title: z.string().min(1).max(YOUTUBE_TITLE_MAX),
@@ -111,6 +113,9 @@ export const scriptJsonSchema = z
   .superRefine((script, ctx) => {
     const animation = script.fiction?.animation;
     const native = script.fiction?.native_animation;
+    const comic=script.fiction?.local_comic;
+    if(Boolean(comic)!==Boolean(script.fiction?.context.local_comic)||comic&&(animation||native))
+      ctx.addIssue({code:"custom",path:["fiction","local_comic"],message:"HQ exige contexto local próprio e não substitui animação"});
     if(!native && script.scenes.length>SCENE_COUNT.max)ctx.addIssue({code:"custom",path:["scenes"],message:"Até oito cenas neste formato"});
     if (native) {
       if (animation || script.scenes.length !== nativeShotCount(script.fiction!.context) || script.gap_seconds !== 0 || script.music !== null || script.platform_ctas)

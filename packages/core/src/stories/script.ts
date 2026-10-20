@@ -9,7 +9,7 @@ export function fictionPlanMatches(context: unknown, evidence: unknown): boolean
   return parsed.success && plan?.type === "fiction_plan" &&
     canonicalStringify(parsed.data) === canonicalStringify(plan.context);
 }
-export function buildStoryScript(raw: unknown, context: StoryContext, episodeId: string, requireDirection = false): ScriptJson {
+export function buildStoryScript(raw: unknown, context: StoryContext, episodeId: string, requireDirection = false,format:"illustrated"|"motion_comic"="illustrated"): ScriptJson {
   const draft = storyDraftSchema.parse(raw);
   validateStoryDirection(draft.scenes, requireDirection);
   const castIds = new Set(context.bible.cast.map(c => c.id));
@@ -23,7 +23,7 @@ export function buildStoryScript(raw: unknown, context: StoryContext, episodeId:
   const scenes: Array<Record<string, unknown>> = draft.scenes.map((s, order) => ({
     id: `story_${order}`, order, role: order === 0 ? "hook" : "content",
     duration_seconds: 12, narration_text: s.narration_text,
-    transition: "cut", ken_burns: order % 2 ? "out" : "in",
+    transition: "cut", ken_burns: format==="motion_comic"?(order%2?"pan_right":"pan_left"):order % 2 ? "out" : "in",
     visual: { description: s.visual.direction
       ? `${s.visual.direction.framing}: ${s.visual.direction.action} Emoção: ${s.visual.direction.emotion_change}. Continuidade: ${s.visual.direction.continuity}`
       : `Arte original de ${context.bible.title}, cena ${order + 1}.`, search_query: "original illustration" },
@@ -40,7 +40,7 @@ export function buildStoryScript(raw: unknown, context: StoryContext, episodeId:
   const description = `Ficção original criada com apoio de IA. ${context.bible.title} — capítulo ${context.chapter_number}/${context.bible.chapters.length}. ${draft.summary}`;
   return scriptJsonSchema.parse({
     episode_id: episodeId, prompt_version: requireDirection ? "1.1.0" : "1.0.0", editorial_style: "storytelling_pessoal",
-    fiction: { context, summary: draft.summary },
+    fiction: { context, summary: draft.summary,...(format==="motion_comic"?{local_comic:{version:"1.0.0",source:"local",voice_source:"illustrated_edge",body_animation:false}}:{}) },
     metadata: {
       youtube: { title: draft.title, description, tags: ["história original", "ficção", "novela"], category: "24" },
       tiktok: { title: draft.title, description, hashtags: ["#HistoriaOriginal", "#Ficcao", "#Novela"] },

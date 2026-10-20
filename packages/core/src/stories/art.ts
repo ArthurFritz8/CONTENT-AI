@@ -1,6 +1,16 @@
 import type { StoryContext, StoryVisual } from "./schema.ts";
 
 const xml = (v: string) => v.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
+export function comicPanelArtwork(artwork:string,speech:string,panel:number,orientation:"portrait"|"landscape") {
+  const width=orientation==="portrait"?1080:1920,height=orientation==="portrait"?1920:1080,limit=orientation==="portrait"?45:83;
+  const lines:string[]=[];let line="";
+  for(const word of speech.trim().split(/\s+/)){if(line&&line.length+word.length+1>limit){lines.push(line);line="";}line+=(line?" ":"")+word;}
+  if(line)lines.push(line);
+  const visible=lines.slice(0,5);if(lines.length>5)visible[4]=visible[4]!.slice(0,-3)+"...";
+  const top=orientation==="portrait"?265:230,bubbleHeight=80+visible.length*44;
+  const overlay=`<g font-family="sans-serif"><rect x="22" y="22" width="${width-44}" height="${height-44}" rx="0" fill="none" stroke="#111111" stroke-width="20"/><rect x="${width-230}" y="55" width="170" height="60" fill="#e7c84c" stroke="#111111" stroke-width="6"/><text x="${width-145}" y="96" text-anchor="middle" font-size="30" font-weight="700" fill="#111111">QUADRO ${panel}</text><rect x="72" y="${top}" width="${width-144}" height="${bubbleHeight}" rx="30" fill="#ffffff" stroke="#111111" stroke-width="8"/><path d="M${width*.55} ${top+bubbleHeight}l45 58 8-58" fill="#ffffff" stroke="#111111" stroke-width="8"/>${visible.map((text,index)=>`<text x="110" y="${top+65+index*44}" font-size="34" fill="#111111">${xml(text)}</text>`).join("")}</g>`;
+  return artwork.replace(/<\/svg>\s*$/,overlay+"</svg>");
+}
 /** Repo-owned vector artwork. No stock photo impersonates an invented character. */
 export function storyArtwork(context: StoryContext, visual: StoryVisual, orientation: "portrait" | "landscape", focus = false): string {
   const portrait = orientation === "portrait", w = portrait ? 1080 : 1920, h = portrait ? 1920 : 1080;
