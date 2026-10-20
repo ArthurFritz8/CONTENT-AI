@@ -56,3 +56,12 @@ O Edge TTS depende de servico online e pode ficar indisponivel. Um teste de voz
 ou video renderizado nao e aprovacao artistica nem autorizacao de publicacao.
 Falha no fluxo deve preservar o trabalho e ser reportada; nao substituir HQ por
 3D, voz por outro motor, nem consumir creditos de video como recuperacao.
+
+## Roteiro Durante a Validacao
+
+A primeira geracao de roteiro foi recusada antes dos assets: o listener da
+reacao era o proprio falante ou nao estava em on_stage. A validacao nao foi
+afrouxada. O prompt recebeu exemplos exatos com IDs do elenco real e a regra
+de listener/reaction nulos em cenas com um unico personagem. Testes mantem
+a recusa de reacao a si mesmo e de personagem ausente. O episodio reprovado
+e seus eventos permanecem auditaveis; nao e uma tentativa de video incerta.
