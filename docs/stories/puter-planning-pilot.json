@@ -1,0 +1,30 @@
+{
+  "series_id": "9e1866b4-9a97-4499-bb25-66f4e24aef36",
+  "request_id": "3ba4801c-4ea8-4655-a2c7-16de3cc433be",
+  "presentation_revision": 1,
+  "style_id": "cinematic_3d",
+  "draft": {
+    "title": "A outra passagem",
+    "summary": "Malu encontra as passagens e teme que Laranjito deixe o apartamento. Ele revela que a outra passagem pertence a ela; Malu pede que explique o segredo.",
+    "scenes": [
+      {
+        "narration_text": "Voc\u00ea ia embora sem mim?",
+        "visual": {"speaker_id":"malu","on_stage":["malu"],"setting":"home","mood":"sad","prop":"letter"},
+        "prompt": "Warm sunset apartment with plants and a blue door. Medium close-up at eye level. The single visible speaker turns slightly toward the off-screen partner, shoulders tense, with restrained hurt. Keep hands below frame and the face clearly visible.",
+        "seed": 0
+      },
+      {
+        "narration_text": "A outra passagem \u00e9 sua.",
+        "visual": {"speaker_id":"laranjito","on_stage":["laranjito"],"setting":"home","mood":"neutral","prop":"none"},
+        "prompt": "Same warm sunset apartment, plants and blue door. Reverse medium close-up at eye level with coherent eyeline. The single visible speaker leans forward slightly with sincere reassurance, keeping hands below frame and the face clearly visible.",
+        "seed": 0
+      },
+      {
+        "narration_text": "Por que escondeu isso de mim?",
+        "visual": {"speaker_id":"malu","on_stage":["malu"],"setting":"home","mood":"surprised","prop":"none"},
+        "prompt": "Same warm sunset apartment with plants and a blue door. Slightly tighter eye-level close-up of the single visible speaker. Her shoulders soften before a small questioning head tilt toward the off-screen partner. Keep hands below frame and the face clearly visible.",
+        "seed": 0
+      }
+    ]
+  }
+}

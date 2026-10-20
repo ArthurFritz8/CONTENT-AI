@@ -90,3 +90,9 @@ test("native simulation consumes a physical account only once without reserving 
  assert.deepEqual(result.items.map(item=>item.status).sort(),["insufficient_capacity","planned"]);
  assert.equal(result.dispatch_enabled,false);assert.equal(result.reservation_enabled,false);assert.equal(result.cursor_revision,0);
 });
+test("planning-only pilot shows its dialogue but cannot inflate dispatchable capacity",()=>{
+ const raw=nativeFixture();raw.puter.entries[0].planning_only=true;
+ raw.puter.entries[0].dialogue=[{speaker_id:"malu",text:"Você ia embora sem mim?"},{speaker_id:"laranjito",text:"A outra passagem é sua."},{speaker_id:"malu",text:"Por que escondeu isso de mim?"}];
+ const result=videoQueuePreview(raw,now);assert.equal(result.items[0].status,"planning_only");assert.equal(result.estimated_complete_chapters,0);
+ assert.equal(result.estimated_new_animated_seconds,0);assert.equal(result.items[0].dialogue.length,3);assert.equal(result.dispatch_enabled,false);
+});

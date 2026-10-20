@@ -44,9 +44,14 @@ globalThis.fetch=async(input,init)=>{
  if(u.pathname==='/rest/v1/rpc/studio_puter_queue_snapshot') {
    if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_puter_queue_foreign_scope');
    const accounts=puterView().accounts;
-   return json({checked_at:Date.now(),accounts,entries:puterQueueState==='cancelled'?[]:[{id:puterQueueEpisode,series_id:'16161616-1616-4616-8616-161616161616',title:'Novela Puter em espera',
+   const pendingEntries=puterQueueState==='cancelled'?[]:[{id:puterQueueEpisode,series_id:'16161616-1616-4616-8616-161616161616',title:'Novela Puter em espera',
     chapter_number:1,priority:100,created_at:Date.now()-9000,queue_id:puterQueueState==='prepared'?null:puterQueueId,revision:0,state:puterQueueState,
-    profile_sha256:'c'.repeat(64),previous_approved:true,blocked_code:null,shots:3,prepared:true,profile_ready:true}]});
+   profile_sha256:'c'.repeat(64),previous_approved:true,blocked_code:null,shots:3,prepared:true,profile_ready:true}];
+   return json({checked_at:Date.now(),accounts,entries:[...pendingEntries,{
+    id:'17171717-1717-4717-8717-171717171717',series_id:'18181818-1818-4818-8818-181818181818',title:'Piloto somente planejamento',chapter_number:1,priority:101,
+    created_at:Date.now()-8000,queue_id:'19191919-1919-4919-8919-191919191919',revision:0,state:'pending',profile_sha256:'c'.repeat(64),previous_approved:true,
+    blocked_code:null,shots:3,prepared:true,profile_ready:true,planning_only:true,dialogue:[{speaker_id:'malu',text:'Você ia embora sem mim?'},{speaker_id:'laranjito',text:'A outra passagem é sua.'},{speaker_id:'malu',text:'Por que escondeu isso de mim?'}]
+   }]});
  }
  if(u.pathname==='/rest/v1/rpc/studio_video_queue_snapshot') {
     if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_queue_foreign_scope');

@@ -61,7 +61,7 @@ jobs:
       - run: bash -n deploy.sh scripts/setup-piper.sh
       - name: Typecheck + testes (@content-ai/core)
         run: |
-          npx tsc --noEmit --strict --target ES2022 --module nodenext --moduleResolution nodenext --allowImportingTsExtensions --skipLibCheck scripts/run-puter-story-chapter.mts
+          npx tsc --noEmit --strict --target ES2022 --module nodenext --moduleResolution nodenext --allowImportingTsExtensions --skipLibCheck scripts/run-puter-story-chapter.mts scripts/prepare-puter-planning-pilot.mts
           npm run typecheck
           npm test
           node scripts/test-render.mjs

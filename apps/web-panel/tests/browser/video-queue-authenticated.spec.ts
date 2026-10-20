@@ -57,3 +57,16 @@ test('queue read failure is explicit rather than a false empty queue',async({pag
  await expect(queue.getByRole('alert')).toContainText('Fila temporariamente indisponível.');
  await expect(queue.getByText('Nenhum capítulo preparado aguardando nesta fila.')).toHaveCount(0);
 });
+test('planning-only pilot exposes dialogue for review and no execution command',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
+ const pilot=queue.locator('.video-queue-list > li').filter({has:page.getByRole('link',{name:'Piloto somente planejamento · capítulo 1'})});
+ await expect(pilot.getByText('Somente planejamento · execução bloqueada',{exact:false})).toBeVisible();
+ await expect(pilot.getByRole('list',{name:'Falas planejadas de Piloto somente planejamento'}).getByRole('listitem')).toHaveCount(3);
+ await expect(pilot.getByRole('button',{name:/gerar|executar|reservar|ativar/i})).toHaveCount(0);
+ await expect(pilot.getByText('Você ia embora sem mim?',{exact:false})).toBeVisible();
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await pilot.screenshot({path:'test-results/puter-planning-pilot-mobile.png',animations:'disabled'});
+});
