@@ -4,6 +4,7 @@ import { ScheduledPosts } from "./scheduled-posts";
 import { Connections } from "./connections";
 import { Fia } from "./fia";
 import { StoryDiscovery } from "./story-discovery";
+import { StoryVideoQueue } from "./story-video-queue";
 import { ReviewActions } from "./review-actions";
 import { NativeMediaReview } from "./native-media-review";
 import { NativeSceneRepair } from "./native-scene-repair";
@@ -800,6 +801,7 @@ export default function Studio({
                 {section === "queue" && (
                   <>
                     <StoryDiscovery refresh={refresh} onSaved={() => setRefresh((v) => v + 1)} />
+                    <StoryVideoQueue refresh={refresh} onSaved={() => setRefresh((v) => v + 1)} />
                     <section className="panel">
                       <Toolbar
                         searchRef={searchRef}

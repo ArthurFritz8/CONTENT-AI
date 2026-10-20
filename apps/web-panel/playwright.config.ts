@@ -3,8 +3,8 @@ export default defineConfig({
   testDir:'./tests/browser',workers:1,timeout:30000,
   use:{headless:true},
   projects:[
-    {name:'public',testIgnore:'styles-authenticated.spec.ts',use:{baseURL:'http://localhost:3100'}},
-    {name:'styles',testMatch:'styles-authenticated.spec.ts',use:{baseURL:'http://localhost:3101'}},
+    {name:'public',testIgnore:['styles-authenticated.spec.ts','video-queue-authenticated.spec.ts'],use:{baseURL:'http://localhost:3100'}},
+    {name:'styles',testMatch:['styles-authenticated.spec.ts','video-queue-authenticated.spec.ts'],use:{baseURL:'http://localhost:3101'}},
   ],
   webServer:[
     {command:'node ../../node_modules/next/dist/bin/next start --port 3100 --hostname 127.0.0.1',url:'http://localhost:3100/api/health',reuseExistingServer:!process.env.CI,env:{APP_URL:'http://localhost:3100'},timeout:60000},

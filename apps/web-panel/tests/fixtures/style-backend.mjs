@@ -8,6 +8,8 @@ const defaults={version:'1.0.0',primary_style:'illustrated',continuity_mode:'fix
 const versions=[{revision:1,effective_from:1,preferences:defaults}];
 const patterns=[],media=[],files=new Map();
 let nativeChapter=null,cancelRequested=false;
+let videoQueueState='prepared';
+const videoQueueEpisode='12121212-1212-4212-8212-121212121212',videoQueueId='13131313-1313-4313-8313-131313131313';
 const wav=Buffer.alloc(32044);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(16000,24);wav.writeUInt32LE(32000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(32000,40);
 for(const [index,character_id] of ['lia','rui'].entries()) {
  const id=`44444444-4444-4444-8444-44444444444${index}`,sha256=createHash('sha256').update(wav).digest('hex'),path=`${workspace}/story-profile/${series}/${id}/${sha256}.wav`;
@@ -37,6 +39,24 @@ globalThis.fetch=async(input,init)=>{
  }
  if(u.origin!=='https://fixture.supabase.co')throw Error('fixture_egress_denied');
  const body=init?.body && !u.pathname.startsWith('/storage/')?JSON.parse(String(init.body)):{};
+ if(u.pathname==='/rest/v1/rpc/studio_video_queue_snapshot') {
+    if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_queue_foreign_scope');
+    return json({entries:videoQueueState==='cancelled'?[]:[{id:videoQueueEpisode,series_id:series,title:'Animacao em espera',chapter_number:1,priority:100,created_at:Date.now()-10000,
+     queue_id:videoQueueState==='prepared'?null:videoQueueId,revision:0,state:videoQueueState,profile_sha256:'c'.repeat(64),previous_approved:true,blocked_code:null,
+     shots:Array.from({length:5},(_,index)=>({shot:{version:'1.0.0',id:`take_${index}`,kind:'dialogue',reference_path:`${workspace}/private/reference.png`,reference_sha256:'a'.repeat(64),
+        audio_path:`${workspace}/private/audio.wav`,audio_sha256:'b'.repeat(64),prompt:'Medium close-up with gentle gestures and clear facial identity.',seconds:3.9375,seed:2007,quality:'approved_master',
+        min_short_edge:704,min_output_fps:60,continuity:{series_id:series,profile_sha256:'c'.repeat(64)}},quotes:[]}))}],providers:[],wallets:[],
+     queue:{cursor_revision:0,after_quota_group:null,reservation_enabled:false}});
+ }
+ if(u.pathname==='/rest/v1/rpc/studio_video_enqueue') {
+    if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_episode!==videoQueueEpisode||body.p_profile!=='c'.repeat(64))throw Error('fixture_queue_foreign_scope');
+    videoQueueState='pending';return json({code:'queued',id:videoQueueId,state:'pending',revision:0});
+ }
+ if(u.pathname==='/rest/v1/rpc/studio_video_queue_cancel') {
+    if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_queue!==videoQueueId)throw Error('fixture_queue_foreign_scope');
+    if(body.p_revision!==0)return json({code:'queue_version_changed'});
+    videoQueueState='cancelled';return json({code:'cancelled'});
+ }
  if(u.pathname==='/rest/v1/rpc/studio_puter_view'){if(body.p_actor!==actor||body.p_workspace!==workspace)throw Error('fixture_puter_foreign_scope');return json(puterView());}
  if(u.pathname==='/rest/v1/rpc/claim_puter_inspection'){if(body.p_actor!==actor||body.p_workspace!==workspace||body.p_account!==puterId)throw Error('fixture_puter_foreign_scope');return json({code:'claimed',credential:'fixture-only-not-a-real-token'});}
  if(u.pathname==='/rest/v1/rpc/finish_puter_inspection'){if(body.p_observation?.financially_eligible!==true||body.p_observation?.remaining_credits!==677.7)throw Error('fixture_invalid_puter_observation');return new Response(null,{status:204});}

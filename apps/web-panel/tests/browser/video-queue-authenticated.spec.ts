@@ -1,0 +1,36 @@
+import {test,expect} from '@playwright/test';
+test('queue API requires a verified session',async({request})=>{
+ const response=await request.get('/api/stories/queue');expect(response.status()).toBe(401);
+});
+test('prepared chapter persists in queue without reserve or dispatch and can be cancelled',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
+ await expect(queue.getByText('Reservas desativadas',{exact:true})).toBeVisible();
+ await queue.getByRole('button',{name:'Adicionar à fila'}).click();
+ await expect(queue.getByText('Aguardando fonte ou saldo confirmado',{exact:true})).toBeVisible();
+ await page.reload();await expect(queue.getByText('Aguardando fonte ou saldo confirmado',{exact:true})).toBeVisible();
+ const response=await page.request.get('/api/stories/queue');expect(response.status()).toBe(200);const result=await response.json();
+ expect(result.dispatch_enabled).toBe(false);expect(result.reservation_enabled).toBe(false);
+ expect(JSON.stringify(result)).not.toMatch(/private\/|audio_sha256|reference_sha256|profile_sha256|shots|quotes/);
+ for(const data of [{action:'reserve'},{action:'enqueue',episodeId:result.items[0].episode_id,requestId:crypto.randomUUID(),p_workspace:'33333333-3333-4333-8333-333333333333'}]) {
+  const denied=await page.request.post('/api/stories/queue',{headers:{Origin:'http://localhost:3101'},data});expect(denied.status()).toBe(400);
+ }
+ const foreign=await page.request.post('/api/stories/queue',{headers:{Origin:'https://foreign.invalid'},data:{action:'cancel',queueId:result.items[0].queue_id,revision:0}});expect(foreign.status()).toBe(403);
+ const foreignEpisode=await page.request.post('/api/stories/queue',{headers:{Origin:'http://localhost:3101'},data:{action:'enqueue',episodeId:'99999999-9999-4999-8999-999999999999',requestId:crypto.randomUUID()}});expect(foreignEpisode.status()).toBe(409);
+ await queue.screenshot({path:'test-results/video-queue-desktop.png',animations:'disabled'});
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await queue.screenshot({path:'test-results/video-queue-mobile.png',animations:'disabled'});
+ await queue.getByRole('button',{name:'Cancelar entrada de Animacao em espera'}).click();
+ await expect(queue.getByText('Nenhum capítulo preparado aguardando nesta fila.',{exact:true})).toBeVisible();
+});
+test('queue read failure is explicit rather than a false empty queue',async({page,context})=>{
+ await context.addCookies([{name:'fritz_session',value:'fixture-token',domain:'localhost',path:'/'}]);
+ await page.route('**/api/control?*',route=>route.fulfill({json:{items:[],total:0,page:1}}));
+ await page.route('**/api/discovery',route=>route.fulfill({json:{items:[]}}));
+ await page.route('**/api/stories/queue',route=>route.fulfill({status:503,json:{error:'Fila temporariamente indisponível.'}}));
+ await page.goto('/studio/queue');const queue=page.getByRole('region',{name:'Fila de animação'});
+ await expect(queue.getByRole('alert')).toContainText('Fila temporariamente indisponível.');
+ await expect(queue.getByText('Nenhum capítulo preparado aguardando nesta fila.')).toHaveCount(0);
+});
